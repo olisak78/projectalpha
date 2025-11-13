@@ -1,6 +1,6 @@
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
-import { ExternalLink, Activity, Database, AlertCircle, CheckCircle, XCircle, Clock, Shield, Zap, Server, HardDrive } from "lucide-react";
+import { ExternalLink, Activity, Database, AlertCircle, CheckCircle, XCircle, Clock, Shield, Zap, Server, HardDrive, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,12 @@ import { BreadcrumbPage } from "@/components/BreadcrumbPage";
 import { useComponentsByProject } from "@/hooks/api/useComponents";
 import { useLandscapesByProject } from "@/hooks/api/useLandscapes";
 import { usePortalState } from "@/contexts/hooks";
-import { useLandscapeManagement } from "@/contexts/hooks";
 import { fetchHealthStatus, buildHealthEndpoint } from "@/services/healthApi";
 import { useSonarMeasures } from "@/hooks/api/useSonarMeasures";
 import type { Component } from "@/types/api";
-import type { HealthResponse, ComponentHealth } from "@/types/health";
+import type { HealthResponse } from "@/types/health";
 import { CircuitBreakerSection } from "@/components/CircuitBreakerSection";
+import { useSwaggerUI } from "@/hooks/api/useSwaggerUi";
 
 
 export function ComponentViewPage() {
@@ -22,13 +22,14 @@ export function ComponentViewPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const [activeTab, setActiveTab] = useState("overview");
-    const { selectedLandscape, setSelectedLandscape, setShowLandscapeDetails } = usePortalState();
-    const { getLandscapeGroups } = useLandscapeManagement();
+    const { selectedLandscape } = usePortalState();
 
     // Get system from URL (cis, unified-services, etc.)
     const system = location.pathname.split('/')[1] || 'cis';
     const projectName = system === 'cis' ? 'cis20' : system === 'unified-services' ? 'usrv' : 'ca';
-    const activeProject = system === 'cis' ? 'CIS@2.0' : system === 'unified-services' ? 'Unified Services' : 'Cloud Automation';
+
+    // Fetch components and landscapes
+    const { data: landscapesData, isLoading: isLoadingLandscapes } = useLandscapesByProject(projectName);
 
     // Fetch components and landscapes
     const { data: components } = useComponentsByProject(projectName);
@@ -36,9 +37,6 @@ export function ComponentViewPage() {
 
     // Find the current component
     const component = components?.find((c: Component) => c.name === componentId);
-
-    // Get landscape groups from context (returns Record<string, Landscape[]>)
-    const landscapeGroups = getLandscapeGroups(activeProject);
 
     // Find the selected landscape from API data
     const selectedApiLandscape = useMemo(() => {
@@ -51,6 +49,36 @@ export function ComponentViewPage() {
     const [healthError, setHealthError] = useState<string | null>(null);
     const [responseTime, setResponseTime] = useState<number | null>(null);
     const [statusCode, setStatusCode] = useState<number | null>(null);
+
+    // Find the selected landscape data
+    const landscapeConfig = useMemo(() => {
+        if (!landscapesData || !selectedLandscape) return null;
+        const landscape = landscapesData.find(l => l.id === selectedLandscape);
+        if (!landscape) return null;
+        return {
+            name: landscape.name,
+            route: landscape.landscape_url || 'sap.hana.ondemand.com'
+        };
+    }, [landscapesData, selectedLandscape]);
+
+    console.log('=== SWAGGER DEBUG ===');
+    console.log('component:', component);
+    console.log('landscapeConfig:', landscapeConfig);
+    console.log('activeTab:', activeTab);
+    console.log('enabled:', activeTab === 'api' && !!component && !!landscapeConfig);
+    console.log('===================');
+
+    // Fetch Swagger UI HTML
+    const { data: swaggerData, isLoading: isLoadingSwagger, error: swaggerError } = useSwaggerUI(
+        component,
+        landscapeConfig,
+        {
+            enabled: activeTab === 'api' && !!component && !!landscapeConfig
+        }
+    );
+    // Add after the hook
+    console.log('swaggerData:', swaggerData);
+    console.log('swaggerError:', swaggerError);
 
     // Fetch Sonar measures
     const { data: sonarData, isLoading: sonarLoading } = useSonarMeasures(
@@ -400,21 +428,116 @@ export function ComponentViewPage() {
         );
     };
 
-    const renderAPITab = () => (
-        <div className="space-y-6 pb-8">
-            <Card>
-                <CardHeader>
-                    <CardTitle>API Documentation</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-muted-foreground">
-                        API documentation will be displayed here. You can integrate Swagger UI or other API documentation tools.
-                    </p>
-                </CardContent>
-            </Card>
-        </div>
-    );
+    const renderAPITab = () => {
+        // Loading state
+        if (isLoadingSwagger) {
+            return (
+                <div className="flex items-center justify-center h-96">
+                    <div className="text-center space-y-4">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+                        <p className="text-sm text-muted-foreground">Loading API documentation...</p>
+                    </div>
+                </div>
+            );
+        }
 
+        // Error state
+        if (swaggerError || !swaggerData?.url) {
+            return (
+                <Card className="border-yellow-200 bg-yellow-50">
+                    <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                            <AlertCircle className="h-5 w-5 text-yellow-600" />
+                            <span className="text-yellow-900">API Documentation Not Available</span>
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-yellow-800">
+                            {swaggerError ? swaggerError.message : 'Unable to load API documentation for this component.'}
+                        </p>
+                    </CardContent>
+                </Card>
+            );
+        }
+
+        // Success state - show button to open in new tab
+        return (
+            <div className="space-y-4">
+                {/* Main Card with Button */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                            <Activity className="h-5 w-5" />
+                            API Documentation
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 mt-1">
+                                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                    <ExternalLink className="h-5 w-5 text-blue-600" />
+                                </div>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-semibold text-base mb-1">
+                                    View Swagger Documentation
+                                </h3>
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    The API documentation for {component?.title || component?.name} is available in a new tab.
+                                </p>
+                                <Button
+                                    onClick={() => window.open(swaggerData.url, '_blank')}
+                                    className="gap-2"
+                                >
+                                    <ExternalLink className="h-4 w-4" />
+                                    Open Swagger UI
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* URL Display */}
+                        <div className="border-t pt-4">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Endpoint:</span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(swaggerData.url);
+                                    }}
+                                    className="h-7 text-xs"
+                                >
+                                    Copy URL
+                                </Button>
+                            </div>
+                            <code className="text-xs bg-muted px-2 py-1 rounded block mt-1 overflow-x-auto">
+                                {swaggerData.url}
+                            </code>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Explanation Card */}
+                <Card className="border-blue-200 bg-blue-50">
+                    <CardContent className="pt-6">
+                        <div className="flex gap-2 text-sm text-blue-800">
+                            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                            <div>
+                                <p className="font-medium mb-1">Why open in a new tab?</p>
+                                <p className="text-xs text-blue-700">
+                                    The component's server security settings prevent embedding the Swagger UI in an iframe.
+                                    Opening in a new tab provides the full interactive experience.
+                                </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    };
+
+    console.log('Swagger Data:')
+    console.log(swaggerData)
     return (
         <BreadcrumbPage>
             <div className="space-y-6">

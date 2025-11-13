@@ -36,6 +36,7 @@ export interface Landscape {
   camProfile: string;
   deploymentStatus: "deployed" | "deploying" | "failed";
   metadata?:Record<string, unknown>;
+  landscape_url?:string;
 }
 
 export interface FeatureToggle {

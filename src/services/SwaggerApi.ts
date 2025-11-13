@@ -1,105 +1,79 @@
-/**
- * Swagger API Service
- * Utilities for fetching Swagger UI HTML content from component endpoints
- */
 
-import { apiClient } from './ApiClient';
+import { getNewBackendUrl } from '@/constants/developer-portal';
+import type { Component } from '@/types/api';
 
 /**
- * Extract the base URL from a health endpoint URL
- * Example: /api/v1/cis-public/proxy?url=https%3A%2F%2Faccount-budgets-service.cfapps.stagingaws.hanavlab.ondemand.com%2Fhealth
- * Returns: https://account-budgets-service.cfapps.stagingaws.hanavlab.ondemand.com
+ * Landscape configuration for building URLs
  */
-export function extractBaseUrlFromHealthEndpoint(healthEndpoint: string): string | null {
-  try {
-    // Extract the URL parameter from the proxy endpoint
-    const urlMatch = healthEndpoint.match(/[?&]url=([^&]+)/);
-    if (!urlMatch) return null;
-
-    const encodedUrl = urlMatch[1];
-    const decodedUrl = decodeURIComponent(encodedUrl);
-
-    // Remove the /health part to get the base URL
-    const baseUrl = decodedUrl.replace(/\/health$/, '');
-
-    return baseUrl;
-  } catch (error) {
-    console.error('Error extracting base URL from health endpoint:', error);
-    return null;
-  }
+export interface LandscapeConfig {
+  name: string;
+  route: string;
 }
 
 /**
- * Build Swagger UI URL from base URL
- * Example: https://account-budgets-service.cfapps.stagingaws.hanavlab.ondemand.com
- * Returns: https://account-budgets-service.cfapps.stagingaws.hanavlab.ondemand.com/swagger-ui.html
+ * Build component Swagger endpoint URL
+ * Example: https://accounts-service.cfapps.stagingaws.hanavlab.ondemand.com/api?scope=cis-system
  */
-export function buildSwaggerUrl(baseUrl: string): string {
-  return `${baseUrl}/swagger-ui.html`;
+function buildComponentSwaggerEndpoint(
+  component: Component,
+  landscape: LandscapeConfig
+): string {
+  const componentName = component.name.toLowerCase();
+  const domain = landscape.route;
+  return `https://${componentName}.cfapps.${domain}/api?scope=cis-system`;
 }
 
 /**
- * Fetch Swagger UI HTML content via backend proxy
- * Uses backend proxy to avoid CORS issues
+ * Build component Swagger endpoint URL with subdomain prefix
  */
-export async function fetchSwaggerHtml(
-  swaggerUrl: string,
-  signal?: AbortSignal
-): Promise<{
-  status: 'success' | 'error';
-  html?: string;
-  error?: string;
-}> {
-  try {
-    // Use backend proxy endpoint via apiClient (handles auth automatically)
-    const data = await apiClient.get<{ html?: string; componentSuccess?: boolean; statusCode?: number }>(
-      '/cis-public/proxy',
-      {
-        params: { url: swaggerUrl },
-        signal,
-      }
-    );
+function buildComponentSwaggerEndpointWithSubdomain(
+  component: Component,
+  landscape: LandscapeConfig,
+  subdomain: string
+): string {
+  const componentName = component.name.toLowerCase();
+  const domain = landscape.route;
+  return `https://${subdomain}.${componentName}.cfapps.${domain}/api?scope=cis-system`;
+}
 
-    // Check if the component endpoint returned success (200-299)
-    if (data.componentSuccess === false) {
-      return {
-        status: 'error',
-        error: `Component returned status ${data.statusCode}`,
-      };
-    }
+/**
+ * Build proxy URL for Swagger UI
+ * Routes through backend proxy to handle authentication and redirects
+ * 
+ * @param componentUrl - The component's Swagger URL
+ * @returns Proxied URL with authentication
+ */
+export function buildSwaggerProxyURL(componentUrl: string): string {
+  const backendUrl = getNewBackendUrl();
+  return `${backendUrl}/api/v1/cis-public/proxy?url=${encodeURIComponent(componentUrl)}`;
+}
 
-    // If the response has HTML content, return it
-    if (data.html) {
-      return {
-        status: 'success',
-        html: data.html,
-      };
-    }
+/**
+ * Get Swagger UI URL for a component
+ * Returns the direct component URL (not proxied) for opening in new tab
+ * 
+ * @param component - The component
+ * @param landscape - The landscape configuration
+ * @returns Object with the direct Swagger URL
+ */
+export function getSwaggerURL(
+  component: Component,
+  landscape: LandscapeConfig
+): {
+  status: 'success';
+  url: string;
+} {
+  const subdomain = component.metadata?.subdomain;
+  
+  // Build the component's direct URL
+  const componentUrl = subdomain && typeof subdomain === 'string'
+    ? buildComponentSwaggerEndpointWithSubdomain(component, landscape, subdomain)
+    : buildComponentSwaggerEndpoint(component, landscape);
 
-    // If the response itself is a string (HTML), use it directly
-    if (typeof data === 'string') {
-      return {
-        status: 'success',
-        html: data,
-      };
-    }
-
-    return {
-      status: 'error',
-      error: 'No HTML content in response',
-    };
-  } catch (error) {
-    // Don't treat AbortError as a real error
-    if (error instanceof Error && error.name === 'AbortError') {
-      return {
-        status: 'error',
-        error: 'Request aborted',
-      };
-    }
-
-    return {
-      status: 'error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
-  }
+  // Return direct URL (not proxied) for opening in new tab
+  // The browser will handle authentication with cookies
+  return {
+    status: 'success',
+    url: componentUrl,
+  };
 }
