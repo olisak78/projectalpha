@@ -1,6 +1,6 @@
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
-import { ExternalLink, Activity, Database, AlertCircle, CheckCircle, XCircle, Clock, Shield, Zap, Server, HardDrive, Loader2 } from "lucide-react";
+import { ExternalLink, Activity, Database, AlertCircle, CheckCircle, XCircle, Clock, Shield, Zap, Server, HardDrive, Loader2, Code2, ChevronDown, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ export function ComponentViewPage() {
     const location = useLocation();
     const [activeTab, setActiveTab] = useState("overview");
     const { selectedLandscape } = usePortalState();
+    const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
     // Get system from URL (cis, unified-services, etc.)
     const system = location.pathname.split('/')[1] || 'cis';
@@ -61,14 +62,7 @@ export function ComponentViewPage() {
         };
     }, [landscapesData, selectedLandscape]);
 
-    console.log('=== SWAGGER DEBUG ===');
-    console.log('component:', component);
-    console.log('landscapeConfig:', landscapeConfig);
-    console.log('activeTab:', activeTab);
-    console.log('enabled:', activeTab === 'api' && !!component && !!landscapeConfig);
-    console.log('===================');
-
-    // Fetch Swagger UI HTML
+    // Fetch Swagger data
     const { data: swaggerData, isLoading: isLoadingSwagger, error: swaggerError } = useSwaggerUI(
         component,
         landscapeConfig,
@@ -76,9 +70,6 @@ export function ComponentViewPage() {
             enabled: activeTab === 'api' && !!component && !!landscapeConfig
         }
     );
-    // Add after the hook
-    console.log('swaggerData:', swaggerData);
-    console.log('swaggerError:', swaggerError);
 
     // Fetch Sonar measures
     const { data: sonarData, isLoading: sonarLoading } = useSonarMeasures(
@@ -162,6 +153,108 @@ export function ComponentViewPage() {
                 )}
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`}></span>
             </span>
+        );
+    };
+
+    // Toggle path expansion
+    const togglePath = (path: string) => {
+        setExpandedPaths(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(path)) {
+                newSet.delete(path);
+            } else {
+                newSet.add(path);
+            }
+            return newSet;
+        });
+    };
+
+    // Render API endpoints from schema
+    const renderApiEndpoints = (paths: Record<string, any>) => {
+        if (!paths || Object.keys(paths).length === 0) {
+            return (
+                <div className="text-center py-8 text-muted-foreground">
+                    No API endpoints found in schema
+                </div>
+            );
+        }
+
+        const getMethodColor = (method: string) => {
+            switch (method.toLowerCase()) {
+                case 'get': return 'bg-blue-100 text-blue-700 border-blue-300';
+                case 'post': return 'bg-green-100 text-green-700 border-green-300';
+                case 'put': return 'bg-orange-100 text-orange-700 border-orange-300';
+                case 'delete': return 'bg-red-100 text-red-700 border-red-300';
+                case 'patch': return 'bg-purple-100 text-purple-700 border-purple-300';
+                default: return 'bg-gray-100 text-gray-700 border-gray-300';
+            }
+        };
+
+        return (
+            <div className="space-y-2">
+                {Object.entries(paths).map(([path, methods]) => (
+                    <Card key={path} className="overflow-hidden">
+                        <div className="border-b bg-muted/30">
+                            <button
+                                onClick={() => togglePath(path)}
+                                className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                            >
+                                <div className="flex items-center gap-2">
+                                    {expandedPaths.has(path) ? (
+                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                    ) : (
+                                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                    <code className="text-sm font-mono font-semibold">{path}</code>
+                                </div>
+                                <div className="flex gap-1">
+                                    {Object.keys(methods).map(method => (
+                                        <Badge
+                                            key={method}
+                                            className={`text-xs uppercase font-bold px-2 py-0.5 ${getMethodColor(method)}`}
+                                        >
+                                            {method}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </button>
+                        </div>
+                        
+                        {expandedPaths.has(path) && (
+                            <CardContent className="pt-4">
+                                <div className="space-y-4">
+                                    {Object.entries(methods).map(([method, details]: [string, any]) => (
+                                        <div key={method} className="space-y-2">
+                                            <div className="flex items-start gap-3">
+                                                <Badge className={`text-xs uppercase font-bold ${getMethodColor(method)}`}>
+                                                    {method}
+                                                </Badge>
+                                                <div className="flex-1">
+                                                    {details.summary && (
+                                                        <p className="text-sm font-medium">{details.summary}</p>
+                                                    )}
+                                                    {details.description && (
+                                                        <p className="text-sm text-muted-foreground mt-1">{details.description}</p>
+                                                    )}
+                                                    {details.tags && details.tags.length > 0 && (
+                                                        <div className="flex gap-1 mt-2">
+                                                            {details.tags.map((tag: string) => (
+                                                                <Badge key={tag} variant="outline" className="text-xs">
+                                                                    {tag}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        )}
+                    </Card>
+                ))}
+            </div>
         );
     };
 
@@ -442,7 +535,7 @@ export function ComponentViewPage() {
         }
 
         // Error state
-        if (swaggerError || !swaggerData?.url) {
+        if (swaggerError || !swaggerData) {
             return (
                 <Card className="border-yellow-200 bg-yellow-50">
                     <CardHeader>
@@ -460,62 +553,81 @@ export function ComponentViewPage() {
             );
         }
 
-        // Success state - show button to open in new tab
+        const { schema, swaggerUiUrl } = swaggerData;
+
+        // Success state - show schema and button
         return (
             <div className="space-y-4">
-                {/* Main Card with Button */}
+                {/* Header Card with Info and Action Button */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <Activity className="h-5 w-5" />
-                            API Documentation
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0 mt-1">
-                                <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                    <ExternalLink className="h-5 w-5 text-blue-600" />
-                                </div>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <Code2 className="h-5 w-5" />
+                                    {schema.info?.title || 'API Documentation'}
+                                </CardTitle>
+                                {schema.info?.version && (
+                                    <p className="text-sm text-muted-foreground mt-1">Version {schema.info.version}</p>
+                                )}
                             </div>
-                            <div className="flex-1">
-                                <h3 className="font-semibold text-base mb-1">
-                                    View Swagger Documentation
-                                </h3>
-                                <p className="text-sm text-muted-foreground mb-3">
-                                    The API documentation for {component?.title || component?.name} is available in a new tab.
-                                </p>
+                            {swaggerUiUrl && (
                                 <Button
-                                    onClick={() => window.open(swaggerData.url, '_blank')}
+                                    onClick={() => window.open(swaggerUiUrl, '_blank')}
                                     className="gap-2"
                                 >
                                     <ExternalLink className="h-4 w-4" />
                                     Open Swagger UI
                                 </Button>
-                            </div>
+                            )}
                         </div>
-
-                        {/* URL Display */}
-                        <div className="border-t pt-4">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs text-muted-foreground">Endpoint:</span>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(swaggerData.url);
-                                    }}
-                                    className="h-7 text-xs"
-                                >
-                                    Copy URL
-                                </Button>
-                            </div>
-                            <code className="text-xs bg-muted px-2 py-1 rounded block mt-1 overflow-x-auto">
-                                {swaggerData.url}
-                            </code>
-                        </div>
-                    </CardContent>
+                    </CardHeader>
+                    {schema.info?.description && (
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground">{schema.info.description}</p>
+                        </CardContent>
+                    )}
                 </Card>
+
+                {/* Server Information */}
+                {schema.servers && schema.servers.length > 0 && (
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                <Server className="h-4 w-4" />
+                                Servers
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            {schema.servers.map((server, index) => (
+                                <div key={index} className="flex items-start gap-2 py-2 px-3 rounded-md border bg-card">
+                                    <code className="text-sm font-mono flex-1">{server.url}</code>
+                                    {server.description && (
+                                        <span className="text-xs text-muted-foreground">{server.description}</span>
+                                    )}
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* API Endpoints */}
+                {schema.paths && (
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                <Activity className="h-4 w-4" />
+                                API Endpoints
+                                <Badge variant="secondary" className="ml-2">
+                                    {Object.keys(schema.paths).length} paths
+                                </Badge>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {renderApiEndpoints(schema.paths)}
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Explanation Card */}
                 <Card className="border-blue-200 bg-blue-50">
@@ -523,10 +635,9 @@ export function ComponentViewPage() {
                         <div className="flex gap-2 text-sm text-blue-800">
                             <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
                             <div>
-                                <p className="font-medium mb-1">Why open in a new tab?</p>
+                                <p className="font-medium mb-1">Interactive Documentation</p>
                                 <p className="text-xs text-blue-700">
-                                    The component's server security settings prevent embedding the Swagger UI in an iframe.
-                                    Opening in a new tab provides the full interactive experience.
+                                    Click "Open Swagger UI" to access the full interactive API documentation where you can test endpoints directly.
                                 </p>
                             </div>
                         </div>
@@ -536,8 +647,6 @@ export function ComponentViewPage() {
         );
     };
 
-    console.log('Swagger Data:')
-    console.log(swaggerData)
     return (
         <BreadcrumbPage>
             <div className="space-y-6">

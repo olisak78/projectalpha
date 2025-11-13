@@ -1,58 +1,67 @@
-import { useMemo } from 'react';
-
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 import type { Component } from '@/types/api';
-import { getSwaggerURL, LandscapeConfig } from '@/services/SwaggerApi';
+import { fetchSwaggerSchema, LandscapeConfig, SwaggerApiResponse } from '@/services/SwaggerApi';
 
 /**
  * Response type for Swagger UI
  */
 export interface SwaggerUIResponse {
-  url: string;
+  schema: SwaggerApiResponse;
+  swaggerUiUrl?: string;
 }
 
 /**
- * Hook to get Swagger UI URL for a component
- * Returns the proxy URL that can be opened in a new tab
+ * Hook to fetch Swagger API schema for a component
+ * Returns the schema data and the URL to open Swagger UI in a new tab
+ * Uses react-query for caching and state management
  * 
- * @param component - The component to get Swagger UI for
+ * @param component - The component to get Swagger data for
  * @param landscape - The landscape configuration
  * @param options - Additional options (enabled, etc.)
- * @returns Swagger UI proxy URL
+ * @returns Swagger schema and UI URL with loading/error states
  * 
  * @example
- * const { data } = useSwaggerUI(component, landscape);
- * if (data?.url) {
- *   // Open in new tab: window.open(data.url, '_blank')
+ * const { data, isLoading, error } = useSwaggerUI(component, landscape);
+ * if (data?.schema) {
+ *   // Display schema in UI
+ *   // Open Swagger UI: window.open(data.swaggerUiUrl, '_blank')
  * }
  */
 export function useSwaggerUI(
   component: Component | null | undefined,
   landscape: LandscapeConfig | null | undefined,
   options?: { enabled?: boolean }
-): { data: SwaggerUIResponse | null; isLoading: boolean; error: Error | null } {
+) {
   const enabled = options?.enabled ?? true;
 
-  const result = useMemo(() => {
-    // If not enabled or missing required data, return null
-    if (!enabled || !component || !landscape) {
-      return { data: null, isLoading: false, error: null };
-    }
+  return useQuery({
+    queryKey: queryKeys.swagger.byComponent(
+      component?.name || '',
+      landscape?.name || ''
+    ),
+    queryFn: async () => {
+      if (!component || !landscape) {
+        throw new Error('Component and landscape are required');
+      }
 
-    try {
-      const swaggerResult = getSwaggerURL(component, landscape);
-      return {
-        data: { url: swaggerResult.url },
-        isLoading: false,
-        error: null,
-      };
-    } catch (error) {
-      return {
-        data: null,
-        isLoading: false,
-        error: error instanceof Error ? error : new Error('Failed to generate Swagger URL'),
-      };
-    }
-  }, [component, landscape, enabled]);
+      const result = await fetchSwaggerSchema(component, landscape);
 
-  return result;
+      if (result.status === 'error') {
+        throw new Error(result.error || 'Failed to fetch Swagger schema');
+      }
+
+      if (!result.data) {
+        throw new Error('No schema data returned');
+      }
+
+      return {
+        schema: result.data,
+        swaggerUiUrl: result.swaggerUiUrl,
+      };
+    },
+    enabled: enabled && !!component && !!landscape,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 1,
+  });
 }
