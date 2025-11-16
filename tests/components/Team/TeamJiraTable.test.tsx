@@ -82,8 +82,9 @@ describe('TeamJiraTable', () => {
       expect(thead).toBeInTheDocument();
       expect(tbody).toBeInTheDocument();
 
-      // Check that table body is empty when no issues provided
-      expect(tbody?.children).toHaveLength(0);
+      // Check that table body has "No issues found" row when no issues provided
+      expect(tbody?.children).toHaveLength(1);
+      expect(screen.getByText('No issues found')).toBeInTheDocument();
     });
 
     it('renders issues when provided', () => {

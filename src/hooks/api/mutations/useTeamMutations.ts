@@ -216,19 +216,61 @@ export function useUpdateTeamLinks(
 
   return useMutation({
     mutationFn: updateTeamLinks,
-    
+
     onSuccess: async (data, variables, context) => {
       // Invalidate the specific team's detail query
-      await queryClient.invalidateQueries({ 
-        queryKey: queryKeys.teams.detail(variables.teamId) 
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.detail(variables.teamId)
       });
-      
+
       // Invalidate all team lists (because team links might be shown in lists)
-      await queryClient.invalidateQueries({ 
-        queryKey: queryKeys.teams.lists() 
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.lists()
       });
     },
-    
+
     ...options,
+  });
+}
+
+/**
+ * Update team metadata
+ */
+async function updateTeamMetadata({ id, metadata }: { id: string; metadata: Record<string, any> }): Promise<Team> {
+  return apiClient.patch<Team>(`/teams/${id}/metadata`, { metadata });
+}
+
+/**
+ * Hook to update team metadata (e.g., color)
+ */
+export function useUpdateTeamMetadata(
+  options?: UseMutationOptions<
+    Team,
+    Error,
+    { id: string; metadata: Record<string, any> }
+  >
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: updateTeamMetadata,
+    ...options,
+
+    onSuccess: async (data, variables, context) => {
+      // Invalidate the specific team's detail query
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.detail(variables.id)
+      });
+
+      // Invalidate all team lists
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.teams.lists()
+      });
+
+      // Call the user-provided onSuccess callback if it exists
+      if (options?.onSuccess) {
+        options.onSuccess(data, variables, context, undefined);
+      }
+    },
   });
 }

@@ -1,5 +1,4 @@
 import { useState, useEffect, Dispatch, SetStateAction} from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -73,129 +72,122 @@ export default function GithubPrsTab({
   };
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <GitPullRequest className="h-4 w-4 text-primary" /> GitHub Pull Requests
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col flex-1 overflow-hidden space-y-3">
-        <div className="flex items-center gap-4">
-          {/* Status Filter */}
-          <div className="flex items-center gap-2">
-            <div className="text-sm">Status</div>
-            <Select value={prStatus} onValueChange={(value: 'open' | 'closed' | 'all') => setPrStatus(value)}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="closed">Closed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <QuickFilterButtons
-            activeFilter={filter}
-            onFilterChange={(filter: GithubFilterType) => setFilter(filter)}
-            filters={repoFilterOptions}
-          />
+    <div className="flex flex-col px-6 pt-4 pb-6 space-y-3 h-full">
+      <div className="flex items-center gap-4">
+        {/* Status Filter */}
+        <div className="flex items-center gap-2">
+          <div className="text-sm">Status</div>
+          <Select value={prStatus} onValueChange={(value: 'open' | 'closed' | 'all') => setPrStatus(value)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="open">Open</SelectItem>
+              <SelectItem value="closed">Closed</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
+        <QuickFilterButtons
+          activeFilter={filter}
+          onFilterChange={(filter: GithubFilterType) => setFilter(filter)}
+          filters={repoFilterOptions}
+        />
+      </div>
 
-        {/* Table */}
-        <div className="rounded-md border overflow-hidden flex-1 overflow-y-auto">
-          <Table>
-            <TableHeader>
+      {/* Table */}
+      <div className="rounded-md border overflow-hidden flex-1 overflow-y-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Repository</TableHead>
+              <TableHead>Title</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Updated</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {/* Loading State */}
+            {isLoading && (
               <TableRow>
-                <TableHead>Repository</TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Updated</TableHead>
+                <TableCell colSpan={4} className="text-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {/* Loading State */}
-              {isLoading && (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-                  </TableCell>
-                </TableRow>
-              )}
+            )}
 
-              {/* Error State */}
-              {error && !isLoading && (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-destructive py-8">
-                    Error loading pull requests: {error.message}
-                  </TableCell>
-                </TableRow>
-              )}
+            {/* Error State */}
+            {error && !isLoading && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center text-destructive py-8">
+                  Error loading pull requests: {error.message}
+                </TableCell>
+              </TableRow>
+            )}
 
-              {/* Data Rows */}
-              {!isLoading && !error && pullRequests.map((pr) => (
-                <TableRow key={pr.id}>
-                  <TableCell className="font-medium">
-                    {pr.repository.full_name || pr.repository.name || 'Unknown'}
-                  </TableCell>
-                  <TableCell>
-                    <a 
-                      href={pr.html_url} 
-                      target="_blank" 
-                      rel="noreferrer" 
-                      className="underline underline-offset-2 hover:text-primary"
-                    >
-                      {pr.title}
-                    </a>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusBadgeVariant(pr.state, pr.draft)}>
-                      {getStatusText(pr.state, pr.draft)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {new Date(pr.updated_at).toLocaleString()}
-                  </TableCell>
-                </TableRow>
-              ))}
+            {/* Data Rows */}
+            {!isLoading && !error && pullRequests.map((pr) => (
+              <TableRow key={pr.id}>
+                <TableCell className="font-medium">
+                  {pr.repository.full_name || pr.repository.name || 'Unknown'}
+                </TableCell>
+                <TableCell>
+                  <a
+                    href={pr.html_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2 hover:text-primary"
+                  >
+                    {pr.title}
+                  </a>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={getStatusBadgeVariant(pr.state, pr.draft)}>
+                    {getStatusText(pr.state, pr.draft)}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {new Date(pr.updated_at).toLocaleString()}
+                </TableCell>
+              </TableRow>
+            ))}
 
-              {/* Empty State */}
-              {!isLoading && !error && pullRequests.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                    No pull requests found
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+            {/* Empty State */}
+            {!isLoading && !error && pullRequests.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  No pull requests found
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          Page {prPage} / {prTotalPages} {total > 0 && `(${total} total)`}
         </div>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Page {prPage} / {prTotalPages} {total > 0 && `(${total} total)`}
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              size="sm" 
-              variant="outline" 
-              disabled={prPage <= 1 || isLoading} 
-              onClick={() => setPrPage((p) => Math.max(1, p - 1))}
-            >
-              Prev
-            </Button>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              disabled={prPage >= prTotalPages || isLoading} 
-              onClick={() => setPrPage((p) => Math.min(prTotalPages, p + 1))}
-            >
-              Next
-            </Button>
-          </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={prPage <= 1 || isLoading}
+            onClick={() => setPrPage((p) => Math.max(1, p - 1))}
+          >
+            Prev
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={prPage >= prTotalPages || isLoading}
+            onClick={() => setPrPage((p) => Math.min(prTotalPages, p + 1))}
+          >
+            Next
+          </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

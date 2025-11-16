@@ -145,8 +145,9 @@ export const queryKeys = {
     pullRequests: (params?: Record<string, any>) =>
       [...queryKeys.github.all, 'pull-requests', params] as const,
     contributions: () => [...queryKeys.github.all, 'contributions'] as const,
-    averagePRTime: () => [...queryKeys.github.all, 'average-pr-time'] as const,
+    averagePRTime: (period?: string) => [...queryKeys.github.all, 'average-pr-time', period] as const,
     heatmap: () => [...queryKeys.github.all, 'heatmap'] as const,
+    prReviewComments: (period?: string) => [...queryKeys.github.all, 'pr-review-comments', period] as const,
   },
 
   sonar: {
@@ -171,11 +172,5 @@ export const queryKeys = {
 
   categories: {
     all: ['categories'] as const,
-  },
-
-  swagger: {
-    all: ['swagger'] as const,
-    byComponent: (componentId: string, landscapeName: string) =>
-      [...queryKeys.swagger.all, 'component', componentId, landscapeName] as const,
   },
 } as const;

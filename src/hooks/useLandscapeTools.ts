@@ -104,7 +104,7 @@ export function useLandscapeTools(
     const kibanaUrl = domain ? `https://logs.cf.${domain}/app/dashboards#/view/Requests-and-Logs` : null;
     const dynatraceUrl = landscape['apm-infra-environment'] || landscape.metadata?.['apm-infra-environment'] || null;
     const cockpitUrl = domain ? `https://cockpit.${domain}` : null;
-    const plutonoUrl = 'https://plutono.ingress.btp-mnt-ca.btp.shoot.live.k8s-hana.ondemand.com/?orgId=1'
+    const plutonoUrl = landscape.metadata?.['grafana'] || null;
 
     return {
       urls: {

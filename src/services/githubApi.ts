@@ -1,6 +1,6 @@
 import { GitHubPRQueryParams, GitHubPullRequestsResponse } from '@/types/developer-portal';
 import { apiClient } from './ApiClient';
-import { GitHubContributionsResponse, GitHubAveragePRTimeResponse, GitHubHeatmapResponse } from '@/types/api';
+import { GitHubContributionsResponse, GitHubAveragePRTimeResponse, GitHubHeatmapResponse, GitHubPRReviewCommentsResponse } from '@/types/api';
 
 
 export async function fetchGitHubPullRequests(
@@ -15,10 +15,18 @@ export async function fetchGitHubContributions(): Promise<GitHubContributionsRes
   return apiClient.get<GitHubContributionsResponse>('/github/contributions');
 }
 
-export async function fetchGitHubAveragePRTime(): Promise<GitHubAveragePRTimeResponse> {
-  return apiClient.get<GitHubAveragePRTimeResponse>('/github/average-pr-time');
+export async function fetchGitHubAveragePRTime(period?: string): Promise<GitHubAveragePRTimeResponse> {
+  return apiClient.get<GitHubAveragePRTimeResponse>('/github/average-pr-time', {
+    params: period ? { period } : undefined,
+  });
 }
 
 export async function fetchGitHubHeatmap(): Promise<GitHubHeatmapResponse> {
   return apiClient.get<GitHubHeatmapResponse>('/github/githubtools/heatmap');
+}
+
+export async function fetchGitHubPRReviewComments(period?: string): Promise<GitHubPRReviewCommentsResponse> {
+  return apiClient.get<GitHubPRReviewCommentsResponse>('/github/pr-review-comments', {
+    params: period ? { period } : undefined,
+  });
 }

@@ -39,12 +39,7 @@ export function useJiraFiltering({ teamName }: UseJiraFilteringProps = {}) {
       limit: 100, // Increase limit to get more results for client-side filtering
     };
 
-    // Apply server-side type filtering based on quickFilter
-    if (quickFilter === "bugs") {
-      params.type = "bug";
-    } else if (quickFilter === "tasks") {
-      params.type = "task";
-    }
+    // Don't apply server-side type filtering - we'll do it client-side for better flexibility
 
     // Apply server-side status filtering if not "all"
     if (statusFilter !== "all") {
@@ -57,12 +52,12 @@ export function useJiraFiltering({ teamName }: UseJiraFilteringProps = {}) {
     }
 
     // Apply server-side search filtering for summary and key (using debounced search, minimum 8 characters)
-    if (debouncedSearch.trim() && debouncedSearch.trim().length >= 8) {      
+    if (debouncedSearch.trim() && debouncedSearch.trim().length >= 8) {
       params.key = debouncedSearch.trim();
     }
 
     return params;
-  }, [processedTeamName, statusFilter, assigneeFilter, quickFilter, debouncedSearch]);
+  }, [processedTeamName, statusFilter, assigneeFilter, debouncedSearch]);
 
   // Fetch Jira issues using the API with server-side filtering
   const { data: jiraResponse, isLoading, error } = useJiraIssues(apiParams);
@@ -71,6 +66,28 @@ export function useJiraFiltering({ teamName }: UseJiraFilteringProps = {}) {
   
   const allFilteredIssues = useMemo(() => {
     let list = tasks.slice();
+
+    // Filter out issues that have a parent (they are subtasks)
+    // They will be displayed under their parent issue instead
+    list = list.filter(issue => !issue.fields?.parent);
+
+    // Apply client-side quick filter (bugs/tasks/both)
+    if (quickFilter !== "both") {
+      list = list.filter(issue => {
+        const issueType = issue.fields?.issuetype?.name?.toLowerCase() || '';
+        if (quickFilter === "bugs") {
+          return issueType.includes('bug');
+        } else if (quickFilter === "tasks") {
+          return issueType.includes('task') ||
+                 issueType.includes('story') ||
+                 issueType.includes('backlog') ||
+                 issueType.includes('epic') ||
+                 issueType.includes('subtask') ||
+                 issueType.includes('sub-task');
+        }
+        return true;
+      });
+    }
 
     // Apply sorting
     switch (sortBy) {

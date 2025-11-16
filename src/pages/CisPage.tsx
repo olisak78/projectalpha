@@ -8,6 +8,7 @@ import FeatureToggleTab from "@/components/tabs/FeatureToggleTab";
 import TimelinesTab from "@/components/tabs/TimelinesTab";
 import { useComponentsByProject } from "@/hooks/api/useComponents";
 import { useLandscapesByProject } from "@/hooks/api/useLandscapes";
+import { useTeams } from "@/hooks/api/useTeams";
 import { componentVersions, DEFAULT_LANDSCAPE } from "@/types/developer-portal";
 import { BreadcrumbPage } from "@/components/BreadcrumbPage";
 import { useHeaderNavigation } from "@/contexts/HeaderNavigationContext";
@@ -32,6 +33,7 @@ export default function CisPage() {
   const [activeTab, setActiveTab] = useState("components");
   const [teamComponentsExpanded, setTeamComponentsExpanded] = useState<Record<string, boolean>>({});
   const [componentSearchTerm, setComponentSearchTerm] = useState("");
+  const [componentSortOrder, setComponentSortOrder] = useState<'alphabetic' | 'team'>('alphabetic');
   const { setTabs, activeTab: headerActiveTab, setActiveTab: setHeaderActiveTab } = useHeaderNavigation();
   const { currentTabFromUrl, syncTabWithUrl } = useTabRouting();
 
@@ -86,8 +88,40 @@ export default function CisPage() {
     isLoading: isLoadingApiLandscapes,
   } = useLandscapesByProject('cis20');
 
+  // Fetch all teams to create team name mapping
+  const { data: teamsData } = useTeams();
+
   // cisComponentsData is already the components array directly
   const cisApiComponents = cisComponentsData || [];
+
+  // Create a mapping of team ID to team name
+  const teamNamesMap = useMemo(() => {
+    if (!teamsData?.teams) return {};
+    return teamsData.teams.reduce((acc, team) => {
+      acc[team.id] = team.name;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [teamsData]);
+
+  // Create a mapping of team ID to team color
+  const teamColorsMap = useMemo(() => {
+    if (!teamsData?.teams) return {};
+    return teamsData.teams.reduce((acc, team) => {
+      // Metadata might be a string that needs parsing
+      let metadata = team.metadata;
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          console.error('Failed to parse team metadata:', e);
+        }
+      }
+      if (metadata?.color) {
+        acc[team.id] = metadata.color;
+      }
+      return acc;
+    }, {} as Record<string, string>);
+  }, [teamsData]);
 
   // Get data from context functions
   const currentProjectLandscapes = getCurrentProjectLandscapes(activeProject);
@@ -208,6 +242,10 @@ export default function CisPage() {
               showLandscapeFilter={true}
               selectedLandscape={selectedLandscape}
               selectedLandscapeData={selectedApiLandscape}
+              teamNamesMap={teamNamesMap}
+              teamColorsMap={teamColorsMap}
+              sortOrder={componentSortOrder}
+              onSortOrderChange={setComponentSortOrder}
             />
 
             {/* Library Components Section */}
@@ -226,6 +264,10 @@ export default function CisPage() {
                   emptyStateMessage="No CIS library components found."
                   searchTerm={componentSearchTerm}
                   system="cis"
+                  teamNamesMap={teamNamesMap}
+                  teamColorsMap={teamColorsMap}
+                  sortOrder={componentSortOrder}
+                  onSortOrderChange={setComponentSortOrder}
                 />
               </div>
             )}

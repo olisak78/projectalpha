@@ -47,6 +47,11 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
+    /* Tab content heights for responsive design */
+    --tab-content-height-sm: 300px;
+    --tab-content-height-md: 400px;
+    --tab-content-height-2xl: 700px;
+
     --sidebar-background: 0 0% 98%;
 
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -147,6 +152,23 @@ All colors MUST be HSL.
 
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Tab content responsive height utility class */
+  .tab-content-height {
+    height: var(--tab-content-height-sm);
+  }
+
+  @media (min-width: 768px) {
+    .tab-content-height {
+      height: var(--tab-content-height-md);
+    }
+  }
+
+  @media (min-width: 1536px) {
+    .tab-content-height {
+      height: var(--tab-content-height-2xl);
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import CisPage from '../../../src/pages/CisPage';
 // Mock all the hooks and contexts
 vi.mock('@/hooks/api/useComponents');
 vi.mock('@/hooks/api/useLandscapes');
+vi.mock('@/hooks/api/useTeams');
 vi.mock('@/hooks/useAuthRefresh');
 vi.mock('@/contexts/HeaderNavigationContext');
 vi.mock('@/contexts/hooks');
@@ -65,6 +66,7 @@ vi.mock('@/components/LandscapeToolsButtons', () => ({
 }));
 
 import { useComponentsByProject } from '../../../src/hooks/api/useComponents';
+import { useTeams } from '../../../src/hooks/api/useTeams';
 import { useLandscapesByProject } from '../../../src/hooks/api/useLandscapes';
 import { useAuthRefresh } from '../../../src/hooks/useAuthRefresh';
 import { useHeaderNavigation } from '../../../src/contexts/HeaderNavigationContext';
@@ -188,7 +190,12 @@ describe('CisPage', () => {
       refetch: defaultMocks.useCisComponents.refetch,
     } as any);
     vi.mocked(useLandscapesByProject).mockReturnValue({
-      data: mockLandscapes,
+      data: defaultMocks.useLandscapes,
+      isLoading: false,
+      error: null,
+    } as any);
+    vi.mocked(useTeams).mockReturnValue({
+      data: { teams: [] },
       isLoading: false,
       error: null,
     } as any);

@@ -9,8 +9,13 @@ import { TeamJiraIssues } from "./TeamJiraIssues";
 import { TeamComponents } from "./TeamComponents";
 import { OnDutyAndCall } from "./OnDutyAndCall";
 import { TeamDocs } from "./TeamDocs";
+import { TeamColorPicker } from "./TeamColorPicker";
 import { useCurrentUser } from "@/hooks/api/useMembers";
+import { useUpdateTeamMetadata } from "@/hooks/api/mutations/useTeamMutations";
+import { useTeams } from "@/hooks/api/useTeams";
+import { useToast } from "@/hooks/use-toast";
 import type { CreateUserRequest, UserMeResponse } from "@/types/api";
+import { Card } from "@/components/ui/card";
 
 interface TeamProps {
   activeCommonTab: string;
@@ -20,6 +25,8 @@ export default function Team({
   activeCommonTab,
 }: TeamProps) {
   const { data: currentUser } = useCurrentUser();
+  const { data: allTeamsData } = useTeams();
+  const { toast } = useToast();
 
   const {
     // Team data
@@ -55,6 +62,83 @@ export default function Team({
     // Authorization
     isAdmin,
   } = useTeamContext();
+
+  const updateTeamMetadataMutation = useUpdateTeamMetadata({
+    onSuccess: () => {
+      toast({
+        title: "Team color updated",
+        description: "The team color has been successfully updated.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to update team color",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleColorChange = (color: string) => {
+    if (!currentTeam) return;
+
+    // Parse metadata if it's a string
+    let metadata = currentTeam.metadata;
+    if (typeof metadata === 'string') {
+      try {
+        metadata = JSON.parse(metadata);
+      } catch (e) {
+        metadata = {};
+      }
+    }
+
+    // Update the color in metadata
+    const updatedMetadata = {
+      ...metadata,
+      color,
+    };
+
+    updateTeamMetadataMutation.mutate({
+      id: currentTeam.id,
+      metadata: updatedMetadata,
+    });
+  };
+
+  // Get current color from team metadata
+  let currentColor = "#6b7280"; // default gray
+  if (currentTeam?.metadata) {
+    let metadata = currentTeam.metadata;
+    if (typeof metadata === 'string') {
+      try {
+        metadata = JSON.parse(metadata);
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (metadata?.color) {
+      currentColor = metadata.color;
+    }
+  }
+
+  // Get colors used by other teams (excluding current team)
+  const usedColors = useMemo(() => {
+    if (!allTeamsData?.teams || !currentTeam) return [];
+
+    return allTeamsData.teams
+      .filter(team => team.id !== currentTeam.id) // Exclude current team
+      .map(team => {
+        let metadata = team.metadata;
+        if (typeof metadata === 'string') {
+          try {
+            metadata = JSON.parse(metadata);
+          } catch (e) {
+            return null;
+          }
+        }
+        return metadata?.color?.toLowerCase();
+      })
+      .filter((color): color is string => color != null);
+  }, [allTeamsData, currentTeam]);
 
   // Memoize the mapped team links to avoid re-computation on every render
   const mappedTeamLinks = useMemo(() => {
@@ -132,13 +216,13 @@ export default function Team({
         {activeCommonTab === "overview" && (
           <>
             <MemberList
-              members={members}
-              teamName={teamName}
-              teamOptions={teamOptions}
-              onRemoveMember={isAdmin ? deleteMember : undefined}
-              onMoveMember={isAdmin ? moveMember : undefined}
-              onAddMember={isAdmin ? openAddMember : undefined}
               showActions={isAdmin}
+              colorPickerProps={{
+                currentColor,
+                onColorChange: handleColorChange,
+                disabled: updateTeamMetadataMutation.isPending,
+                usedColors,
+              }}
             />
 
             {/* Hidden sections moved to bottom */}
@@ -164,15 +248,17 @@ export default function Team({
             )}
 
             <div className="mt-4">
-              <QuickLinksTab
-                userData={{ link: mappedTeamLinks } as UserMeResponse}
-                ownerId={teamId || currentTeam?.id}
-                onDeleteLink={handleDeleteLink}
-                onToggleFavorite={teamLinks.toggleFavorite}
-                emptyMessage="No links added yet. Click 'Add Link' to get started."
-                title="Team Links"
-                alwaysShowDelete={true}
-              />
+              <Card className="border-slate-200 dark:border-slate-700">
+                <QuickLinksTab
+                  userData={{ link: mappedTeamLinks } as UserMeResponse}
+                  ownerId={teamId || currentTeam?.id}
+                  onDeleteLink={handleDeleteLink}
+                  onToggleFavorite={teamLinks.toggleFavorite}
+                  emptyMessage="No links added yet. Click 'Add Link' to get started."
+                  title="Team Links"
+                  alwaysShowDelete={true}
+                />
+              </Card>
             </div>
           </>
         )}

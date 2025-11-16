@@ -1,6 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Input } from "@/components/ui/input";
+import { Search, ExternalLink } from "lucide-react";
+import { useState, useMemo } from "react";
 
 type RoleType = "Viewer" | "Basic" | "Full" | "Admin" | "Other" | "Approver";
 type SectionType = "staging" | "canary" | "hotfix" | "live" | "other";
@@ -44,6 +47,8 @@ const typeStyles: Record<RoleType, string> = {
 };
 
 export default function CamProfilesTab({ camGroups }: CamProfilesTabProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+
   const handleRequest = (profileName: string) => {
     window.open(`https://cam.int.sap/cam/ui/admin?item=request&profile=${profileName}`, '_blank');
   };
@@ -63,8 +68,19 @@ export default function CamProfilesTab({ camGroups }: CamProfilesTabProps) {
     }, {} as Record<T, CamProfile[]>);
   };
 
+  // Filter profiles based on search query
+  const filteredProfiles = useMemo(() => {
+    if (!searchQuery.trim()) return camGroups;
+    const query = searchQuery.toLowerCase();
+    return camGroups.filter(profile =>
+      profile.name.toLowerCase().includes(query) ||
+      profile.group?.toLowerCase().includes(query) ||
+      profile.description?.toLowerCase().includes(query)
+    );
+  }, [camGroups, searchQuery]);
+
   // Group profiles by their group property
-  const groupedProfiles = groupProfilesBy(camGroups, (profile) => profile.group || 'Other');
+  const groupedProfiles = groupProfilesBy(filteredProfiles, (profile) => profile.group || 'Other');
 
   // Define section order and labels
   const sections = [
@@ -90,17 +106,18 @@ export default function CamProfilesTab({ camGroups }: CamProfilesTabProps) {
   const renderProfileCard = (profile: CamProfile) => {
     const type = roleType(profile.name);
     return (
-       <div key={profile.name} className={`flex items-center justify-between gap-2 rounded-md border p-3 ${typeStyles[type]}`}>
-        <div className="flex-1">
-          <div className="text-sm font-medium">{profile.name}</div>
+       <div key={profile.name} className="group flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all duration-200">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{profile.name}</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{type}</div>
         </div>
-        <Button 
-          size="sm" 
-          variant="outline" 
-          onClick={() => handleRequest(profile.name)}                            
+        <button
+          onClick={() => handleRequest(profile.name)}
+          className="shrink-0 inline-flex items-center justify-center w-8 h-8 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-md border border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 hover:scale-110 active:scale-95"
+          title="Request access"
         >
-          Request
-        </Button>
+          <ExternalLink className="w-4 h-4" />
+        </button>
       </div>
     );
   };
@@ -125,57 +142,78 @@ export default function CamProfilesTab({ camGroups }: CamProfilesTabProps) {
     });
   };
 
+  const totalProfiles = filteredProfiles.length;
+
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader>
-      <CardTitle className="text-base">CAM Profiles</CardTitle>
-      <p className="text-sm text-muted-foreground">
-        Find and request CAM profiles to access different system environments
-      </p>
-    </CardHeader>
-      <CardContent className="flex flex-col flex-1 overflow-hidden space-y-4 p-6 bg-muted/30">
-        <div className="flex-1 overflow-y-auto">
-          <Accordion type="multiple" className="w-full space-y-4">
-          {Object.entries(groupedProfiles).map(([groupName, profiles], gi) => {
-            const sectionedProfiles = groupProfilesBySection(profiles);
-            
-            return (
-              <AccordionItem key={groupName} value={`grp-${gi}`} className="border-0 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 bg-background overflow-hidden">
-                <AccordionTrigger className="text-left py-5 px-6 hover:bg-accent/10 transition-all duration-200 hover:no-underline data-[state=open]:bg-accent/15">
-                  <div className="flex items-center justify-between w-full pr-2">
-                    <span className="text-base font-semibold">{groupName}</span>
-                    <span className="text-sm text-muted-foreground font-normal mr-2">
-                      ({profiles.length} profiles)
-                    </span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {sections.map(({ key, label }) => {
-                      const sectionProfiles = sectionedProfiles[key];
-                      if (!sectionProfiles || sectionProfiles.length === 0) return null;
-                      
-                      return (
-                        <div key={key}>
-                          <div className="rounded-md border p-3 bg-muted/20 min-h-[100px]">
-                            <h4 className="text-xs font-bold text-muted-foreground tracking-wide text-left mb-3">
-                              {label}
+    <div className="flex flex-col space-y-4 px-6 pt-4 pb-6 min-h-[400px]">
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <Input
+          type="text"
+          placeholder="Search profiles by name, group, or description..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+        />
+      </div>
+
+      {/* Results Count */}
+      <div className="text-sm text-slate-600 dark:text-slate-400">
+        {searchQuery && (
+          <span>Found {totalProfiles} profile{totalProfiles !== 1 ? 's' : ''}</span>
+        )}
+        {!searchQuery && (
+          <span>Showing {totalProfiles} profile{totalProfiles !== 1 ? 's' : ''}</span>
+        )}
+      </div>
+
+      {/* Profiles List */}
+      <div className="flex-1 overflow-y-auto">
+        {Object.keys(groupedProfiles).length === 0 ? (
+          <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+            No profiles found matching "{searchQuery}"
+          </div>
+        ) : (
+          <Accordion type="multiple" className="w-full space-y-3">
+            {Object.entries(groupedProfiles).map(([groupName, profiles], gi) => {
+              const sectionedProfiles = groupProfilesBySection(profiles);
+
+              return (
+                <AccordionItem key={groupName} value={`grp-${gi}`} className="border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 overflow-hidden">
+                  <AccordionTrigger className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors [&[data-state=open]]:bg-slate-50 dark:[&[data-state=open]]:bg-slate-700/50">
+                    <div className="flex items-center justify-between w-full pr-2">
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{groupName}</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
+                        {profiles.length} profile{profiles.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                      {sections.map(({ key, label }) => {
+                        const sectionProfiles = sectionedProfiles[key];
+                        if (!sectionProfiles || sectionProfiles.length === 0) return null;
+
+                        return (
+                          <div key={key} className="space-y-2">
+                            <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 pb-1">
+                              {label} ({sectionProfiles.length})
                             </h4>
-                            <div className="space-y-3">
-                              {renderRoleGroups(sectionProfiles)}
+                            <div className="space-y-2">
+                              {sectionProfiles.map(renderProfileCard)}
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            );
-          })}
+                        );
+                      })}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
           </Accordion>
-        </div>
-      </CardContent>
-    </Card>
+        )}
+      </div>
+    </div>
   );
 }

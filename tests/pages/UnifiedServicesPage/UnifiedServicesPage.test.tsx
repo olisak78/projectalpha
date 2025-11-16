@@ -33,6 +33,7 @@ import type { Component } from '../../../src/types/api';
 // Mock all the hooks and contexts
 vi.mock('@/hooks/api/useComponents');
 vi.mock('@/hooks/api/useLandscapes');
+vi.mock('@/hooks/api/useTeams');
 vi.mock('@/hooks/useAuthRefresh');
 vi.mock('@/contexts/AuthContext');
 vi.mock('@/contexts/HeaderNavigationContext');
@@ -138,6 +139,7 @@ vi.mock('@/components/LandscapeToolsButtons', () => ({
 // Import mocked modules
 import { useComponentsByProject } from '../../../src/hooks/api/useComponents';
 import { useLandscapesByProject } from '../../../src/hooks/api/useLandscapes';
+import { useTeams } from '../../../src/hooks/api/useTeams';
 import { useAuthRefresh } from '../../../src/hooks/useAuthRefresh';
 import { useAuth } from '../../../src/contexts/AuthContext';
 import { useHeaderNavigation } from '../../../src/contexts/HeaderNavigationContext';
@@ -279,6 +281,11 @@ describe('UnifiedServicesPage', () => {
     vi.mocked(useComponentsByProject).mockReturnValue(defaultMocks.useComponentsByProject as any);
     vi.mocked(useLandscapesByProject).mockReturnValue({
       data: mockLandscapes,
+      isLoading: false,
+      error: null,
+    } as any);
+    vi.mocked(useTeams).mockReturnValue({
+      data: { teams: [] },
       isLoading: false,
       error: null,
     } as any);

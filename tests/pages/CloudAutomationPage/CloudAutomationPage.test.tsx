@@ -92,6 +92,14 @@ vi.mock('../../../src/contexts/AuthContext', () => ({
   }),
 }));
 
+vi.mock('@/hooks/api/useTeams', () => ({
+  useTeams: () => ({
+    data: { teams: [] },
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 vi.mock('../../../src/hooks/api/useComponents', () => ({
   useComponentsByProject: () => ({
     data: [

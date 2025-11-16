@@ -1,21 +1,29 @@
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bug } from "lucide-react";
+import { Bug, AlertCircle, List } from "lucide-react";
 import { useMyJiraIssues } from "@/hooks/api/useJira";
 import { JiraIssue } from "@/types/api";
 import JiraIssuesTable from "@/components/Homepage/JiraIssuesTable";
 import JiraIssuesFilter from "@/components/Homepage/JiraIssuesFilter";
 import TablePagination from "@/components/TablePagination";
-import { SortField, SortOrder } from "@/constants/developer-portal";
+import QuickFilterButtons, { FilterOption } from "@/components/QuickFilterButtons";
 
+type QuickFilterType = "bugs" | "tasks" | "both";
 
 export default function JiraIssuesTab() {
+  const [search, setSearch] = useState<string>("");
   const [jiStatus, setJiStatus] = useState<string>("all");
   const [jiProject, setJiProject] = useState<string>("all");
+  const [quickFilter, setQuickFilter] = useState<QuickFilterType>("both");
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortField, setSortField] = useState<SortField>('updated');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [sortBy, setSortBy] = useState<string>("updated_desc");
   const perPage = 10;
+
+  // Filter options for Jira issues
+  const jiraFilterOptions: FilterOption<QuickFilterType>[] = [
+    { value: "bugs" as const, label: "Bugs", icon: Bug },
+    { value: "tasks" as const, label: "Tasks", icon: AlertCircle },
+    { value: "both" as const, label: "Both", icon: List },
+  ];
 
   // Define open statuses (exclude resolved/closed/done statuses)
   const getOpenStatusFilter = () => {
@@ -30,19 +38,40 @@ export default function JiraIssuesTab() {
 
   const allIssues = apiData?.issues || [];
 
-  // Handle sort
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortOrder('asc');
-    }
-  };
-
-  // Client-side filtering and sorting
+  // Client-side filtering, searching, and sorting
   const filteredIssues = useMemo(() => {
     let filtered = allIssues;
+
+    // First, filter out issues that have a parent (they are subtasks)
+    // They will be displayed under their parent issue instead
+    filtered = filtered.filter((issue: JiraIssue) => !issue.fields?.parent);
+
+    // Filter by quick filter (bugs/tasks/both)
+    if (quickFilter !== "both") {
+      filtered = filtered.filter((issue: JiraIssue) => {
+        const issueType = issue.fields?.issuetype?.name?.toLowerCase() || '';
+        if (quickFilter === "bugs") {
+          return issueType.includes('bug');
+        } else if (quickFilter === "tasks") {
+          return issueType.includes('task') ||
+                 issueType.includes('story') ||
+                 issueType.includes('backlog') ||
+                 issueType.includes('epic') ||
+                 issueType.includes('subtask') ||
+                 issueType.includes('sub-task');
+        }
+        return true;
+      });
+    }
+
+    // Filter by search
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter((issue: JiraIssue) =>
+        issue.key.toLowerCase().includes(searchLower) ||
+        issue.fields?.summary?.toLowerCase().includes(searchLower)
+      );
+    }
 
     // Filter by status
     if (jiStatus !== "all") {
@@ -58,56 +87,39 @@ export default function JiraIssuesTab() {
       );
     }
 
-    // Sort
+    // Sort based on sortBy
     const sorted = [...filtered].sort((a, b) => {
-      let aValue: string | number = '';
-      let bValue: string | number = '';
+      const [field, order] = sortBy.split('_');
+      let aValue: any = '';
+      let bValue: any = '';
 
-      switch (sortField) {
-        case 'key':
-          aValue = a.key || '';
-          bValue = b.key || '';
-          break;
-        case 'summary':
-          aValue = a.fields?.summary?.toLowerCase() || '';
-          bValue = b.fields?.summary?.toLowerCase() || '';
-          break;
-        case 'status':
-          aValue = a.fields?.status?.name?.toLowerCase() || '';
-          bValue = b.fields?.status?.name?.toLowerCase() || '';
+      switch (field) {
+        case 'updated':
+          aValue = new Date(a.fields?.updated || 0).getTime();
+          bValue = new Date(b.fields?.updated || 0).getTime();
           break;
         case 'priority':
           const priorityOrder: Record<string, number> = {
-            'blocker': 1,
-            'critical': 2,
-            'very high': 3,
-            'high': 4,
-            'medium': 5,
-            'low': 6,
-            'unknown': 7
+            'highest': 1,
+            'critical': 1,
+            'high': 2,
+            'medium': 3,
+            'low': 4,
+            'lowest': 5,
           };
           aValue = priorityOrder[a.fields?.priority?.name?.toLowerCase() || ''] || 99;
           bValue = priorityOrder[b.fields?.priority?.name?.toLowerCase() || ''] || 99;
           break;
-        case 'updated':
-          aValue = a.fields?.updated || '';
-          bValue = b.fields?.updated || '';
-          break;
       }
 
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortOrder === 'asc'
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue);
+      if (order === 'desc') {
+        return bValue - aValue;
       }
-
-      return sortOrder === 'asc'
-        ? (aValue as number) - (bValue as number)
-        : (bValue as number) - (aValue as number);
+      return aValue - bValue;
     });
 
     return sorted;
-  }, [allIssues, jiStatus, jiProject, sortField, sortOrder]);
+  }, [allIssues, quickFilter, search, jiStatus, jiProject, sortBy]);
 
   // Client-side pagination
   const totalPages = Math.ceil(filteredIssues.length / perPage);
@@ -115,7 +127,7 @@ export default function JiraIssuesTab() {
   const paginatedIssues = filteredIssues.slice(startIndex, startIndex + perPage);
 
   // Reset to first page when filters change
-  useEffect(() => setCurrentPage(1), [jiStatus, jiProject]);
+  useEffect(() => setCurrentPage(1), [quickFilter, search, jiStatus, jiProject, sortBy]);
 
   // Get unique statuses and projects from all issues for filter options
   const availableStatuses = useMemo(() => {
@@ -150,49 +162,54 @@ export default function JiraIssuesTab() {
   }, [allIssues]);
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Bug className="h-4 w-4 text-primary" /> Jira Issues
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col flex-1 overflow-hidden space-y-3">
-        <JiraIssuesFilter
-          status={jiStatus}
-          project={jiProject}
-          availableStatuses={availableStatuses}
-          availableProjects={availableProjects}
-          onStatusChange={setJiStatus}
-          onProjectChange={setJiProject}
+    <div className="flex flex-col px-6 pt-4 pb-6 space-y-3 h-full">
+      {/* Quick Filter Buttons */}
+      <div>
+        <QuickFilterButtons
+          activeFilter={quickFilter}
+          onFilterChange={setQuickFilter}
+          filters={jiraFilterOptions}
         />
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="text-sm text-muted-foreground">Loading issues...</div>
-          </div>
-        ) : error ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="text-sm text-red-500">Failed to load issues: {error.message}</div>
-          </div>
-        ) : (
-          <>
-            <div className="rounded-md border overflow-hidden flex-1 overflow-y-auto">
-              <JiraIssuesTable
-                issues={paginatedIssues}
-                sortField={sortField}
-                sortOrder={sortOrder}
-                onSort={handleSort}
-              />
-            </div>
-            <TablePagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={filteredIssues.length}
-              onPageChange={setCurrentPage}
-              itemsPerPage={perPage}
+      </div>
+
+      {/* Filter Controls */}
+      <JiraIssuesFilter
+        search={search}
+        onSearchChange={setSearch}
+        status={jiStatus}
+        project={jiProject}
+        availableStatuses={availableStatuses}
+        availableProjects={availableProjects}
+        onStatusChange={setJiStatus}
+        onProjectChange={setJiProject}
+        sortBy={sortBy}
+        onSortByChange={setSortBy}
+      />
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-sm text-muted-foreground">Loading issues...</div>
+        </div>
+      ) : error ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-sm text-red-500">Failed to load issues: {error.message}</div>
+        </div>
+      ) : (
+        <>
+          <div className="rounded-md border overflow-hidden flex-1 overflow-y-auto">
+            <JiraIssuesTable
+              issues={paginatedIssues}
+              showAssignee={false}
             />
-          </>
-        )}
-      </CardContent>
-    </Card>
+          </div>
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredIssues.length}
+            onPageChange={setCurrentPage}
+            itemsPerPage={perPage}
+          />
+        </>
+      )}
+    </div>
   );
 }

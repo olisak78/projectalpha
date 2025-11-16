@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import HomePage from '../../../src/pages/HomePage';
 import { useAuth } from '../../../src/contexts/AuthContext';
 import { useCurrentUser } from '../../../src/hooks/api/useMembers';
@@ -9,6 +10,7 @@ import { useMyJiraIssuesCount, useMyJiraIssues } from '../../../src/hooks/api/us
 import { useGitHubContributions } from '../../../src/hooks/api/useGitHubContributions';
 import { useGitHubAveragePRTime } from '../../../src/hooks/api/useGitHubAveragePRtime';
 import { useGitHubPRs } from '../../../src/hooks/api/useGitHubPRs';
+import { useGitHubPRReviewComments } from '../../../src/hooks/api/useGitHubPRReviewComments';
 
 // Mock all the hooks
 vi.mock('../../../src/contexts/AuthContext');
@@ -17,6 +19,7 @@ vi.mock('../../../src/hooks/api/useJira');
 vi.mock('../../../src/hooks/api/useGitHubContributions');
 vi.mock('../../../src/hooks/api/useGitHubPRs');
 vi.mock('../../../src/hooks/api/useGitHubAveragePRtime');
+vi.mock('../../../src/hooks/api/useGitHubPRReviewComments');
 
 // Mock the Announcements component
 vi.mock('../../../src/components/Announcements', () => ({
@@ -87,12 +90,36 @@ const defaultMocks = {
         isLoading: false,
         error: null,
     },
+    useGitHubPRReviewComments: {
+        data: { total_comments: 42, period: '365d' },
+        isLoading: false,
+        error: null,
+    },
+};
+
+// Helper function to render with QueryClientProvider
+const renderWithProviders = (component: React.ReactElement) => {
+    const queryClient = new QueryClient({
+        defaultOptions: {
+            queries: {
+                retry: false,
+            },
+        },
+    });
+
+    return render(
+        <QueryClientProvider client={queryClient}>
+            <MemoryRouter>
+                {component}
+            </MemoryRouter>
+        </QueryClientProvider>
+    );
 };
 
 describe('HomePage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        
+
         // Set up default mocks
         vi.mocked(useAuth).mockReturnValue(defaultMocks.useAuth as any);
         vi.mocked(useCurrentUser).mockReturnValue(defaultMocks.useCurrentUser as any);
@@ -101,6 +128,7 @@ describe('HomePage', () => {
         vi.mocked(useGitHubContributions).mockReturnValue(defaultMocks.useGitHubContributions as any);
         vi.mocked(useGitHubAveragePRTime).mockReturnValue(defaultMocks.useGitHubAveragePRTime as any);
         vi.mocked(useGitHubPRs).mockReturnValue(defaultMocks.useGitHubPRs as any);
+        vi.mocked(useGitHubPRReviewComments).mockReturnValue(defaultMocks.useGitHubPRReviewComments as any);
     });
 
     // =========================================
@@ -109,11 +137,7 @@ describe('HomePage', () => {
 
     describe('Statistics Cards', () => {
         it('displays Average PR time stat with correct value including "min" suffix', () => {
-            render(
-                <MemoryRouter>
-                    <HomePage />
-                </MemoryRouter>
-            );
+            renderWithProviders(<HomePage />);
 
             expect(screen.getByText('Average PR time')).toBeInTheDocument();
             expect(screen.getByText('57 min')).toBeInTheDocument();
@@ -125,11 +149,7 @@ describe('HomePage', () => {
                 data: undefined,
             } as any);
 
-            render(
-                <MemoryRouter>
-                    <HomePage />
-                </MemoryRouter>
-            );
+            renderWithProviders(<HomePage />);
 
             expect(screen.getByText('0 min')).toBeInTheDocument();
         });
@@ -141,11 +161,7 @@ describe('HomePage', () => {
 
     describe('Average PR Time', () => {
         it('displays correct PR count with "min" suffix from API response', () => {
-            render(
-                <MemoryRouter>
-                    <HomePage />
-                </MemoryRouter>
-            );
+            renderWithProviders(<HomePage />);
 
             expect(screen.getByText('57 min')).toBeInTheDocument();
         });
@@ -159,11 +175,7 @@ describe('HomePage', () => {
                 },
             } as any);
 
-            render(
-                <MemoryRouter>
-                    <HomePage />
-                </MemoryRouter>
-            );
+            renderWithProviders(<HomePage />);
 
             expect(screen.getByText('0 min')).toBeInTheDocument();
         });
@@ -177,13 +189,38 @@ describe('HomePage', () => {
                 },
             } as any);
 
-            render(
-                <MemoryRouter>
-                    <HomePage />
-                </MemoryRouter>
-            );
+            renderWithProviders(<HomePage />);
 
             expect(screen.getByText('1234 min')).toBeInTheDocument();
+        });
+    });
+
+    // =========================================
+    // CSS CLASS TESTS
+    // =========================================
+
+    describe('Tab Content CSS Classes', () => {
+        it('applies tab-content-height class to all TabsContent elements', () => {
+            const { container } = renderWithProviders(<HomePage />);
+
+            // Find all TabsContent elements by their className directly from DOM
+            const tabContentElements = container.querySelectorAll('[class*="tab-content-height"]');
+
+            // Should have 4 TabsContent elements (one for each tab)
+            expect(tabContentElements).toHaveLength(4);
+
+            // Verify each TabsContent has the required classes
+            tabContentElements.forEach(element => {
+                expect(element).toHaveClass('tab-content-height');
+                expect(element).toHaveClass('overflow-y-auto');
+                expect(element).toHaveClass('mt-0');
+            });
+
+            // Additionally, verify the active tab panel is accessible
+            const activeTabPanel = screen.getByRole('tabpanel', { name: /quick links/i });
+            expect(activeTabPanel).toHaveClass('tab-content-height');
+            expect(activeTabPanel).toHaveClass('overflow-y-auto');
+            expect(activeTabPanel).toHaveClass('mt-0');
         });
     });
 });

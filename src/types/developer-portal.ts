@@ -35,8 +35,6 @@ export interface Landscape {
   awsAccount: string;
   camProfile: string;
   deploymentStatus: "deployed" | "deploying" | "failed";
-  metadata?:Record<string, unknown>;
-  landscape_url?:string;
 }
 
 export interface FeatureToggle {

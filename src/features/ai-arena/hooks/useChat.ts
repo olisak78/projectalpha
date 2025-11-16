@@ -269,10 +269,20 @@ export function useChat() {
       isStreaming: true
     };
 
+    // Determine if we need to update the title for new conversations
+    const currentConv = conversations.find(c => c.id === convId);
+    const shouldUpdateTitle = currentConv?.title === "New Chat";
+    const newTitle = shouldUpdateTitle ? (content.slice(0, 32) || "New Chat") : currentConv?.title;
+
+    // If title needs updating, persist it to IndexedDB
+    if (shouldUpdateTitle && newTitle && newTitle !== "New Chat") {
+      await chatDB.updateConversationTitle(convId, newTitle);
+    }
+
     // Update UI with user message and streaming message
     setConversations(prev => prev.map(c =>
       c.id === convId
-        ? { ...c, messages: [...c.messages, userMsg, streamingMsg], updatedAt: Date.now(), title: c.title === "New Chat" ? content.slice(0, 32) || "New Chat" : c.title }
+        ? { ...c, messages: [...c.messages, userMsg, streamingMsg], updatedAt: Date.now(), title: newTitle || c.title }
         : c
     ));
 
@@ -366,9 +376,10 @@ export function useChat() {
       });
 
       const assistantContent = response.choices[0]?.message?.content || "No response";
+      const assistantContentStr = typeof assistantContent === 'string' ? assistantContent : JSON.stringify(assistantContent);
 
       // Save final assistant message to IndexedDB and get the DB-generated ID
-      const assistantMsgId = await chatDB.addMessage(convId, "assistant", assistantContent);
+      const assistantMsgId = await chatDB.addMessage(convId, "assistant", assistantContentStr);
 
       // Final update to ensure we have the complete message and clear streaming state
       // IMPORTANT: Update the message ID to match the IndexedDB ID so future updates work
@@ -377,7 +388,7 @@ export function useChat() {
 
         const updatedMessages = c.messages.map(m =>
           m.id === streamingMsgId
-            ? { ...m, id: assistantMsgId, content: assistantContent, isStreaming: false }
+            ? { ...m, id: assistantMsgId, content: assistantContentStr, isStreaming: false }
             : m
         );
 
@@ -478,6 +489,7 @@ export function useChat() {
       });
 
       const newContent = response.choices[0]?.message?.content || "No response";
+      const newContentStr = typeof newContent === 'string' ? newContent : JSON.stringify(newContent);
 
       // Update the message with the new alternative
       setConversations(prev => prev.map(c => {
@@ -493,15 +505,15 @@ export function useChat() {
         }
 
         // Add new alternative
-        msg.alternatives.push(newContent);
+        msg.alternatives.push(newContentStr);
         msg.currentAlternativeIndex = msg.alternatives.length - 1;
-        msg.content = newContent;
+        msg.content = newContentStr;
         msg.isRegenerating = false;
         msg.isStreaming = false;
 
         // Persist alternatives to IndexedDB
         chatDB.updateMessage(msg.id, {
-          content: newContent,
+          content: newContentStr,
           meta: {
             alternatives: msg.alternatives,
             currentAlternativeIndex: msg.currentAlternativeIndex

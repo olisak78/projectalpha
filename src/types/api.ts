@@ -141,6 +141,21 @@ export interface TeamMember {
 }
 
 /**
+ * Team Metadata interface
+ * Defines the structure of team metadata
+ */
+export interface TeamMetadata {
+  color?: string;
+  jira?: {
+    team?: string;
+    'project-key'?: string;
+    components?: string[];
+    'board-id'?: string;
+  };
+  [key: string]: unknown;
+}
+
+/**
  * Team model
  * Represents a team within an organization/group
  */
@@ -152,7 +167,7 @@ export interface Team {
   id: string;
   links: TeamLink[];
   members: TeamMember[];
-  metadata: Record<string, unknown>;
+  metadata: TeamMetadata;
   name: string;
   organization_id: string;
   owner: string;
@@ -806,6 +821,44 @@ export interface JiraIssue {
     updated: string;
     resolved?: string;
     description?: string;
+    parent?: {
+      id: string;
+      key: string;
+      fields: {
+        summary: string;
+        status: {
+          id: string;
+          name: string;
+        };
+        issuetype: {
+          id: string;
+          name: string;
+        };
+        priority: {
+          id: string;
+          name: string;
+        };
+      };
+    };
+    subtasks?: Array<{
+      id: string;
+      key: string;
+      fields: {
+        summary: string;
+        status: {
+          id: string;
+          name: string;
+        };
+        issuetype: {
+          id: string;
+          name: string;
+        };
+        priority: {
+          id: string;
+          name: string;
+        };
+      };
+    }>;
   };
   project: string;
   link: string;
@@ -889,6 +942,13 @@ export interface CreateQuickLinkRequest {
 }
 export interface GitHubContributionsResponse {
   total_contributions: number;
+  period: string;
+  from: string;
+  to: string;
+}
+
+export interface GitHubPRReviewCommentsResponse {
+  total_comments: number;
   period: string;
   from: string;
   to: string;

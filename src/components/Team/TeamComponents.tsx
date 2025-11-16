@@ -14,6 +14,8 @@ interface TeamComponentsProps {
   selectedLandscape?: string | null;
   selectedLandscapeData?: any; // Landscape data with metadata
   compactView?: boolean; // New prop to use compact view for team pages
+  teamNamesMap?: Record<string, string>; // Map of owner_id to team name
+  teamColorsMap?: Record<string, string>; // Map of owner_id to team color
 }
 
 export function TeamComponents({
@@ -26,6 +28,8 @@ export function TeamComponents({
   selectedLandscape,
   selectedLandscapeData,
   compactView = false,
+  teamNamesMap = {},
+  teamColorsMap = {},
 }: TeamComponentsProps) {
   if (!components || components.length === 0) {
     return (
@@ -43,6 +47,9 @@ export function TeamComponents({
 
   // Helper function to render a compact component item (for team pages)
   const renderCompactComponentItem = (component: Component) => {
+    const ownerTeamName = component.owner_id ? teamNamesMap[component.owner_id] : undefined;
+    const ownerTeamColor = component.owner_id ? teamColorsMap[component.owner_id] : undefined;
+
     return (
       <div
         key={component.id}
@@ -56,24 +63,38 @@ export function TeamComponents({
           </span>
         </div>
 
-        {/* Right side - GitHub link */}
-        {component.github && component.github.trim() !== '' && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-3 text-xs opacity-60 group-hover:opacity-100 transition-opacity"
-            onClick={() => openLink(component.github!)}
-          >
-            <Github className="h-3.5 w-3.5 mr-1.5" />
-            GitHub
-          </Button>
-        )}
+        {/* Right side - Team badge and GitHub link */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {ownerTeamName && (
+            <Badge
+              variant="secondary"
+              className="text-xs px-2 py-0.5 text-white border-0"
+              style={{ backgroundColor: ownerTeamColor || '#6b7280' }}
+            >
+              {ownerTeamName}
+            </Badge>
+          )}
+          {component.github && component.github.trim() !== '' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-3 text-xs opacity-60 group-hover:opacity-100 transition-opacity"
+              onClick={() => openLink(component.github!)}
+            >
+              <Github className="h-3.5 w-3.5 mr-1.5" />
+              GitHub
+            </Button>
+          )}
+        </div>
       </div>
     );
   };
 
   // Helper function to render a component card (for project pages)
   const renderComponentCard = (component: Component) => {
+    const ownerTeamName = component.owner_id ? teamNamesMap[component.owner_id] : undefined;
+    const ownerTeamColor = component.owner_id ? teamColorsMap[component.owner_id] : undefined;
+
     return (
       <ComponentCard
         key={component.id}
@@ -98,6 +119,8 @@ export function TeamComponents({
         onToggleExpanded={onToggleExpanded}
         getComponentHealth={() => "N/A"}
         getComponentAlerts={() => null}
+        teamName={ownerTeamName}
+        teamColor={ownerTeamColor}
       />
     );
   };

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TeamProvider } from '../../../src/contexts/TeamContext';
 import Team from '../../../src/components/Team/Team';
 import type { Team as ApiTeam } from '../../../src/types/api';
@@ -23,6 +24,11 @@ vi.mock('../../../src/hooks/api/useTeams', () => ({
       members: [],
       links: [],
     },
+    isLoading: false,
+    error: null,
+  })),
+  useTeams: vi.fn(() => ({
+    data: { teams: [] },
     isLoading: false,
     error: null,
   })),
@@ -126,6 +132,23 @@ vi.mock('../../../src/hooks/team/useScoreboardData', () => ({
   })),
 }));
 
+vi.mock('../../../src/hooks/api/mutations/useTeamMutations', () => ({
+  useUpdateTeam: vi.fn(() => ({
+    mutate: vi.fn(),
+    isPending: false,
+  })),
+  useUpdateTeamMetadata: vi.fn(() => ({
+    mutate: vi.fn(),
+    isPending: false,
+  })),
+}));
+
+vi.mock('../../../src/hooks/use-toast', () => ({
+  useToast: () => ({
+    toast: vi.fn(),
+  }),
+}));
+
 vi.mock('../../../src/contexts/AuthContext', () => ({
   useAuth: vi.fn(() => ({
     user: { id: 'user1', email: 'test@example.com' },
@@ -200,10 +223,19 @@ describe('Team Component', () => {
   };
 
   const renderTeamWithProvider = (teamProps = defaultTeamProps, providerProps = defaultTeamProviderProps) => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+
     return render(
-      <TeamProvider {...providerProps}>
-        <Team {...teamProps} />
-      </TeamProvider>
+      <QueryClientProvider client={queryClient}>
+        <TeamProvider {...providerProps}>
+          <Team {...teamProps} />
+        </TeamProvider>
+      </QueryClientProvider>
     );
   };
 
@@ -274,29 +306,42 @@ describe('Team Component', () => {
     });
 
     it('should handle different tabs without errors', () => {
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      });
+
       // Test overview tab
       const { rerender } = render(
-        <TeamProvider {...defaultTeamProviderProps}>
-          <Team {...defaultTeamProps} />
-        </TeamProvider>
+        <QueryClientProvider client={queryClient}>
+          <TeamProvider {...defaultTeamProviderProps}>
+            <Team {...defaultTeamProps} />
+          </TeamProvider>
+        </QueryClientProvider>
       );
 
       expect(screen.getByTestId('member-list')).toBeInTheDocument();
 
       // Test components tab
       rerender(
-        <TeamProvider {...defaultTeamProviderProps}>
-          <Team {...defaultTeamProps} activeCommonTab="components" />
-        </TeamProvider>
+        <QueryClientProvider client={queryClient}>
+          <TeamProvider {...defaultTeamProviderProps}>
+            <Team {...defaultTeamProps} activeCommonTab="components" />
+          </TeamProvider>
+        </QueryClientProvider>
       );
 
       expect(screen.getByTestId('team-components')).toBeInTheDocument();
 
       // Test jira tab
       rerender(
-        <TeamProvider {...defaultTeamProviderProps}>
-          <Team {...defaultTeamProps} activeCommonTab="jira" />
-        </TeamProvider>
+        <QueryClientProvider client={queryClient}>
+          <TeamProvider {...defaultTeamProviderProps}>
+            <Team {...defaultTeamProps} activeCommonTab="jira" />
+          </TeamProvider>
+        </QueryClientProvider>
       );
 
       expect(screen.getByTestId('team-jira-issues')).toBeInTheDocument();

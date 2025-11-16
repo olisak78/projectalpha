@@ -32,15 +32,20 @@ const validateGitHubUrl = (url: string): boolean => {
     if (parsedUrl.host !== "github.tools.sap" && parsedUrl.host !== "github.com") {
       return false;
     }
-    // Expected format: /{owner}/{repo}/tree/{branch}/{path} or /{owner}/{repo}/blob/{branch}/{path}
+    
     const parts = parsedUrl.pathname.split('/').filter(p => p);
-    if (parts.length < 5) {
-      return false;
+    
+    // Support repository root URLs: /{owner}/{repo}
+    if (parts.length === 2) {
+      return true;
     }
-    if (parts[2] !== "tree" && parts[2] !== "blob") {
-      return false;
+    
+    // Support tree/blob URLs: /{owner}/{repo}/tree/{branch}/{path} or /{owner}/{repo}/blob/{branch}/{path}
+    if (parts.length >= 5 && (parts[2] === "tree" || parts[2] === "blob")) {
+      return true;
     }
-    return true;
+    
+    return false;
   } catch {
     return false;
   }

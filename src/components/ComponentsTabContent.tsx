@@ -1,11 +1,20 @@
-import { RefreshCw, AlertCircle } from "lucide-react";
+import { RefreshCw, AlertCircle, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TeamComponents } from "@/components/Team/TeamComponents";
 import { ComponentsSearchFilter } from "@/components/ComponentsSearchFilter";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { ComponentListResponse } from "@/types/api";
 import { useMemo } from "react";
+
+type SortOrder = 'alphabetic' | 'team';
 
 interface ComponentsTabContentProps {
   title: string;
@@ -25,6 +34,10 @@ interface ComponentsTabContentProps {
   showLandscapeFilter?: boolean;
   selectedLandscape?: string | null;
   selectedLandscapeData?: any;
+  teamNamesMap?: Record<string, string>;
+  teamColorsMap?: Record<string, string>;
+  sortOrder?: SortOrder;
+  onSortOrderChange?: (order: SortOrder) => void;
 }
 
 /**
@@ -50,22 +63,60 @@ export function ComponentsTabContent({
   additionalControls,
   showLandscapeFilter = false,
   selectedLandscape,
-  selectedLandscapeData
+  selectedLandscapeData,
+  teamNamesMap = {},
+  teamColorsMap = {},
+  sortOrder = 'alphabetic',
+  onSortOrderChange
 }: ComponentsTabContentProps) {
-  // Filter components based on search term
-  const filteredComponents = useMemo(() => {
-    if (!searchTerm.trim()) return components;
-    
-    const searchLower = searchTerm.toLowerCase();
-    return components.filter(component => {
-      const displayName = 'display_name' in component ? component.display_name : ('title' in component ? component.title : '');
-      return (
-        component.name.toLowerCase().includes(searchLower) ||
-        displayName?.toString().toLowerCase().includes(searchLower) ||
-        component.description?.toLowerCase().includes(searchLower)
-      );
-    });
-  }, [components, searchTerm]);
+  // Filter and sort components based on search term and sort order
+  const filteredAndSortedComponents = useMemo(() => {
+    // First, filter based on search term
+    let result = components;
+
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      result = components.filter(component => {
+        const displayName = 'display_name' in component ? component.display_name : ('title' in component ? component.title : '');
+        return (
+          component.name.toLowerCase().includes(searchLower) ||
+          displayName?.toString().toLowerCase().includes(searchLower) ||
+          component.description?.toLowerCase().includes(searchLower)
+        );
+      });
+    }
+
+    // Then, sort based on sort order
+    const sorted = [...result];
+
+    if (sortOrder === 'alphabetic') {
+      // Sort alphabetically by component name
+      sorted.sort((a, b) => {
+        const nameA = (a.title || a.name).toLowerCase();
+        const nameB = (b.title || b.name).toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+    } else if (sortOrder === 'team') {
+      // Sort by team name, then alphabetically within each team
+      sorted.sort((a, b) => {
+        const teamA = a.owner_id ? (teamNamesMap[a.owner_id] || '') : '';
+        const teamB = b.owner_id ? (teamNamesMap[b.owner_id] || '') : '';
+
+        // First compare by team name
+        const teamComparison = teamA.localeCompare(teamB);
+        if (teamComparison !== 0) {
+          return teamComparison;
+        }
+
+        // If same team (or both have no team), sort alphabetically by component name
+        const nameA = (a.title || a.name).toLowerCase();
+        const nameB = (b.title || b.name).toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+    }
+
+    return sorted;
+  }, [components, searchTerm, sortOrder, teamNamesMap]);
 
   return (
     <div>
@@ -77,12 +128,25 @@ export function ComponentsTabContent({
             <div className="flex items-center gap-3">
               <h2 className="text-xl font-semibold text-foreground">{title}</h2>
               <Badge variant="secondary" className="text-sm px-2.5 py-0.5">
-                {filteredComponents.length}
+                {filteredAndSortedComponents.length}
               </Badge>
             </div>
 
             {/* Right side - Controls */}
             <div className="flex items-center gap-2">
+              {/* Sort Dropdown */}
+              {!isLoading && !error && onSortOrderChange && (
+                <Select value={sortOrder} onValueChange={onSortOrderChange}>
+                  <SelectTrigger className="w-[160px] h-9">
+                    <ArrowUpDown className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="alphabetic">Alphabetic</SelectItem>
+                    <SelectItem value="team">Team</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
               {/* Search Filter */}
               {!isLoading && !error && onSearchTermChange && (
                 <ComponentsSearchFilter
@@ -132,7 +196,7 @@ export function ComponentsTabContent({
         {/* Components Display using TeamComponents */}
         {!isLoading && !error && (
           <TeamComponents
-            components={filteredComponents}
+            components={filteredAndSortedComponents}
             teamName={teamName}
             teamComponentsExpanded={teamComponentsExpanded}
             onToggleExpanded={onToggleExpanded}
@@ -140,6 +204,8 @@ export function ComponentsTabContent({
             showProjectGrouping={false} // Project-specific pages don't show grouping
             selectedLandscape={selectedLandscape}
             selectedLandscapeData={selectedLandscapeData}
+            teamNamesMap={teamNamesMap}
+            teamColorsMap={teamColorsMap}
           />
         )}
       </div>

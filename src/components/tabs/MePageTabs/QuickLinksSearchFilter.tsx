@@ -1,10 +1,15 @@
 import { Input } from "@/components/ui/input";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 import { useQuickLinksContext } from "@/contexts/QuickLinksContext";
 
-export const QuickLinksSearchFilter = () => {
+interface QuickLinksSearchFilterProps {
+  onAddLinkClick?: () => void;
+}
+
+export const QuickLinksSearchFilter = ({ onAddLinkClick }: QuickLinksSearchFilterProps) => {
   const { 
     linkCategories, 
     searchTerm, 
@@ -85,15 +90,27 @@ export const QuickLinksSearchFilter = () => {
 
   return (
     <div className="bg-card border rounded-lg p-2.5 flex flex-col gap-2.5">
-      {/* Search */}
-      <div className="relative w-full">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-        <Input
-          placeholder="Search quick links..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9 border bg-muted/50 h-8 text-sm"
-        />
+      {/* Search and Add Link Button */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search quick links..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 border bg-muted/50 h-8 text-sm"
+          />
+        </div>
+        {onAddLinkClick && (
+          <Button
+            size="sm"
+            onClick={onAddLinkClick}
+            className="h-8 whitespace-nowrap"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Link
+          </Button>
+        )}
       </div>
 
       {/* Scrollable Category Pills Container */}

@@ -1,14 +1,45 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TeamHeader } from '../../../src/components/Team/TeamHeader';
 
 /**
  * TeamHeader Component Tests
- * 
+ *
  * Tests for the TeamHeader component which displays the team name
  * with automatic "Team " prefix handling.
  */
+
+// Mock the hooks
+vi.mock('@/hooks/api/mutations/useTeamMutations', () => ({
+  useUpdateTeam: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+}));
+
+vi.mock('@/hooks/use-toast', () => ({
+  useToast: () => ({
+    toast: vi.fn(),
+  }),
+}));
+
+// Helper function to render with QueryClientProvider
+function renderWithProviders(component: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {component}
+    </QueryClientProvider>
+  );
+}
 
 describe('TeamHeader', () => {
   // ============================================================================
@@ -17,7 +48,7 @@ describe('TeamHeader', () => {
 
   describe('Basic Rendering and Structure', () => {
     it('should render header with correct structure and CSS classes', () => {
-      render(<TeamHeader teamName="Development" />);
+      renderWithProviders(<TeamHeader teamName="Development" />);
 
       const header = screen.getByRole('banner');
       const heading = screen.getByRole('heading', { level: 1 });
@@ -53,7 +84,7 @@ describe('TeamHeader', () => {
       ];
 
       testCases.forEach(({ input, expected }) => {
-        const { unmount } = render(<TeamHeader teamName={input} />);
+        const { unmount } = renderWithProviders(<TeamHeader teamName={input} />);
         
         const heading = screen.getByRole('heading', { level: 1 });
         expect(heading).toHaveTextContent(expected);
@@ -79,7 +110,7 @@ describe('TeamHeader', () => {
       ];
 
       testCases.forEach(({ input, expected }) => {
-        const { unmount } = render(<TeamHeader teamName={input} />);
+        const { unmount } = renderWithProviders(<TeamHeader teamName={input} />);
         
         const heading = screen.getByRole('heading', { level: 1 });
         expect(heading).toHaveTextContent(expected);
@@ -95,7 +126,7 @@ describe('TeamHeader', () => {
       ];
 
       testCases.forEach(({ input, shouldRender }) => {
-        const { unmount } = render(<TeamHeader teamName={input as any} />);
+        const { unmount } = renderWithProviders(<TeamHeader teamName={input as any} />);
         
         const heading = screen.getByRole('heading', { level: 1 });
         expect(heading).toBeInTheDocument();
@@ -106,7 +137,7 @@ describe('TeamHeader', () => {
 
     it('should handle very long team names', () => {
       const longTeamName = 'A'.repeat(100);
-      render(<TeamHeader teamName={longTeamName} />);
+      renderWithProviders(<TeamHeader teamName={longTeamName} />);
 
       const heading = screen.getByRole('heading', { level: 1 });
       expect(heading).toHaveTextContent(`Team ${longTeamName}`);
@@ -119,19 +150,34 @@ describe('TeamHeader', () => {
 
   describe('Prop Changes and Accessibility', () => {
     it('should handle prop changes correctly', () => {
-      const { rerender } = render(<TeamHeader teamName="Original" />);
-      
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      });
+
+      const { rerender } = render(
+        <QueryClientProvider client={queryClient}>
+          <TeamHeader teamName="Original" />
+        </QueryClientProvider>
+      );
+
       let heading = screen.getByRole('heading', { level: 1 });
       expect(heading).toHaveTextContent('Team Original');
 
-      rerender(<TeamHeader teamName="Team Updated" />);
-      
+      rerender(
+        <QueryClientProvider client={queryClient}>
+          <TeamHeader teamName="Team Updated" />
+        </QueryClientProvider>
+      );
+
       heading = screen.getByRole('heading', { level: 1 });
       expect(heading).toHaveTextContent('Team Updated');
     });
 
     it('should be accessible and properly structured', () => {
-      render(<TeamHeader teamName="Development" />);
+      renderWithProviders(<TeamHeader teamName="Development" />);
 
       const header = screen.getByRole('banner');
       const heading = screen.getByRole('heading', { level: 1 });
@@ -144,7 +190,7 @@ describe('TeamHeader', () => {
 
     it('should not throw errors with valid props', () => {
       expect(() => {
-        render(<TeamHeader teamName="Valid Team" />);
+        renderWithProviders(<TeamHeader teamName="Valid Team" />);
       }).not.toThrow();
     });
   });

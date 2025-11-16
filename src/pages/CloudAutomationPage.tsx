@@ -13,6 +13,7 @@ import {
 import { useTabRouting } from "@/hooks/useTabRouting";
 import { useComponentsByProject } from "@/hooks/api/useComponents";
 import { useLandscapesByProject } from "@/hooks/api/useLandscapes";
+import { useTeams } from "@/hooks/api/useTeams";
 import { ComponentsTabContent } from "@/components/ComponentsTabContent";
 import { useAuthRefresh } from "@/hooks/useAuthRefresh";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +30,7 @@ export default function CloudAutomationPage() {
   const { currentTabFromUrl, syncTabWithUrl } = useTabRouting();
   const [teamComponentsExpanded, setTeamComponentsExpanded] = useState<Record<string, boolean>>({});
   const [componentSearchTerm, setComponentSearchTerm] = useState("");
+  const [componentSortOrder, setComponentSortOrder] = useState<'alphabetic' | 'team'>('alphabetic');
 
   // Check authentication status on mount
   const { isAuthenticated, authError, retry } = useAuthRefresh();
@@ -56,11 +58,43 @@ export default function CloudAutomationPage() {
     data: apiLandscapes,
   } = useLandscapesByProject('ca');
 
+  // Fetch all teams to create team name mapping
+  const { data: teamsData } = useTeams();
+
   // Extract components from the API response and create proper ownership/nameById mappings
   const cloudAutomationApiComponents = useMemo(() => {
     if (!cloudAutomationComponentsData) return [];
     return cloudAutomationComponentsData;
   }, [cloudAutomationComponentsData]);
+
+  // Create a mapping of team ID to team name
+  const teamNamesMap = useMemo(() => {
+    if (!teamsData?.teams) return {};
+    return teamsData.teams.reduce((acc, team) => {
+      acc[team.id] = team.name;
+      return acc;
+    }, {} as Record<string, string>);
+  }, [teamsData]);
+
+  // Create a mapping of team ID to team color
+  const teamColorsMap = useMemo(() => {
+    if (!teamsData?.teams) return {};
+    return teamsData.teams.reduce((acc, team) => {
+      // Metadata might be a string that needs parsing
+      let metadata = team.metadata;
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          console.error('Failed to parse team metadata:', e);
+        }
+      }
+      if (metadata?.color) {
+        acc[team.id] = metadata.color;
+      }
+      return acc;
+    }, {} as Record<string, string>);
+  }, [teamsData]);
 
   // Find the selected landscape from API data
   const selectedApiLandscape = useMemo(() => {
@@ -147,6 +181,10 @@ export default function CloudAutomationPage() {
               searchTerm={componentSearchTerm}
               onSearchTermChange={setComponentSearchTerm}
               system="cloud-automation"
+              teamNamesMap={teamNamesMap}
+              teamColorsMap={teamColorsMap}
+              sortOrder={componentSortOrder}
+              onSortOrderChange={setComponentSortOrder}
             />
           </>
         );

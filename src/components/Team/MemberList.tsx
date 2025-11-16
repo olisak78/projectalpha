@@ -8,16 +8,23 @@ import type { Member as DutyMember } from "@/hooks/useOnDutyData";
 import { useState } from "react";
 import ApprovalDialog from "../dialogs/ApprovalDialog";
 import { MoveMemberDialog } from "../dialogs/MoveMemberDialog";
+import { TeamColorPicker } from "./TeamColorPicker";
 import { useToast } from "@/hooks/use-toast";
 import { useTeamContext } from "@/contexts/TeamContext";
 
 interface MemberListProps {
   showActions?: boolean;
+  colorPickerProps?: {
+    currentColor: string;
+    onColorChange: (color: string) => void;
+    disabled: boolean;
+    usedColors: string[];
+  };
 }
 
 const initials = (name: string) => name.split(" ").map((n) => n[0]).slice(0, 2).join("");
 
-export function MemberList({ showActions = true }: MemberListProps) {
+export function MemberList({ showActions = true, colorPickerProps }: MemberListProps) {
   const { 
     members, 
     teamName, 
@@ -152,9 +159,19 @@ export function MemberList({ showActions = true }: MemberListProps) {
         <Badge variant="outline">{members.length}</Badge>
       </div>
        {isAdmin && (
-          <Button size="sm" onClick={openAddMember}>
-            Add Member
-          </Button>
+          <div className="flex items-center gap-2 h-9">
+            {colorPickerProps && (
+              <TeamColorPicker
+                currentColor={colorPickerProps.currentColor}
+                onColorChange={colorPickerProps.onColorChange}
+                disabled={colorPickerProps.disabled}
+                usedColors={colorPickerProps.usedColors}
+              />
+            )}
+            <Button size="sm" onClick={openAddMember} className="h-9">
+              Add Member
+            </Button>
+          </div>
         )}
       </div>
       {members.length === 0 ? (

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { QuickLinksGrid } from "./QuickLinksGrid";
@@ -47,45 +46,46 @@ const QuickLinksTabContent = ({ emptyMessage, title }: { emptyMessage?: string; 
   // Render states
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <LoadingState />
-        </CardContent>
-      </Card>
+      <div className="px-6 pt-4 pb-6">
+        <LoadingState />
+      </div>
     );
   }
 
   return (
     <>
-      <Card className="h-full flex flex-col">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-          <h3 className="font-semibold">{title}</h3>
-          <Button
-            size="sm"
-            onClick={() => setIsAddLinkDialogOpen(true)}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Link
-          </Button>
-        </CardHeader>
-        <CardContent className="p-0 px-6 pb-6 flex flex-col flex-1 overflow-hidden">
-          {/* Search and Filter - only show if there are links */}
-          {quickLinks.length > 0 && (
-            <div className="mb-4">
-              <QuickLinksSearchFilter />
-            </div>
-          )}
-
-          {/* Links Grid or Empty State - fills remaining height */}
-          <div className="flex-1 overflow-y-auto">
-            {quickLinks.length === 0 ? (
-              <EmptyState message={emptyMessage || "No quick links yet. Add Links to Favorites or click 'Add Quick Link' to get started."}/>
-            ) : (
-              <QuickLinksGrid />
-            )}
+      <div className="flex flex-col px-6 pt-4 pb-6 min-h-[400px]">
+        {/* Search and Filter - only show if there are links */}
+        {quickLinks.length > 0 && (
+          <div className="mb-4">
+            <QuickLinksSearchFilter
+              onAddLinkClick={() => setIsAddLinkDialogOpen(true)}
+            />
           </div>
-        </CardContent>
-      </Card>
+        )}
+
+        {/* Links Grid or Empty State - fills remaining height */}
+        <div className="flex-1">
+          {quickLinks.length === 0 ? (
+            <div className="h-full min-h-[350px] flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <div className="text-base text-muted-foreground text-center">
+                  {emptyMessage || "No quick links yet. Add Links to Favorites or click 'Add Link' to get started."}
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => setIsAddLinkDialogOpen(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Link
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <QuickLinksGrid />
+          )}
+        </div>
+      </div>
 
       <AddLinkDialog
         open={isAddLinkDialogOpen}

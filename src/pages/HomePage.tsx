@@ -1,14 +1,17 @@
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { 
-  CheckCircle, 
-  GitBranch, 
+import {
+  CheckCircle,
+  GitBranch,
   MessageSquare,
-  Info
+  Info,
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import teamData from "@/data/team/my-team.json";
 import { BreadcrumbPage } from "@/components/BreadcrumbPage";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +25,7 @@ import { useMyJiraIssuesCount, useMyJiraIssues } from "@/hooks/api/useJira";
 import { useCurrentUser } from "@/hooks/api/useMembers";
 import { useGitHubPRs } from "@/hooks/api/useGitHubPRs";
 import { useGitHubContributions } from "@/hooks/api/useGitHubContributions";
+import { useGitHubPRReviewComments } from "@/hooks/api/useGitHubPRReviewComments";
 import { StatItem } from '@/types/api';
 import { Area, AreaChart, ResponsiveContainer} from 'recharts';
 import { useGitHubAveragePRTime } from '@/hooks/api/useGitHubAveragePRtime';
@@ -33,9 +37,32 @@ export default function HomePage() {
 
   const members = teamData.members;
   const currentId = user?.name || members[0].id;
-  
+
   // Use new /users/me endpoint instead of /members/:id
   const { data: userData, isLoading: isMemberLoading } = useCurrentUser();
+
+  // Reference to measure grid container width
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  // Calculate container width on mount and resize
+  useEffect(() => {
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+      }
+    };
+
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
+
+  // Calculate exact widths based on 4-column grid with gap-6 (24px)
+  const gap = 24; // gap-6 in pixels
+  const oneColumnWidth = containerWidth > 0 ? (containerWidth - 3 * gap) / 4 : 0;
+  const twoColumnWidth = containerWidth > 0 ? (containerWidth - 3 * gap) / 4 * 2 + gap : 0;
+  const threeColumnWidth = containerWidth > 0 ? (containerWidth - 3 * gap) / 4 * 3 + 2 * gap : 0;
 
   // Get Jira resolved issues count from new API
   const { data: jiraResolvedCountData, isLoading: isJiraLoading, error: jiraError } = useMyJiraIssuesCount({
@@ -61,14 +88,25 @@ export default function HomePage() {
     data: avgPRTimeData,
     isLoading: isAvgPRTimeLoading,
     error: avgPRTimeError
-  } = useGitHubAveragePRTime();
+  } = useGitHubAveragePRTime('365d');
   const prCount = avgPRTimeData?.pr_count || 0;
   const chartData = avgPRTimeData?.time_series?.map(item => ({ value: item.pr_count })).reverse() || [];
+
+  // Get GitHub PR review comments from API
+  const {
+    data: prReviewCommentsData,
+    isLoading: isPRReviewCommentsLoading,
+    error: prReviewCommentsError
+  } = useGitHubPRReviewComments('365d');
+  const reviewCommentsCount = prReviewCommentsData?.total_comments || 0;
 
   // GitHub PRs state and data fetching
   const [prStatus, setPrStatus] = useState<'open' | 'closed' | 'all'>('open');
   const [prPage, setPrPage] = useState(1);
   const perPage = 10;
+
+  // Announcements expand/collapse state
+  const [isAnnouncementsExpanded, setIsAnnouncementsExpanded] = useState(false);
 
     // Persistent tab selection state
   const [activeQuickAccessTab, setActiveQuickAccessTab] = useState<string>(() => {
@@ -138,11 +176,26 @@ export default function HomePage() {
         if (avgPRTimeError) return "N/A";
         return `${prCount} min`;
       })(),
-      description: "Over last 30 days",
-      tooltip: "Average time for PRs to be merged over last 30 days",
+      description: "Over last year",
+      tooltip: "Average time for PRs to be merged over the last year",
       isLoading: isAvgPRTimeLoading,
       isError: !!avgPRTimeError,
       chartData: chartData
+    },
+    {
+      id: 4,
+      title: 'Review Hero',
+      value: (() => {
+        if (isPRReviewCommentsLoading) return "Loading...";
+        if (prReviewCommentsError) return "N/A";
+        return reviewCommentsCount;
+      })(),
+      description: "PRs you reviewed last year",
+      tooltip: "Number of pull requests you reviewed in the last year",
+      icon: <MessageSquare className="h-6 w-6" />,
+      color: 'text-purple-500',
+      isLoading: isPRReviewCommentsLoading,
+      isError: !!prReviewCommentsError
     }
   ];
 
@@ -156,8 +209,8 @@ export default function HomePage() {
           </h1>
         </div>
 
-        {/* Stats Grid - 3 columns */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Stats Grid - 4 columns */}
+        <div ref={containerRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {stats.map((stat) => (
             <Card key={stat.id} className="border-slate-200 dark:border-slate-700">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -215,7 +268,7 @@ export default function HomePage() {
                           />
                         </AreaChart>
                       </ResponsiveContainer>
-                      
+
                     </div>
                   </div>
                 ) : (
@@ -235,19 +288,39 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* Main Content Grid - Announcements (1/3) + Tabs (2/3) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Announcements Section - 1 column */}
-          <div className="lg:col-span-1">
+        {/* Main Content Grid - Aligned with stats: Announcements (1/4 or 2/4) + Quick Access (3/4 or 2/4) */}
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Announcements Section - dynamically expands/collapses */}
+          <div
+            className="w-full"
+            style={{
+              width: containerWidth > 0 ? (isAnnouncementsExpanded ? `${twoColumnWidth}px` : `${oneColumnWidth}px`) : '100%',
+              transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
+            }}
+          >
             <Card className="border-slate-200 dark:border-slate-700 h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Announcements
-                </CardTitle>
-                <CardDescription>
-                  Latest updates and important information
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    Announcements
+                  </CardTitle>
+                  <CardDescription>
+                    Latest updates and important information
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsAnnouncementsExpanded(!isAnnouncementsExpanded)}
+                  className="shrink-0 h-8 w-8 transition-transform duration-300 ease-in-out hover:scale-110"
+                >
+                  {isAnnouncementsExpanded ? (
+                    <ChevronLeft className="h-4 w-4 transition-transform duration-300" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 transition-transform duration-300" />
+                  )}
+                </Button>
               </CardHeader>
               <CardContent>
                 <Announcements className="max-h-68" title="" />
@@ -255,53 +328,53 @@ export default function HomePage() {
             </Card>
           </div>
 
-          {/* Tabs Section - 2 columns */}
-          <div className="lg:col-span-2">
-            <Card className="border-slate-200 dark:border-slate-700 h-full">
-              <CardHeader>
-                <CardTitle>Quick Access</CardTitle>
-                <CardDescription>
-                  Access different sections and tools
-                </CardDescription>
-              </CardHeader>
-              <CardContent>                                 
-                <Tabs value={activeQuickAccessTab} onValueChange={setActiveQuickAccessTab} className="w-full h-[320px] sm:h-[370px] md:h-[450px] flex flex-col">
-                  <TabsList className="grid w-full grid-cols-4 bg-slate-100 dark:bg-slate-800 p-1 flex-shrink-0">
-                    <TabsTrigger 
+          {/* Quick Access Section - dynamically expands/collapses */}
+          <div
+            className="w-full flex-1"
+            style={{
+              width: containerWidth > 0 ? (isAnnouncementsExpanded ? `${twoColumnWidth}px` : `${threeColumnWidth}px`) : '100%',
+              transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
+            }}
+          >
+            <Card className="border-slate-200 dark:border-slate-700 h-full overflow-hidden">
+              <CardContent className="p-0">
+                <Tabs value={activeQuickAccessTab} onValueChange={setActiveQuickAccessTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-4 gap-0 !bg-white dark:!bg-slate-800 p-0 h-auto border-b border-slate-200 dark:border-slate-700">
+                    <TabsTrigger
                       value="links"
-                      className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-black dark:data-[state=active]:text-white data-[state=active]:rounded-md"
+                      className="!bg-white dark:!bg-slate-800 data-[state=active]:!bg-blue-50 dark:data-[state=active]:!bg-blue-950/50 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:!bg-slate-50 dark:hover:!bg-slate-700/50 transition-all rounded-t-md border-b-2 border-transparent pb-3 pt-4 px-4"
                     >
                       Quick Links
                     </TabsTrigger>
-                    <TabsTrigger 
+                    <TabsTrigger
                       value="github-prs"
-                      className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-black dark:data-[state=active]:text-white data-[state=active]:rounded-md"
+                      className="!bg-white dark:!bg-slate-800 data-[state=active]:!bg-blue-50 dark:data-[state=active]:!bg-blue-950/50 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:!bg-slate-50 dark:hover:!bg-slate-700/50 transition-all rounded-t-md border-b-2 border-transparent pb-3 pt-4 px-4"
                     >
                       GitHub PRs
                     </TabsTrigger>
-                    <TabsTrigger 
+                    <TabsTrigger
                       value="jira"
-                      className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-black dark:data-[state=active]:text-white data-[state=active]:rounded-md"
+                      className="!bg-white dark:!bg-slate-800 data-[state=active]:!bg-blue-50 dark:data-[state=active]:!bg-blue-950/50 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:!bg-slate-50 dark:hover:!bg-slate-700/50 transition-all rounded-t-md border-b-2 border-transparent pb-3 pt-4 px-4"
                     >
                       Jira Issues
                     </TabsTrigger>
-                    <TabsTrigger 
+                    <TabsTrigger
                       value="cam"
-                      className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-black dark:data-[state=active]:text-white data-[state=active]:rounded-md"
+                      className="!bg-white dark:!bg-slate-800 data-[state=active]:!bg-blue-50 dark:data-[state=active]:!bg-blue-950/50 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:!bg-slate-50 dark:hover:!bg-slate-700/50 transition-all rounded-t-md border-b-2 border-transparent pb-3 pt-4 px-4"
                     >
                       CAM Profiles
                     </TabsTrigger>
                   </TabsList>
-                  
-                  <TabsContent value="links" className="mt-4 flex-1 overflow-hidden">
-                    <QuickLinksTab 
-                      userData={userData} 
-                      emptyMessage="No quick links yet. Add Links to Favorites or click 'Add Quick Link' to get started."
+
+                  <TabsContent value="links" className="mt-0 tab-content-height overflow-y-auto">
+                    <QuickLinksTab
+                      userData={userData}
+                      emptyMessage="No quick links yet. Add Links to Favorites or click 'Add Link' to get started."
                       title="Quick Links"
                     />
                   </TabsContent>
 
-                  <TabsContent value="github-prs" className="mt-4 flex-1 overflow-hidden">
+                  <TabsContent value="github-prs" className="mt-0 tab-content-height overflow-y-auto">
                     <GithubPrsTab
                       data={prData}
                       isLoading={isPrLoading}
@@ -314,11 +387,11 @@ export default function HomePage() {
                     />
                   </TabsContent>
 
-                  <TabsContent value="jira" className="mt-4 flex-1 overflow-hidden">
+                  <TabsContent value="jira" className="mt-0 tab-content-height overflow-y-auto">
                     <JiraIssuesTab />
                   </TabsContent>
 
-                  <TabsContent value="cam" className="mt-4 flex-1 overflow-hidden">
+                  <TabsContent value="cam" className="mt-0 tab-content-height overflow-y-auto">
                     <CamProfilesTab
                       camGroups={camProfilesData}
                     />
