@@ -60,8 +60,7 @@ export const queryKeys = {
   projects: {
     all: ['projects'] as const,
     lists: () => [...queryKeys.projects.all, 'list'] as const,
-    list: (params?: PaginationParams) =>
-      [...queryKeys.projects.lists(), params] as const,
+    list: () => [...queryKeys.projects.lists()] as const,
     details: () => [...queryKeys.projects.all, 'detail'] as const,
     detail: (id: string) => [...queryKeys.projects.details(), id] as const,
   },

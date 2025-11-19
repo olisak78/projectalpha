@@ -27,35 +27,37 @@ describe('developer-portal-helpers', () => {
   // ============================================================================
 
   describe('getBasePath', () => {
+    const mockProjects = ['cis', 'cloud-automation', 'unified-services'];
+
     it('should return null for empty path', () => {
-      expect(getBasePath('')).toBeNull();
-      expect(getBasePath('/')).toBeNull();
+      expect(getBasePath(mockProjects, '')).toBeNull();
+      expect(getBasePath(mockProjects, '/')).toBeNull();
     });
 
     it('should return base path for CIS routes', () => {
-      expect(getBasePath('/cis')).toBe('/cis');
-      expect(getBasePath('/cis/service')).toBe('/cis');
-      expect(getBasePath('/cis/service/details')).toBe('/cis');
+      expect(getBasePath(mockProjects, '/cis')).toBe('/cis');
+      expect(getBasePath(mockProjects, '/cis/service')).toBe('/cis');
+      expect(getBasePath(mockProjects, '/cis/service/details')).toBe('/cis');
     });
 
     it('should return base path for cloud-automation routes', () => {
-      expect(getBasePath('/cloud-automation')).toBe('/cloud-automation');
-      expect(getBasePath('/cloud-automation/workflow')).toBe('/cloud-automation');
+      expect(getBasePath(mockProjects, '/cloud-automation')).toBe('/cloud-automation');
+      expect(getBasePath(mockProjects, '/cloud-automation/workflow')).toBe('/cloud-automation');
     });
 
     it('should return base path for unified-services routes', () => {
-      expect(getBasePath('/unified-services')).toBe('/unified-services');
-      expect(getBasePath('/unified-services/api')).toBe('/unified-services');
+      expect(getBasePath(mockProjects, '/unified-services')).toBe('/unified-services');
+      expect(getBasePath(mockProjects, '/unified-services/api')).toBe('/unified-services');
     });
 
     it('should return base path for teams routes', () => {
-      expect(getBasePath('/teams')).toBe('/teams');
-      expect(getBasePath('/teams/backend-team')).toBe('/teams');
+      expect(getBasePath(mockProjects, '/teams')).toBe('/teams');
+      expect(getBasePath(mockProjects, '/teams/backend-team')).toBe('/teams');
     });
 
     it('should return null for unknown routes', () => {
-      expect(getBasePath('/unknown')).toBeNull();
-      expect(getBasePath('/settings')).toBeNull();
+      expect(getBasePath(mockProjects, '/unknown')).toBeNull();
+      expect(getBasePath(mockProjects, '/settings')).toBeNull();
     });
   });
 

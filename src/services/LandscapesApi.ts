@@ -56,6 +56,7 @@ export async function fetchLandscapesByProject(
     prometheus: landscape.prometheus,
     gardener: landscape.gardener,
     plutono: landscape.plutono,
+    isCentral: landscape['is-central-region'] || false,
   } as any));
 }
 

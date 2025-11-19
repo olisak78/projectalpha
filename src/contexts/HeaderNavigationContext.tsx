@@ -1,7 +1,8 @@
 import { DEFAULT_COMMON_TAB, VALID_COMMON_TABS } from '@/constants/developer-portal';
 import { getBasePath, shouldNavigateToTab } from '@/utils/developer-portal-helpers';
-import { createContext, useContext, useState, ReactNode, useLayoutEffect, useRef, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useLayoutEffect, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useProjectsContext } from './ProjectsContext';
 
 export interface HeaderTab {
   id: string;
@@ -22,69 +23,65 @@ interface HeaderNavigationContextType {
 const HeaderNavigationContext = createContext<HeaderNavigationContextType | undefined>(undefined);
 
 export function HeaderNavigationProvider({ children }: { children: ReactNode }) {
-  const [tabs, setTabs] = useState<HeaderTab[]>([]);
-  const [activeTab, setActiveTab] = useState<string | null>(null);
-  const [isDropdown, setIsDropdown] = useState<boolean>(false);
+  const { projects } = useProjectsContext(); // ✅ inside component
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Keep track of the previous base path to detect actual route changes vs tab changes
+  const [tabs, setTabs] = useState<HeaderTab[]>([]);
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+  const [isDropdown, setIsDropdown] = useState(false);
+
+  // Project names for route matching, recalculated when projects change
+  const projectNames = useMemo(() => projects.map(p => p.name), [projects]);
+
   const previousBasePathRef = useRef<string | null>(null);
   const previousTabsRef = useRef<HeaderTab[]>([]);
 
-  // Function to extract tab ID from current URL
+  // Extract tabId from URL
   const getTabIdFromUrl = (pathname: string, basePath: string | null) => {
     if (!basePath) return null;
-
     const pathSegments = pathname.split('/').filter(Boolean);
 
     if (basePath === '/teams') {
-      // For teams page: /teams/:tabId or /teams/:tabId/:commonTab
-      return pathSegments[1] || null; // teams/[tabId]/commonTab
+      return pathSegments[1] || null; // /teams/:teamName/:commonTab
     } else {
-      // For other pages, find the segment after the base path
       const baseSegments = basePath.split('/').filter(Boolean);
       const tabIndex = baseSegments.length;
       return pathSegments[tabIndex] || null;
     }
   };
 
-  // Clear tabs on route change using useLayoutEffect to run before page useEffect
-  // But only clear if the base path has actually changed (not just tab navigation)
+  // Clear tabs if base path changes
   useLayoutEffect(() => {
-    const currentBasePath = getBasePath(location.pathname);
-
-    // Only clear when base path actually changed
-    if (previousBasePathRef.current === null || previousBasePathRef.current !== currentBasePath) {
+    const currentBasePath = getBasePath(projectNames, location.pathname);
+    if (previousBasePathRef.current !== currentBasePath) {
       setTabs([]);
-      setActiveTab(null); // reset active tab so consumers don't react to stale activeTab
+      setActiveTab(null);
       previousBasePathRef.current = currentBasePath;
       previousTabsRef.current = [];
     }
-  }, [location.pathname]);
+  }, [location.pathname, projectNames]);
 
-  // Effect to sync activeTab with URL changes (for browser navigation like back/forward)
+  // Sync activeTab with URL changes
   useEffect(() => {
-    if (tabs.length > 0) {
-      const currentBasePath = getBasePath(location.pathname);
-      const tabIdFromUrl = getTabIdFromUrl(location.pathname, currentBasePath);
-      const validTabIds = tabs.map(tab => tab.id);
+    if (tabs.length === 0) return;
 
-      // Only update if URL has a valid tab that differs from current activeTab
-      if (tabIdFromUrl && validTabIds.includes(tabIdFromUrl) && tabIdFromUrl !== activeTab) {
-        setActiveTab(tabIdFromUrl);
-      }
+    const currentBasePath = getBasePath(projectNames, location.pathname);
+    const tabIdFromUrl = getTabIdFromUrl(location.pathname, currentBasePath);
+    const validTabIds = tabs.map(tab => tab.id);
+
+    if (tabIdFromUrl && validTabIds.includes(tabIdFromUrl) && tabIdFromUrl !== activeTab) {
+      setActiveTab(tabIdFromUrl);
     }
-  }, [location.pathname, tabs, activeTab]);
+  }, [location.pathname, tabs, activeTab, projectNames]);
 
-  // Enhanced setTabs function that also syncs with URL
+  // Update tabs and optionally navigate to default
   const handleSetTabs = (newTabs: HeaderTab[]) => {
     setTabs(newTabs);
     previousTabsRef.current = newTabs;
-
     if (newTabs.length === 0) return;
 
-    const currentBasePath = getBasePath(location.pathname);
+    const currentBasePath = getBasePath(projectNames, location.pathname);
     const tabIdFromUrl = getTabIdFromUrl(location.pathname, currentBasePath);
     const validTabIds = newTabs.map(tab => tab.id);
 
@@ -93,11 +90,10 @@ export function HeaderNavigationProvider({ children }: { children: ReactNode }) 
       return;
     }
 
-    // URL doesn't have a valid tab — prefer the first tab
+    // Default to first tab
     const firstTabId = newTabs[0].id;
     setActiveTab(firstTabId);
 
-    // Build intended path and only navigate if different
     if (currentBasePath && shouldNavigateToTab(currentBasePath)) {
       if (currentBasePath === '/teams') {
         const pathSegments = location.pathname.split('/').filter(Boolean);
@@ -108,7 +104,6 @@ export function HeaderNavigationProvider({ children }: { children: ReactNode }) 
 
         const targetPath = `${currentBasePath}/${firstTabId}/${commonTabToUse}`;
         if (location.pathname !== targetPath) {
-          // This is an automatic defaulting navigation; use replace to avoid history churn
           navigate(targetPath, { replace: true });
         }
       } else {
@@ -120,10 +115,11 @@ export function HeaderNavigationProvider({ children }: { children: ReactNode }) 
     }
   };
 
+  // Set active tab and navigate
   const handleSetActiveTab = (tabId: string) => {
     setActiveTab(tabId);
 
-    const basePath = getBasePath(location.pathname);
+    const basePath = getBasePath(projectNames, location.pathname);
     if (!basePath || !shouldNavigateToTab(basePath)) return;
 
     if (basePath === '/teams') {
@@ -132,15 +128,12 @@ export function HeaderNavigationProvider({ children }: { children: ReactNode }) 
       const commonTabToUse = (currentCommonTab && VALID_COMMON_TABS.includes(currentCommonTab))
         ? currentCommonTab
         : DEFAULT_COMMON_TAB;
+
       const targetPath = `${basePath}/${tabId}/${commonTabToUse}`;
-      if (location.pathname !== targetPath) {
-        navigate(targetPath, { replace: false });
-      }
+      if (location.pathname !== targetPath) navigate(targetPath, { replace: false });
     } else {
       const targetPath = `${basePath}/${tabId}`;
-      if (location.pathname !== targetPath) {
-        navigate(targetPath, { replace: false });
-      }
+      if (location.pathname !== targetPath) navigate(targetPath, { replace: false });
     }
   };
 
@@ -162,8 +155,6 @@ export function HeaderNavigationProvider({ children }: { children: ReactNode }) 
 
 export function useHeaderNavigation() {
   const context = useContext(HeaderNavigationContext);
-  if (context === undefined) {
-    throw new Error('useHeaderNavigation must be used within a HeaderNavigationProvider');
-  }
+  if (!context) throw new Error('useHeaderNavigation must be used within a HeaderNavigationProvider');
   return context;
 }

@@ -1,7 +1,6 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { FeatureToggle, Landscape } from '@/types/developer-portal';
 import { DEFAULT_LANDSCAPE, projectComponents } from '@/constants/developer-portal';
-import { useLandscapesByProject } from '@/hooks/api/useLandscapes';
 
 interface BusinessLogicContextType {
   // Landscape Management
@@ -10,10 +9,6 @@ interface BusinessLogicContextType {
   getFilteredLandscapeIds: (activeProject: string, selectedLandscape: string | null) => string[];
   getProductionLandscapeIds: (activeProject: string) => string[];
   getDefaultLandscape: (activeProject: string) => string | null;
-  
-  // Landscape API state
-  isLoadingLandscapes: (activeProject: string) => boolean;
-  landscapesError: (activeProject: string) => Error | null;
   
   // Feature Toggle Logic
   toggleFeature: (toggleId: string, landscape: string, setFeatureToggles: (fn: (prev: FeatureToggle[]) => FeatureToggle[]) => void) => void;
@@ -30,42 +25,13 @@ interface BusinessLogicProviderProps {
   activeProject: string;
 }
 
-export function BusinessLogicProvider({ children }: BusinessLogicProviderProps) {
-  // Fetch landscapes for all three projects
-  const cisLandscapes = useLandscapesByProject('cis20');
-  const caLandscapes = useLandscapesByProject('ca');
-  const usrvLandscapes = useLandscapesByProject('usrv');
-
-  // Store in a map for easy access
-  const landscapesByProject: Record<string, Landscape[]> = {
-    'CIS@2.0': cisLandscapes.data || [],
-    'Cloud Automation': caLandscapes.data || [],
-    'Unified Services': usrvLandscapes.data || [],
-  };
-
-  const landscapesLoadingByProject: Record<string, boolean> = {
-    'CIS@2.0': cisLandscapes.isLoading,
-    'Cloud Automation': caLandscapes.isLoading,
-    'Unified Services': usrvLandscapes.isLoading,
-  };
-
-  const landscapesErrorByProject: Record<string, Error | null> = {
-    'CIS@2.0': cisLandscapes.error,
-    'Cloud Automation': caLandscapes.error,
-    'Unified Services': usrvLandscapes.error,
-  };
+export function BusinessLogicProvider({ children, activeProject }: BusinessLogicProviderProps) {
+  // Empty landscapes - will be populated by individual project components
+  const landscapesByProject: Record<string, Landscape[]> = {};
 
   // Landscape Management
   const getCurrentProjectLandscapes = (activeProject: string): Landscape[] => {
     return landscapesByProject[activeProject] || [];
-  };
-
-  const isLoadingLandscapes = (activeProject: string): boolean => {
-    return landscapesLoadingByProject[activeProject] || false;
-  };
-
-  const landscapesError = (activeProject: string): Error | null => {
-    return landscapesErrorByProject[activeProject] || null;
   };
 
   const getLandscapeGroups = (activeProject: string): Record<string, Landscape[]> => {
@@ -243,8 +209,6 @@ export function BusinessLogicProvider({ children }: BusinessLogicProviderProps) 
     getFilteredLandscapeIds,
     getProductionLandscapeIds,
     getDefaultLandscape,
-    isLoadingLandscapes,
-    landscapesError,
     toggleFeature,
     toggleExpanded,
     bulkToggle,

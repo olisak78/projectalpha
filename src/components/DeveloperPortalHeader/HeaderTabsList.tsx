@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { HeaderTab } from "@/contexts/HeaderNavigationContext";
+import { HeaderTab, useHeaderNavigation } from "@/contexts/HeaderNavigationContext";
 import { useSidebarState } from "@/contexts/SidebarContext";
 import { useLocation, useNavigate } from "react-router-dom";
 import { VALID_COMMON_TABS } from "@/constants/developer-portal";
@@ -12,6 +12,7 @@ interface HeaderTabsListProps {
 
 export function HeaderTabsList({ tabs, activeTab, onTabClick }: HeaderTabsListProps) {
   const { isExpanded } = useSidebarState();
+  const { setActiveTab } = useHeaderNavigation();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -25,7 +26,8 @@ export function HeaderTabsList({ tabs, activeTab, onTabClick }: HeaderTabsListPr
   }
 
   const handleTabClick = (tab: HeaderTab) => {
-    onTabClick(tab.id);
+    // Use the context's setActiveTab function which handles navigation properly
+    setActiveTab(tab.id);
   };
 
   const handleCommonTabClick = (tabValue: string) => {

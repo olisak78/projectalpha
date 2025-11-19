@@ -1,8 +1,3 @@
-/**
- * Custom hook for fetching component health statuses
- * NO CACHING - fresh data on every call
- */
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Component, ComponentHealthCheck, HealthDashboardState, HealthSummary, LandscapeConfig } from '@/types/health';
 import { fetchAllHealthStatuses } from '@/services/healthApi';

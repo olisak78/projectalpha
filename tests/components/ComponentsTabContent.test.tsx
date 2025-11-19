@@ -205,8 +205,9 @@ describe('ComponentsTabContent', () => {
     const error = new Error('Failed to load components');
     render(<ComponentsTabContent {...defaultProps} error={error} />);
 
-    expect(screen.getByText(/Error loading components:/)).toBeInTheDocument();
-    expect(screen.getByText(error.message)).toBeInTheDocument();
+    // Use a more flexible text matcher for error messages
+    expect(screen.getByText(/Error loading components/i)).toBeInTheDocument();
+    expect(screen.getByText(/Failed to load components/i)).toBeInTheDocument();
   });
 
   it('should render empty state with white background', () => {

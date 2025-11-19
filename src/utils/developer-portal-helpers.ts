@@ -77,16 +77,18 @@ export const getDeployedVersion = (
 };
 
 // Helper function to get base path from current path
-export const getBasePath = (pathname: string): string | null => {
+export const getBasePath = (projects: string[], pathname: string): string | null => {
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) return null;
 
   // Handle pages with tab support
-  if (segments[0] === 'cis') return '/cis';
-  if (segments[0] === 'cloud-automation') return '/cloud-automation';
-  if (segments[0] === 'unified-services') return '/unified-services';
   if (segments[0] === 'teams') return '/teams';
   if (segments[0] === 'ai-arena') return '/ai-arena';
+  
+  // Handle dynamic project pages
+  if (projects.includes(segments[0])) {
+    return `/${segments[0]}`;
+  }
 
   return null;
 }

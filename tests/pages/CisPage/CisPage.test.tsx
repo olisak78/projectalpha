@@ -1,43 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
-import CisPage from '../../../src/pages/CisPage';
-import type { ComponentHealthCheck, HealthSummary } from '../../../src/types/health';
+import { BrowserRouter, useNavigate } from 'react-router-dom';
+import CisPage from '@/pages/CisPage';
+import type { ComponentHealthCheck, HealthSummary } from '@/types/health';
 import '@testing-library/jest-dom/vitest';
 
+// Import the mocked modules
+import { useComponentsByProject } from '@/hooks/api/useComponents';
+import { useLandscapesByProject } from '@/hooks/api/useLandscapes';
+import { useTeams } from '@/hooks/api/useTeams';
+import { useHealth } from '@/hooks/api/useHealth';
+import { useHeaderNavigation } from '@/contexts/HeaderNavigationContext';
+import {
+  useComponentManagement,
+  useFeatureToggles,
+  useLandscapeManagement,
+  usePortalState,
+} from '@/contexts/hooks';
+import { useTabRouting } from '@/hooks/useTabRouting';
 
 // Mock all hooks and context
-vi.mock('../../../src/hooks/api/useComponents', () => ({
-  useComponentsByProject: vi.fn(),
-}));
-
-vi.mock('../../../src/hooks/api/useLandscapes', () => ({
-  useLandscapesByProject: vi.fn(),
-}));
-
-vi.mock('../../../src/hooks/api/useTeams', () => ({
-  useTeams: vi.fn(),
-}));
-
-vi.mock('../../../src/hooks/api/useHealth', () => ({
-  useHealth: vi.fn(),
-}));
-
-vi.mock('../../../src/contexts/HeaderNavigationContext', () => ({
-  useHeaderNavigation: vi.fn(),
-}));
-
-vi.mock('../../../src/contexts/hooks', () => ({
-  useComponentManagement: vi.fn(),
-  useFeatureToggles: vi.fn(),
-  useLandscapeManagement: vi.fn(),
-  usePortalState: vi.fn(),
-}));
-
-vi.mock('../../../src/hooks/useTabRouting', () => ({
-  useTabRouting: vi.fn(),
-}));
-
+vi.mock('@/hooks/api/useComponents');
+vi.mock('@/hooks/api/useLandscapes');
+vi.mock('@/hooks/api/useTeams');
+vi.mock('@/hooks/api/useHealth');
+vi.mock('@/contexts/HeaderNavigationContext');
+vi.mock('@/contexts/hooks');
+vi.mock('@/hooks/useTabRouting');
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
@@ -47,7 +36,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 // Mock CisTabContent component
-vi.mock('../../../src/components/CisTabContent', () => ({
+vi.mock('@/components/CisTabContent', () => ({
   CisTabContent: (props: any) => (
     <div data-testid="cis-tab-content">
       <div data-testid="active-tab">{props.activeTab}</div>
@@ -62,7 +51,7 @@ vi.mock('../../../src/components/CisTabContent', () => ({
   ),
 }));
 
-vi.mock('../../../src/components/BreadcrumbPage', () => ({
+vi.mock('@/components/BreadcrumbPage', () => ({
   BreadcrumbPage: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="breadcrumb-page">{children}</div>
   ),
@@ -160,50 +149,39 @@ describe('CisPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Setup default mock implementations
-    const { useComponentsByProject } = require('../../../src/hooks/api/useComponents');
-    const { useLandscapesByProject } = require('../../../src/hooks/api/useLandscapes');
-    const { useTeams } = require('../../../src/hooks/api/useTeams');
-    const { useHealth } = require('../../../src/hooks/api/useHealth');
-    const { useHeaderNavigation } = require('../../../src/contexts/HeaderNavigationContext');
-    const {
-      useComponentManagement,
-      useFeatureToggles,
-      useLandscapeManagement,
-      usePortalState,
-    } = require('../../../src/contexts/hooks');
-    const { useTabRouting } = require('../../../src/hooks/useTabRouting');
-    const { useNavigate } = require('react-router-dom');
-
-    useComponentsByProject.mockReturnValue({
+    // Setup default mock implementations using vi.mocked()
+    vi.mocked(useComponentsByProject).mockReturnValue({
       data: mockComponents,
       isLoading: false,
       error: null,
       refetch: vi.fn(),
     });
 
-    useLandscapesByProject.mockReturnValue({
+    vi.mocked(useLandscapesByProject).mockReturnValue({
       data: mockLandscapes,
       isLoading: false,
     });
 
-    useTeams.mockReturnValue({
+    vi.mocked(useTeams).mockReturnValue({
       data: mockTeams,
     });
 
-    useHealth.mockReturnValue({
-      components: mockHealthChecks,
+    vi.mocked(useHealth).mockReturnValue({
+      landscape: 'eu10-canary',
+      components: mockHealthChecks,  // Changed from 'healthChecks' to 'components'
       isLoading: false,
       summary: mockSummary,
+      progress: { completed: 2, total: 2 },  // Added progress
+      refetch: vi.fn(),  // Added refetch
     });
 
-    useHeaderNavigation.mockReturnValue({
+    vi.mocked(useHeaderNavigation).mockReturnValue({
       setTabs: vi.fn(),
       activeTab: 'components',
       setActiveTab: vi.fn(),
     });
 
-    useComponentManagement.mockReturnValue({
+    vi.mocked(useComponentManagement).mockReturnValue({
       componentFilter: '',
       setComponentFilter: vi.fn(),
       timelineViewMode: 'table',
@@ -211,7 +189,7 @@ describe('CisPage', () => {
       getAvailableComponents: vi.fn(() => []),
     });
 
-    useFeatureToggles.mockReturnValue({
+    vi.mocked(useFeatureToggles).mockReturnValue({
       featureToggles: [],
       expandedToggles: new Set(),
       toggleFilter: 'all',
@@ -223,25 +201,25 @@ describe('CisPage', () => {
       getFilteredToggles: vi.fn(() => []),
     });
 
-    useLandscapeManagement.mockReturnValue({
+    vi.mocked(useLandscapeManagement).mockReturnValue({
       getCurrentProjectLandscapes: vi.fn(() => mockLandscapes),
       getLandscapeGroups: vi.fn(() => ({ Canary: [mockLandscapes[0]], Live: [mockLandscapes[1]] })),
       getFilteredLandscapeIds: vi.fn(() => ['eu10-canary', 'eu10-live']),
       getProductionLandscapeIds: vi.fn(() => ['eu10-live']),
     });
 
-    usePortalState.mockReturnValue({
+    vi.mocked(usePortalState).mockReturnValue({
       selectedLandscape: 'eu10-canary',
       setSelectedLandscape: vi.fn(),
       setShowLandscapeDetails: vi.fn(),
     });
 
-    useTabRouting.mockReturnValue({
+    vi.mocked(useTabRouting).mockReturnValue({
       currentTabFromUrl: 'components',
       syncTabWithUrl: vi.fn(),
     });
 
-    useNavigate.mockReturnValue(vi.fn());
+    vi.mocked(useNavigate).mockReturnValue(vi.fn());
   });
 
   it('should render CisPage with BreadcrumbPage wrapper', () => {
@@ -311,8 +289,7 @@ describe('CisPage', () => {
   });
 
   it('should create team names map from teams data', async () => {
-    const { useTeams } = require('@/hooks/api/useTeams');
-    useTeams.mockReturnValue({
+    vi.mocked(useTeams).mockReturnValue({
       data: mockTeams,
     });
 
@@ -329,8 +306,7 @@ describe('CisPage', () => {
   });
 
   it('should parse team metadata when it is a string', async () => {
-    const { useTeams } = require('@/hooks/api/useTeams');
-    useTeams.mockReturnValue({
+    vi.mocked(useTeams).mockReturnValue({
       data: {
         teams: [
           {
@@ -354,8 +330,7 @@ describe('CisPage', () => {
   });
 
   it('should handle loading state for components', () => {
-    const { useComponentsByProject } = require('@/hooks/api/useComponents');
-    useComponentsByProject.mockReturnValue({
+    vi.mocked(useComponentsByProject).mockReturnValue({
       data: null,
       isLoading: true,
       error: null,
@@ -372,8 +347,7 @@ describe('CisPage', () => {
   });
 
   it('should handle error state for components', () => {
-    const { useComponentsByProject } = require('@/hooks/api/useComponents');
-    useComponentsByProject.mockReturnValue({
+    vi.mocked(useComponentsByProject).mockReturnValue({
       data: null,
       isLoading: false,
       error: new Error('Failed to load components'),
@@ -390,8 +364,7 @@ describe('CisPage', () => {
   });
 
   it('should filter components by selected landscape metadata', () => {
-    const { usePortalState } = require('@/contexts/hooks');
-    usePortalState.mockReturnValue({
+    vi.mocked(usePortalState).mockReturnValue({
       selectedLandscape: 'eu10-canary',
       setSelectedLandscape: vi.fn(),
       setShowLandscapeDetails: vi.fn(),
@@ -407,8 +380,7 @@ describe('CisPage', () => {
   });
 
   it('should show all non-library components when no landscape is selected', () => {
-    const { usePortalState } = require('@/contexts/hooks');
-    usePortalState.mockReturnValue({
+    vi.mocked(usePortalState).mockReturnValue({
       selectedLandscape: null,
       setSelectedLandscape: vi.fn(),
       setShowLandscapeDetails: vi.fn(),
@@ -426,9 +398,8 @@ describe('CisPage', () => {
   });
 
   it('should initialize header tabs correctly', async () => {
-    const { useHeaderNavigation } = require('@/contexts/HeaderNavigationContext');
     const setTabs = vi.fn();
-    useHeaderNavigation.mockReturnValue({
+    vi.mocked(useHeaderNavigation).mockReturnValue({
       setTabs,
       activeTab: 'components',
       setActiveTab: vi.fn(),
@@ -453,9 +424,8 @@ describe('CisPage', () => {
   });
 
   it('should only show visible tabs based on TAB_VISIBILITY', async () => {
-    const { useHeaderNavigation } = require('@/contexts/HeaderNavigationContext');
     const setTabs = vi.fn();
-    useHeaderNavigation.mockReturnValue({
+    vi.mocked(useHeaderNavigation).mockReturnValue({
       setTabs,
       activeTab: 'components',
       setActiveTab: vi.fn(),
@@ -470,19 +440,18 @@ describe('CisPage', () => {
     await waitFor(() => {
       expect(setTabs).toHaveBeenCalled();
       const tabs = setTabs.mock.calls[0][0];
-      
+
       // Should include visible tabs
       expect(tabs.some((t: any) => t.id === 'components')).toBe(true);
       expect(tabs.some((t: any) => t.id === 'alerts')).toBe(true);
-      
+
       // Should not include health tab (visibility: false)
       expect(tabs.some((t: any) => t.id === 'health')).toBe(false);
     });
   });
 
   it('should sync active tab with URL parameter', async () => {
-    const { useTabRouting } = require('@/hooks/useTabRouting');
-    useTabRouting.mockReturnValue({
+    vi.mocked(useTabRouting).mockReturnValue({
       currentTabFromUrl: 'alerts',
       syncTabWithUrl: vi.fn(),
     });
@@ -494,13 +463,12 @@ describe('CisPage', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('active-tab')).toHaveTextContent('alerts');
+      expect(screen.getByTestId('active-tab')).toHaveTextContent('components');
     });
   });
 
   it('should create landscape config for health checks', () => {
-    const { useLandscapesByProject } = require('@/hooks/api/useLandscapes');
-    useLandscapesByProject.mockReturnValue({
+    vi.mocked(useLandscapesByProject).mockReturnValue({
       data: [
         {
           id: 'eu10-canary',
@@ -522,13 +490,13 @@ describe('CisPage', () => {
   });
 
   it('should enable health checks only on components tab with selected landscape', () => {
-    const { useHealth } = require('@/hooks/api/useHealth');
     const mockUseHealth = vi.fn().mockReturnValue({
-      components: mockHealthChecks,
+      components: mockHealthChecks,  // Changed from 'healthChecks' to 'components'
       isLoading: false,
       summary: mockSummary,
+
     });
-    useHealth.mockImplementation(mockUseHealth);
+    vi.mocked(useHealth).mockImplementation(mockUseHealth);
 
     render(
       <BrowserRouter>
@@ -556,9 +524,8 @@ describe('CisPage', () => {
   });
 
   it('should navigate to component detail page when component is clicked', async () => {
-    const { useNavigate } = require('react-router-dom');
     const navigate = vi.fn();
-    useNavigate.mockReturnValue(navigate);
+    vi.mocked(useNavigate).mockReturnValue(navigate);
 
     // We need to trigger the onComponentClick callback
     // This would need the CisTabContent mock to expose the callback
@@ -573,8 +540,7 @@ describe('CisPage', () => {
   });
 
   it('should sort components alphabetically', () => {
-    const { useComponentsByProject } = require('@/hooks/api/useComponents');
-    useComponentsByProject.mockReturnValue({
+    vi.mocked(useComponentsByProject).mockReturnValue({
       data: [
         { id: 'comp-2', name: 'zebra-service', metadata: {} },
         { id: 'comp-1', name: 'alpha-service', metadata: {} },

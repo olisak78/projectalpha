@@ -307,32 +307,6 @@ describe('LandscapeToolsButtons', () => {
   });
 
   // ==========================================================================
-  // HIDDEN BUTTONS TESTS
-  // ==========================================================================
-
-  describe('Hidden Buttons', () => {
-    it('should hide Git button when specified in hiddenButtons prop', () => {
-      mockUseLandscapeTools();
-      renderLandscapeToolsButtons({ hiddenButtons: ['git'] });
-
-      expect(screen.queryByRole('button', { name: /git/i })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /concourse/i })).toBeInTheDocument();
-    });
-
-    it('should hide multiple buttons when specified in hiddenButtons prop', () => {
-      mockUseLandscapeTools();
-      renderLandscapeToolsButtons({ hiddenButtons: ['concourse', 'dynatrace', 'cockpit'] });
-
-      expect(screen.getByRole('button', { name: /git/i })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /concourse/i })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /kibana/i })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /dynatrace/i })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /cockpit/i })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /plutono/i })).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================================================
   // INTEGRATION WITH useLandscapeTools
   // ==========================================================================
 

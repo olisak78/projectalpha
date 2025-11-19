@@ -1,81 +1,82 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import { PortalProviders } from "@/contexts/PortalProviders";
 import { PortalContent } from "./PortalContent";
+import { useProjectsContext } from "@/contexts/ProjectsContext";
 
-const routeToProjectMap: Record<string, string> = {
+// Mapping from project/page to routes
+const staticRouteToProjectMap: Record<string, string> = {
   "/": "Home",
-  "/cis": "CIS@2.0",
   "/teams": "Teams",
-  "/cloud-automation": "Cloud Automation",
-  "/unified-services": "Unified Services",
-   "/links": "Links",
+  "/links": "Links",
   "/self-service": "Self Service",
   "/ai-arena": "AI Arena",
 };
 
-// Function to determine project from route path
-const getProjectFromPath = (pathname: string): string => {
-  // Handle component detail routes and tab routes for all projects
-  if (pathname.startsWith("/cis/") || pathname.startsWith("/cis")) {
-    return "CIS@2.0";
-  }
-  
-  if (pathname.startsWith("/teams/") || pathname.startsWith("/teams")) {
-    return "Teams";
-  }
-
-  if (pathname.startsWith("/cloud-automation/") || pathname.startsWith("/cloud-automation")) {
-    return "Cloud Automation";
-  }
-
-  if (pathname.startsWith("/unified-services/") || pathname.startsWith("/unified-services")) {
-    return "Unified Services";
-  }
-
-  if (pathname.startsWith("/links/") || pathname.startsWith("/links")) {
-    return "Links";
-  }
-
-  if (pathname.startsWith("/self-service/") || pathname.startsWith("/self-service")) {
-    return "Self Service";
-  }
-
-    if (pathname.startsWith("/ai-arena/") || pathname.startsWith("/ai-arena")) {
-        return "AI Arena";
-    }
-
-  // Exact match for root
-  if (pathname === "/") {
-    return "Home";
-  }
-
-  // Fallback to exact match in map
-  return routeToProjectMap[pathname] || "";
-};
-
-const projectToRouteMap: Record<string, string> = {
+const staticProjectToRouteMap: Record<string, string> = {
   "Home": "/",
-  "CIS@2.0": "/cis",
   "Teams": "/teams",
-  "Cloud Automation": "/cloud-automation",
-  "Unified Services": "/unified-services",
   "Self Service": "/self-service",
   "Links": "/links",
   "AI Arena": "/ai-arena",
 };
 
 export const PortalContainer: React.FC = () => {
+  const { projects } = useProjectsContext(); // ✅ Hook inside component
   const navigate = useNavigate();
   const location = useLocation();
   const [activeProject, setActiveProject] = useState("");
-  const projects = ["Home","Teams", "CIS@2.0", "Cloud Automation", "Unified Services", "Links", "Self Service", "AI Arena"];
 
-  // Update activeProject based on current route
+  // Combine static pages with dynamic projects
+  const sidebarItems = [
+    "Home",
+    "Teams",
+    ...projects.map(project => project.title || project.name),
+    "Links",
+    "Self Service",
+    "AI Arena",
+  ];
+
+  // Build dynamic route maps including projects
+  const routeToProjectMap: Record<string, string> = { ...staticRouteToProjectMap };
+  const projectToRouteMap: Record<string, string> = { ...staticProjectToRouteMap };
+
+  projects.forEach(project => {
+    const route = `/${project.name}`;
+    routeToProjectMap[route] = project.title || project.name;
+    projectToRouteMap[project.title || project.name] = route;
+  });
+
+  // Determine which project/page is active based on current URL
+  const getProjectFromPath = (pathname: string): string => {
+    // Dynamic projects - check first for exact matches and sub-routes
+    for (const project of projects) {
+      const route = `/${project.name}`;
+      if (pathname === route || pathname.startsWith(`${route}/`)) {
+        return project.title || project.name;
+      }
+    }
+
+    // Static pages - check for exact matches and sub-routes, but handle "/" specially
+    if (pathname === "/") {
+      return "Home";
+    }
+    
+    // Check other static routes
+    for (const route in staticRouteToProjectMap) {
+      if (route !== "/" && (pathname === route || pathname.startsWith(`${route}/`))) {
+        return staticRouteToProjectMap[route];
+      }
+    }
+
+    return ""; // fallback
+  };
+
+  // Update activeProject whenever the location changes
   useEffect(() => {
     const project = getProjectFromPath(location.pathname);
     setActiveProject(project);
-  }, [location.pathname]);
+  }, [location.pathname, projects]);
 
   const handleProjectChange = (project: string) => {
     const route = projectToRouteMap[project] || "/";
@@ -84,12 +85,12 @@ export const PortalContainer: React.FC = () => {
   };
 
   return (
-   <PortalProviders activeProject={activeProject}>
+    <PortalProviders activeProject={activeProject}>
       <PortalContent
         activeProject={activeProject}
-        projects={projects}
+        projects={sidebarItems}
         onProjectChange={handleProjectChange}
       />
     </PortalProviders>
   );
-}
+};

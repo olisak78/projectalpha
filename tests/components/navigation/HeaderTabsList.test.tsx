@@ -3,9 +3,40 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { HeaderTabsList } from '../../../src/components/DeveloperPortalHeader/HeaderTabsList';
-import { HeaderTab } from '../../../src/contexts/HeaderNavigationContext';
+import { HeaderTab, HeaderNavigationProvider } from '../../../src/contexts/HeaderNavigationContext';
 import { SidebarProvider } from '../../../src/contexts/SidebarContext';
+import { ProjectsProvider } from '../../../src/contexts/ProjectsContext';
 import { ReactNode } from 'react';
+
+// Mock the useFetchProjects hook
+vi.mock('@/hooks/api/useProjects', () => ({
+  useFetchProjects: vi.fn(() => ({
+    data: [
+      { title: 'CIS@2.0', name: 'CIS@2.0' },
+      { title: 'Cloud Automation', name: 'Cloud Automation' },
+      { title: 'Unified Services', name: 'Unified Services' }
+    ],
+    isLoading: false,
+    error: null
+  }))
+}));
+
+// Mock the HeaderNavigationContext
+const mockSetActiveTab = vi.fn();
+vi.mock('@/contexts/HeaderNavigationContext', async () => {
+  const actual = await vi.importActual('@/contexts/HeaderNavigationContext');
+  return {
+    ...actual,
+    useHeaderNavigation: () => ({
+      tabs: [],
+      activeTab: null,
+      setTabs: vi.fn(),
+      setActiveTab: mockSetActiveTab,
+      isDropdown: false,
+      setIsDropdown: vi.fn()
+    })
+  };
+});
 
 /**
  * HeaderTabsList Component Tests
@@ -42,9 +73,13 @@ beforeAll(() => {
 function TestWrapper({ children }: { children: ReactNode }) {
   return (
     <MemoryRouter>
-      <SidebarProvider>
-        {children}
-      </SidebarProvider>
+      <ProjectsProvider>
+        <SidebarProvider>
+          <HeaderNavigationProvider>
+            {children}
+          </HeaderNavigationProvider>
+        </SidebarProvider>
+      </ProjectsProvider>
     </MemoryRouter>
   );
 }
@@ -303,7 +338,7 @@ describe('HeaderTabsList Component', () => {
   // ============================================================================
 
   describe('Interactions', () => {
-    it('should call onTabClick when tab is clicked', () => {
+    it('should call setActiveTab when tab is clicked', () => {
       const tabs = createMockTabs();
       renderWithProvider(
         <HeaderTabsList
@@ -315,11 +350,11 @@ describe('HeaderTabsList Component', () => {
 
       fireEvent.click(screen.getByRole('button', { name: /Team Beta/i }));
 
-      expect(mockOnTabClick).toHaveBeenCalledWith('team-2');
-      expect(mockOnTabClick).toHaveBeenCalledTimes(1);
+      expect(mockSetActiveTab).toHaveBeenCalledWith('team-2');
+      expect(mockSetActiveTab).toHaveBeenCalledTimes(1);
     });
 
-    it('should call onTabClick with correct tab id for each tab', () => {
+    it('should call setActiveTab with correct tab id for each tab', () => {
       const tabs = createMockTabs();
       renderWithProvider(
         <HeaderTabsList
@@ -330,10 +365,10 @@ describe('HeaderTabsList Component', () => {
       );
 
       fireEvent.click(screen.getByRole('button', { name: /Team Beta/i }));
-      expect(mockOnTabClick).toHaveBeenCalledWith('team-2');
+      expect(mockSetActiveTab).toHaveBeenCalledWith('team-2');
 
       fireEvent.click(screen.getByRole('button', { name: /Team Gamma/i }));
-      expect(mockOnTabClick).toHaveBeenCalledWith('team-3');
+      expect(mockSetActiveTab).toHaveBeenCalledWith('team-3');
     });
 
     it('should allow clicking the active tab', () => {
@@ -348,7 +383,7 @@ describe('HeaderTabsList Component', () => {
 
       fireEvent.click(screen.getByRole('button', { name: /Team Alpha/i }));
 
-      expect(mockOnTabClick).toHaveBeenCalledWith('team-1');
+      expect(mockSetActiveTab).toHaveBeenCalledWith('team-1');
     });
 
     it('should handle multiple tab clicks', () => {
@@ -365,13 +400,13 @@ describe('HeaderTabsList Component', () => {
       fireEvent.click(screen.getByRole('button', { name: /Team Gamma/i }));
       fireEvent.click(screen.getByRole('button', { name: /Team Alpha/i }));
 
-      expect(mockOnTabClick).toHaveBeenCalledTimes(3);
-      expect(mockOnTabClick).toHaveBeenNthCalledWith(1, 'team-2');
-      expect(mockOnTabClick).toHaveBeenNthCalledWith(2, 'team-3');
-      expect(mockOnTabClick).toHaveBeenNthCalledWith(3, 'team-1');
+      expect(mockSetActiveTab).toHaveBeenCalledTimes(3);
+      expect(mockSetActiveTab).toHaveBeenNthCalledWith(1, 'team-2');
+      expect(mockSetActiveTab).toHaveBeenNthCalledWith(2, 'team-3');
+      expect(mockSetActiveTab).toHaveBeenNthCalledWith(3, 'team-1');
     });
 
-    it('should not call onTabClick when button is not clicked', () => {
+    it('should not call setActiveTab when button is not clicked', () => {
       const tabs = createMockTabs();
       renderWithProvider(
         <HeaderTabsList
@@ -381,7 +416,7 @@ describe('HeaderTabsList Component', () => {
         />
       );
 
-      expect(mockOnTabClick).not.toHaveBeenCalled();
+      expect(mockSetActiveTab).not.toHaveBeenCalled();
     });
   });
 
@@ -587,7 +622,7 @@ describe('HeaderTabsList Component', () => {
       );
 
       fireEvent.click(screen.getByRole('button', { name: /Team Beta/i }));
-      expect(mockOnTabClick).toHaveBeenCalledWith('team-2');
+      expect(mockSetActiveTab).toHaveBeenCalledWith('team-2');
     });
   });
 
@@ -628,7 +663,7 @@ describe('HeaderTabsList Component', () => {
       fireEvent.keyDown(button, { key: 'Enter', code: 'Enter' });
       fireEvent.click(button);
 
-      expect(mockOnTabClick).toHaveBeenCalledWith('team-2');
+      expect(mockSetActiveTab).toHaveBeenCalledWith('team-2');
     });
   });
 });

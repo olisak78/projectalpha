@@ -47,7 +47,7 @@ export function LandscapeFilter({
 
   // Helper to check if landscape is central
   const isCentralLandscape = (landscape: Landscape) => {
-    return (landscape as any).metadata?.['central-region'] === true;
+    return landscape.isCentral;
   };
 
   // Filter landscapes by search term

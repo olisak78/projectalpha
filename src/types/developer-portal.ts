@@ -34,7 +34,6 @@ export interface Landscape {
   deploymentStatus: "deployed" | "deploying" | "failed";
   technical_name?: string;
   environment?: string;
-  landscape_url?: string;
   metadata?: Record<string, any>;
   title?: string;
   domain?: string;
@@ -49,6 +48,8 @@ export interface Landscape {
   prometheus?: string;
   gardener?: string;
   plutono?: string;
+  landscape_url?: string; 
+  isCentral?: boolean;
 }
 
 export interface FeatureToggle {

@@ -252,15 +252,14 @@ export interface Group {
 export interface Project {
   id: string; // UUID
   name: string;
-  display_name: string;
-  description?: string;
-  organization_id: string;
-  project_type: ProjectType;
-  status: ProjectStatus;
-  sort_order?: number;
-  metadata?: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
+  title: string;
+  description: string;
+  alerts?: {
+    repo?: string;
+  };
+  health?: {
+    endpoint?: string;
+  };
 }
 
 /**
@@ -1173,4 +1172,12 @@ export interface LdapUser {
 export interface LdapUserSearchResponse {
   users: LdapUser[];
   total: number;
+}
+
+/**
+ * Project Interface List Response
+ * Response structure for project interface list endpoints
+ */
+export interface ProjectResponse {
+  projects: Project[];
 }

@@ -3,7 +3,21 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest';
 import { SideBar } from '../../../src/components/Sidebar/SideBar';
 import { SidebarProvider } from '../../../src/contexts/SidebarContext';
+import { ProjectsProvider } from '../../../src/contexts/ProjectsContext';
 import { ReactNode } from 'react';
+
+// Mock the useFetchProjects hook
+vi.mock('@/hooks/api/useProjects', () => ({
+  useFetchProjects: vi.fn(() => ({
+    data: [
+      { title: 'CIS@2.0', name: 'CIS@2.0' },
+      { title: 'Cloud Automation', name: 'Cloud Automation' },
+      { title: 'Unified Services', name: 'Unified Services' }
+    ],
+    isLoading: false,
+    error: null
+  }))
+}));
 
 /**
  * Sidebar Component Tests
@@ -21,11 +35,13 @@ import { ReactNode } from 'react';
 // ============================================================================
 
 /**
- * Wrapper component that provides SidebarContext for testing
+ * Wrapper component that provides SidebarContext and ProjectsContext for testing
  */
 function createSidebarWrapper() {
   return ({ children }: { children: ReactNode }) => (
-    <SidebarProvider>{children}</SidebarProvider>
+    <ProjectsProvider>
+      <SidebarProvider>{children}</SidebarProvider>
+    </ProjectsProvider>
   );
 }
 
@@ -67,10 +83,12 @@ describe('SideBar Component', () => {
 
   describe('Rendering', () => {
     it('should render the sidebar with all projects', () => {
-      const projects = ['Me', 'Teams', 'CIS@2.0'];
-      renderSidebar({ projects, onProjectChange: mockOnProjectChange });
+      // The component uses sidebarItems from ProjectsContext, not the projects prop
+      renderSidebar({ onProjectChange: mockOnProjectChange });
 
-      projects.forEach(project => {
+      // Check for the actual items that come from the mocked ProjectsContext
+      const expectedItems = ['Home', 'Teams', 'CIS@2.0'];
+      expectedItems.forEach(project => {
         expect(screen.getByText(project)).toBeInTheDocument();
       });
     });
@@ -104,8 +122,9 @@ describe('SideBar Component', () => {
       renderSidebar({ onProjectChange: mockOnProjectChange });
 
       // Check all project names are visible (since sidebar is expanded by default)
-      const projects = ['Me', 'Teams', 'CIS@2.0', 'Cloud Automation', 'Unified Services', 'Self Service', 'Links'];
-      projects.forEach(project => {
+      // These come from the mocked ProjectsContext sidebarItems
+      const expectedItems = ['Home', 'Teams', 'CIS@2.0', 'Cloud Automation', 'Unified Services', 'Links', 'Self Service', 'AI Arena'];
+      expectedItems.forEach(project => {
         const projectElement = screen.getByText(project);
         expect(projectElement).toBeVisible();
       });
@@ -151,18 +170,18 @@ describe('SideBar Component', () => {
 
     it('should handle clicking the same project twice', () => {
       renderSidebar({ 
-        activeProject: 'Me',
-        projects: ['Me', 'Teams'],
+        activeProject: 'Home',
+        projects: ['Home', 'Teams'],
         onProjectChange: mockOnProjectChange 
       });
 
-      const meButton = screen.getByRole('button', { name: /^me$/i });
+      const homeButton = screen.getByRole('button', { name: /^home$/i });
       
-      fireEvent.click(meButton);
-      fireEvent.click(meButton);
+      fireEvent.click(homeButton);
+      fireEvent.click(homeButton);
 
       expect(mockOnProjectChange).toHaveBeenCalledTimes(2);
-      expect(mockOnProjectChange).toHaveBeenCalledWith('Me');
+      expect(mockOnProjectChange).toHaveBeenCalledWith('Home');
     });
   });
 
@@ -326,13 +345,15 @@ describe('SideBar Component', () => {
   describe('Context Integration', () => {
     it('should work with SidebarProvider context', () => {
       const { container } = render(
-        <SidebarProvider>
-          <SideBar
-            activeProject="Me"
-            projects={['Me', 'Teams']}
-            onProjectChange={mockOnProjectChange}
-          />
-        </SidebarProvider>
+        <ProjectsProvider>
+          <SidebarProvider>
+            <SideBar
+              activeProject="Me"
+              projects={['Me', 'Teams']}
+              onProjectChange={mockOnProjectChange}
+            />
+          </SidebarProvider>
+        </ProjectsProvider>
       );
 
       expect(container.firstChild).toBeInTheDocument();

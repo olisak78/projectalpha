@@ -12,10 +12,9 @@ export type ToolButton = 'git' | 'concourse' | 'kibana' | 'dynatrace' | 'plutono
 interface LandscapeToolsButtonsProps {
   selectedLandscape: string | null;
   landscapeData?: any;
-  hiddenButtons?: ToolButton[];
 }
 
-export function LandscapeToolsButtons({ selectedLandscape, landscapeData, hiddenButtons = [] }: LandscapeToolsButtonsProps) {
+export function LandscapeToolsButtons({ selectedLandscape, landscapeData }: LandscapeToolsButtonsProps) {
   const { urls, availability } = useLandscapeTools(selectedLandscape, landscapeData);
 
   const handleToolClick = (url: string | null) => {
@@ -29,11 +28,9 @@ export function LandscapeToolsButtons({ selectedLandscape, landscapeData, hidden
     return null;
   }
 
-  const isHidden = (button: ToolButton) => hiddenButtons.includes(button);
-
   return (
     <div className="flex items-center gap-2">
-      {!isHidden('git') && availability.git && (
+      {availability.git && (
         <Button
           variant="outline"
           size="sm"
@@ -45,7 +42,7 @@ export function LandscapeToolsButtons({ selectedLandscape, landscapeData, hidden
         </Button>
       )}
 
-      {!isHidden('concourse') && availability.concourse && (
+      {availability.concourse && (
         <Button
           variant="outline"
           size="sm"
@@ -57,7 +54,7 @@ export function LandscapeToolsButtons({ selectedLandscape, landscapeData, hidden
         </Button>
       )}
 
-        {!isHidden('kibana') && availability.kibana && (
+        {availability.kibana && (
         <Button
           variant="outline"
           size="sm"
@@ -69,7 +66,7 @@ export function LandscapeToolsButtons({ selectedLandscape, landscapeData, hidden
         </Button>
       )}
 
-      {!isHidden('dynatrace') && availability.dynatrace && (
+      {availability.dynatrace && (
         <Button
           variant="outline"
           size="sm"
@@ -81,7 +78,7 @@ export function LandscapeToolsButtons({ selectedLandscape, landscapeData, hidden
         </Button>
       )}
 
-      {!isHidden('cockpit') && availability.cockpit && (
+      {availability.cockpit && (
         <Button
           variant="outline"
           size="sm"
@@ -93,7 +90,7 @@ export function LandscapeToolsButtons({ selectedLandscape, landscapeData, hidden
         </Button>
       )}
 
-       {!isHidden('plutono') && availability.plutono && (
+       {availability.plutono && (
         <Button
           variant="outline"
           size="sm"

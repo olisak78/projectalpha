@@ -3,13 +3,6 @@ import { queryKeys } from '@/lib/queryKeys';
 import { fetchComponentsByOrganization, fetchComponentsByTeamId, fetchComponentsByProject } from '@/services/ComponentsApi';
 import type { ComponentListResponse, TeamComponentsListResponse } from '@/types/api';
 
-/**
- * Components Query Hooks
- */
-
-/**
- * Hook to fetch components by team ID
- */
 export function useComponentsByTeam(
   teamId: string,
   organizationId: string,

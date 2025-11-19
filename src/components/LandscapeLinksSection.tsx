@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LandscapeFilter } from "@/components/LandscapeFilter";
@@ -10,6 +11,7 @@ interface LandscapeGroup {
   landscapes: Array<{
     id: string;
     name: string;
+    isCentral: boolean;
   }>;
 }
 
@@ -19,7 +21,6 @@ interface LandscapeLinksProps {
   landscapeGroups: LandscapeGroup[];
   onLandscapeChange: (landscapeId: string | null) => void;
   onShowLandscapeDetails: () => void;
-  hiddenButtons?: Array<'git' | 'concourse' | 'kibana' | 'dynatrace' | 'cockpit' | 'plutono'>;
 }
 
 /**
@@ -34,8 +35,21 @@ export function LandscapeLinksSection({
   landscapeGroups,
   onLandscapeChange,
   onShowLandscapeDetails,
-  hiddenButtons = []
 }: LandscapeLinksProps) {
+  // Convert LandscapeGroup[] to Record<string, Landscape[]> for LandscapeFilter
+  // Memoize to prevent infinite re-renders and API calls
+  const landscapeGroupsRecord = useMemo(() => {
+    return landscapeGroups.reduce((acc, group) => {
+      acc[group.name] = group.landscapes.map(landscape => ({
+        id: landscape.id,
+        name: landscape.name,
+        status: 'active', // Default status since it's not provided in the simplified format
+        isCentral: landscape.isCentral || false
+      }));
+      return acc;
+    }, {} as Record<string, any[]>);
+  }, [landscapeGroups]);
+
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between gap-4">
@@ -55,7 +69,7 @@ export function LandscapeLinksSection({
           <div className="w-80">
             <LandscapeFilter
               selectedLandscape={selectedLandscape}
-              landscapeGroups={landscapeGroups}
+              landscapeGroups={landscapeGroupsRecord}
               onLandscapeChange={onLandscapeChange}
               onShowLandscapeDetails={onShowLandscapeDetails}
               showClearButton={false}
@@ -68,7 +82,6 @@ export function LandscapeLinksSection({
         <LandscapeToolsButtons
           selectedLandscape={selectedLandscape}
           landscapeData={selectedLandscapeData}
-          hiddenButtons={hiddenButtons}
         />
       </div>
     </div>

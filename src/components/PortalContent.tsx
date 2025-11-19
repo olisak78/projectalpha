@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNotifications } from "@/hooks/useNotifications";
 import { usePortalState } from "@/contexts/hooks";
 import { useHeaderNavigation } from "@/contexts/HeaderNavigationContext";

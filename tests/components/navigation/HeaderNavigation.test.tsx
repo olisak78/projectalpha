@@ -4,8 +4,39 @@ import '@testing-library/jest-dom/vitest';
 import { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { HeaderNavigation } from '../../../src/components/DeveloperPortalHeader/HeaderNavigation';
-import { HeaderTab } from '../../../src/contexts/HeaderNavigationContext';
+import { HeaderTab, HeaderNavigationProvider } from '../../../src/contexts/HeaderNavigationContext';
 import { SidebarProvider } from '../../../src/contexts/SidebarContext';
+import { ProjectsProvider } from '../../../src/contexts/ProjectsContext';
+
+// Mock the useFetchProjects hook
+vi.mock('@/hooks/api/useProjects', () => ({
+  useFetchProjects: vi.fn(() => ({
+    data: [
+      { title: 'CIS@2.0', name: 'CIS@2.0' },
+      { title: 'Cloud Automation', name: 'Cloud Automation' },
+      { title: 'Unified Services', name: 'Unified Services' }
+    ],
+    isLoading: false,
+    error: null
+  }))
+}));
+
+// Mock the HeaderNavigationContext
+const mockSetActiveTab = vi.fn();
+vi.mock('@/contexts/HeaderNavigationContext', async () => {
+  const actual = await vi.importActual('@/contexts/HeaderNavigationContext');
+  return {
+    ...actual,
+    useHeaderNavigation: () => ({
+      tabs: [],
+      activeTab: null,
+      setTabs: vi.fn(),
+      setActiveTab: mockSetActiveTab,
+      isDropdown: false,
+      setIsDropdown: vi.fn()
+    })
+  };
+});
 
 /**
  * HeaderNavigation Component Tests
@@ -42,9 +73,13 @@ beforeAll(() => {
 function TestWrapper({ children }: { children: ReactNode }) {
   return (
     <MemoryRouter>
-      <SidebarProvider>
-        {children}
-      </SidebarProvider>
+      <ProjectsProvider>
+        <SidebarProvider>
+          <HeaderNavigationProvider>
+            {children}
+          </HeaderNavigationProvider>
+        </SidebarProvider>
+      </ProjectsProvider>
     </MemoryRouter>
   );
 }
@@ -224,7 +259,7 @@ describe('HeaderNavigation Component', () => {
       const teamBetaButton = screen.getByText('Team Beta');
       fireEvent.click(teamBetaButton);
 
-      expect(mockOnTabClick).toHaveBeenCalledWith('team-2');
+      expect(mockSetActiveTab).toHaveBeenCalledWith('team-2');
     });
   });
 
@@ -589,8 +624,8 @@ describe('HeaderNavigation Component', () => {
       const button = screen.getByText('Team Gamma');
       fireEvent.click(button);
 
-      expect(mockOnTabClick).toHaveBeenCalledWith('team-3');
-      expect(mockOnTabClick).toHaveBeenCalledTimes(1);
+      expect(mockSetActiveTab).toHaveBeenCalledWith('team-3');
+      expect(mockSetActiveTab).toHaveBeenCalledTimes(1);
     });
   });
 });
