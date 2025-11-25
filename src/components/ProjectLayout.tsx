@@ -3,6 +3,7 @@ import { BreadcrumbPage } from "@/components/BreadcrumbPage";
 import { LandscapeLinksSection } from "@/components/LandscapeLinksSection";
 import { ComponentsTabContent } from "@/components/ComponentsTabContent";
 import { HealthDashboard } from "@/components/Health/HealthDashboard";
+import { HealthOverview } from "@/components/Health/HealthOverview";
 import AlertsPage from "@/pages/AlertsPage";
 import { useHeaderNavigation } from "@/contexts/HeaderNavigationContext";
 import {
@@ -15,6 +16,9 @@ import { useTabRouting } from "@/hooks/useTabRouting";
 import { useComponentsByProject } from "@/hooks/api/useComponents";
 import { useLandscapesByProject } from "@/hooks/api/useLandscapes";
 import { useTeams } from "@/hooks/api/useTeams";
+import { useHealth } from "@/hooks/api/useHealth";
+import type { Landscape } from "@/types/developer-portal";
+
 
 export interface ProjectLayoutProps {
   projectName: string;
@@ -25,6 +29,8 @@ export interface ProjectLayoutProps {
   emptyStateMessage?: string;
   system?: string;
   showLandscapeFilter?: boolean;
+  showComponentsMetrics?: boolean; // NEW: Controls whether HealthOverview is shown on Components tab
+  alertsUrl?: string; // NEW: URL for alerts configuration
   children?: ReactNode;
 }
 
@@ -37,6 +43,8 @@ export function ProjectLayout({
   emptyStateMessage,
   system = "services",
   showLandscapeFilter = false,
+  showComponentsMetrics = false, // NEW: Default to false
+  alertsUrl,
   children
 }: ProjectLayoutProps) {
   // Common state management
@@ -78,99 +86,100 @@ export function ProjectLayout({
 
   const {
     data: apiLandscapes,
-    isLoading: landscapesLoading,
-    error: landscapesError,
+    isLoading: landscapesLoading
   } = useLandscapesByProject(projectId);
 
   const { data: teamsData } = useTeams();
 
-  // Data processing
+  // Process components data - ComponentListResponse is directly Component[]
   const apiComponents = useMemo(() => {
-    if (!componentsData) return [];
-    return componentsData;
+    return componentsData || [];
   }, [componentsData]);
 
-  // Create team mappings
-  const teamNamesMap = useMemo(() => {
-    if (!teamsData?.teams) return {};
-    return teamsData.teams.reduce((acc, team) => {
-      acc[team.id] = team.name;
-      return acc;
-    }, {} as Record<string, string>);
-  }, [teamsData]);
-
-  const teamColorsMap = useMemo(() => {
-    if (!teamsData?.teams) return {};
-    return teamsData.teams.reduce((acc, team) => {
-      let metadata = team.metadata;
-      if (typeof metadata === 'string') {
-        try {
-          metadata = JSON.parse(metadata);
-        } catch (e) {
-          console.error('Failed to parse team metadata:', e);
-        }
-      }
-      if (metadata?.color) {
-        acc[team.id] = metadata.color;
-      }
-      return acc;
-    }, {} as Record<string, string>);
-  }, [teamsData]);
-
-  // Find selected landscape from API data - memoize to prevent infinite re-renders
-  const selectedApiLandscape = useMemo(() => {
-    if (!selectedLandscape || !apiLandscapes) return undefined;
-    return apiLandscapes.find((l: any) => l.id === selectedLandscape);
-  }, [apiLandscapes, selectedLandscape]);
-
-  // Use apiLandscapes directly instead of context functions
-  const currentProjectLandscapes = apiLandscapes || [];
-  
-  // Group landscapes by environment for display
+  // Process landscapes data
   const landscapeGroupsRecord = useMemo(() => {
     if (!apiLandscapes) return {};
     
-    const groupedByEnvironment: Record<string, any[]> = {};
-    
-    apiLandscapes.forEach(landscape => {
-      const environment = (landscape as any).environment || 'Unknown';
-      
-      // Capitalize first letter for display
-      const groupName = environment.charAt(0).toUpperCase() + environment.slice(1);
-      
-      if (!groupedByEnvironment[groupName]) {
-        groupedByEnvironment[groupName] = [];
+    // Group landscapes by environment_group
+    const groups: Record<string, Landscape[]> = {};
+    apiLandscapes.forEach((landscape) => {
+      const group = landscape.environment || 'Other';
+      if (!groups[group]) {
+        groups[group] = [];
       }
-      groupedByEnvironment[groupName].push(landscape);
+      groups[group].push(landscape);
     });
-    
-    return groupedByEnvironment;
+    return groups;
   }, [apiLandscapes]);
-  
-  // Transform landscape groups for LandscapeLinksSection (expects LandscapeGroup[])
+
   const landscapeGroupsArray = useMemo(() => {
-    return Object.entries(landscapeGroupsRecord).map(([groupName, landscapes]) => ({
-      id: groupName.toLowerCase().replace(/\s+/g, '-'),
-      name: groupName,
-      landscapes: landscapes.map(landscape => ({
-        id: landscape.id,
-        name: landscape.name,
-        isCentral: landscape.isCentral || false
+    return Object.entries(landscapeGroupsRecord).map(([name, landscapes]) => ({
+      id: name,
+      name,
+      landscapes: landscapes.map(l => ({
+        id: l.id,
+        name: l.name,
+        isCentral: false // Adjust as needed
       }))
     }));
   }, [landscapeGroupsRecord]);
-  
-  const filteredToggles = getFilteredToggles(projectName, selectedLandscape, componentFilter, toggleFilter);
-  const availableComponents = getAvailableComponents(projectName, featureToggles);
 
-  // Tab ID to label mapping
+  const currentProjectLandscapes = apiLandscapes || [];
+
+  // Find selected landscape object
+  const selectedApiLandscape = useMemo(() => {
+    if (!selectedLandscape || !apiLandscapes) return null;
+    return apiLandscapes.find((l) => l.id === selectedLandscape)|| null;
+  }, [selectedLandscape, apiLandscapes]);
+
+  // Build landscape config for health checks
+  const landscapeConfig = useMemo(() => {
+    if (!selectedApiLandscape) return { name: '', route: '' };
+    
+    return {
+      name: selectedApiLandscape.name,
+      route: selectedApiLandscape.metadata?.route || 
+             selectedApiLandscape.landscape_url || 
+             'cfapps.sap.hana.ondemand.com',
+    };
+  }, [selectedApiLandscape]);
+
+  // Health data hook - only fetch if showComponentsMetrics is true
+  const {
+    healthChecks,
+    summary,
+    isLoading: isLoadingHealth,
+  } = useHealth({
+    components: apiComponents,
+    landscape: landscapeConfig,
+    enabled: showComponentsMetrics && !!selectedLandscape && !componentsLoading,
+  });
+
+  // Build team maps
+  const teamNamesMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (teamsData?.teams) {
+      teamsData.teams.forEach((team: any) => {
+        map[team.id] = team.title || team.name;
+      });
+    }
+    return map;
+  }, [teamsData]);
+
+  const teamColorsMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    // Add color mapping logic if needed
+    return map;
+  }, []);
+
+  // Tab label mapping
   const getTabLabel = (tabId: string): string => {
-    const tabLabels: Record<string, string> = {
+    const labelMap: Record<string, string> = {
       'components': 'Components',
       'health': 'Health',
       'alerts': 'Alerts',
     };
-    return tabLabels[tabId] || tabId.charAt(0).toUpperCase() + tabId.slice(1);
+    return labelMap[tabId] || tabId.charAt(0).toUpperCase() + tabId.slice(1);
   };
 
   // Build header tabs from database array
@@ -184,7 +193,7 @@ export function ProjectLayout({
   // Set up header tabs and sync with URL
   useEffect(() => {
     syncTabWithUrl(headerTabs, defaultTab);
-  }, [headerTabs, defaultTab, syncTabWithUrl]); // Include syncTabWithUrl but it should be stable
+  }, [headerTabs, defaultTab, syncTabWithUrl]);
 
   // Update local activeTab when URL tab changes
   useEffect(() => {
@@ -200,19 +209,17 @@ export function ProjectLayout({
     }
   }, [headerActiveTab, activeTab]);
 
-  // Set default landscape - use apiLandscapes directly
+  // Set default landscape
   useEffect(() => {
     if (apiLandscapes && apiLandscapes.length > 0 && !selectedLandscape) {
-      // Look for DEFAULT landscape first
       const defaultLandscape = apiLandscapes.find((l: any) => l.name === 'DEFAULT');
       if (defaultLandscape) {
         setSelectedLandscape(defaultLandscape.id);
       } else {
-        // If DEFAULT not found, use first landscape
         setSelectedLandscape(apiLandscapes[0].id);
       }
     }
-  }, [apiLandscapes, selectedLandscape]);
+  }, [apiLandscapes, selectedLandscape, setSelectedLandscape]);
 
   // Handlers
   const handleToggleComponentExpansion = (componentId: string) => {
@@ -220,52 +227,6 @@ export function ProjectLayout({
       ...prev,
       [componentId]: !(prev[componentId] ?? false)
     }));
-  };
-
-  // Prepare common props for custom tab content
-  const commonTabProps = {
-    // Data
-    components: apiComponents,
-    selectedLandscape,
-    selectedApiLandscape,
-    landscapeGroups: landscapeGroupsArray,
-    currentProjectLandscapes,
-    filteredToggles,
-    availableComponents,
-    teamNamesMap,
-    teamColorsMap,
-    
-    // State
-    componentsLoading,
-    componentsError,
-    teamComponentsExpanded,
-    componentSearchTerm,
-    componentSortOrder,
-    expandedToggles,
-    toggleFilter,
-    componentFilter,
-    
-    // Handlers
-    onLandscapeChange: setSelectedLandscape,
-    onShowLandscapeDetails: () => setShowLandscapeDetails(true),
-    onToggleComponentExpansion: handleToggleComponentExpansion,
-    onRefresh: refetchComponents,
-    onSearchTermChange: setComponentSearchTerm,
-    onSortOrderChange: setComponentSortOrder,
-    onToggleFeature: toggleFeature,
-    onToggleExpanded: toggleExpanded,
-    onBulkToggle: bulkToggle,
-    onToggleFilterChange: setToggleFilter,
-    onComponentFilterChange: setComponentFilter,
-    
-    // Project info
-    projectName,
-    activeProject: projectName,
-    
-    // Utility functions
-    getFilteredLandscapeIds,
-    getProductionLandscapeIds,
-    getGroupStatus
   };
 
   const renderGenericTabContent = () => {
@@ -281,6 +242,14 @@ export function ProjectLayout({
               onLandscapeChange={setSelectedLandscape}
               onShowLandscapeDetails={() => setShowLandscapeDetails(true)}
             />
+
+            {/* Health Overview Metrics - only shown if showComponentsMetrics is true */}
+            {showComponentsMetrics && (
+              <HealthOverview
+                summary={summary}
+                isLoading={isLoadingHealth}
+              />
+            )}
 
             {/* Components Section */}
             <ComponentsTabContent
@@ -304,6 +273,7 @@ export function ProjectLayout({
               teamColorsMap={teamColorsMap}
               sortOrder={componentSortOrder}
               onSortOrderChange={setComponentSortOrder}
+ 
             />
           </>
         );
@@ -324,6 +294,7 @@ export function ProjectLayout({
           <AlertsPage
             projectId={projectId}
             projectName={projectName}
+            alertsUrl={alertsUrl}
           />
         );
       default:
@@ -332,7 +303,6 @@ export function ProjectLayout({
   };
 
   const renderTabContent = () => {    
-    // Use generic tab content based on tabs from database
     return renderGenericTabContent();
   };
 

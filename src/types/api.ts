@@ -255,12 +255,11 @@ export interface Project {
   title: string;
   description: string;
   isVisible?: boolean; // Controls visibility in sidebar
-  alerts?: {
-    repo?: string;
-  };
+  alerts?: string;
   health?: {
     endpoint?: string;
   };
+  'components-metrics'?: boolean
 }
 
 /**

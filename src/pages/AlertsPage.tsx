@@ -13,9 +13,10 @@ import { cn } from '@/lib/utils';
 interface AlertsPageProps {
   projectId: string;
   projectName: string;
+  alertsUrl?: string;
 }
 
-export default function AlertsPage({ projectId, projectName }: AlertsPageProps) {
+export default function AlertsPage({ projectId, projectName, alertsUrl='' }: AlertsPageProps) {
   const { data: alertsData, isLoading, error } = useAlerts(projectId);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');

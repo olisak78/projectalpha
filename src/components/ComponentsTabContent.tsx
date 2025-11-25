@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { TeamComponents } from "@/components/Team/TeamComponents";
 import { Component } from "@/types/api";
-import type { ComponentHealthCheck } from "@/types/health";
+import type { ComponentHealthCheck, HealthSummary } from "@/types/health";
 import {
   Select,
   SelectContent,
@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { HealthOverview } from "./Health/HealthOverview";
 
 interface ComponentsTabContentProps {
   title: string;
@@ -29,6 +30,7 @@ interface ComponentsTabContentProps {
   onSearchTermChange?: (term: string) => void;
   system: string;
   showLandscapeFilter?: boolean;
+  showComponentMetrics?: boolean;
   selectedLandscape?: string | null;
   selectedLandscapeData?: any;
   teamNamesMap?: Record<string, string>;
@@ -51,6 +53,7 @@ export function ComponentsTabContent({
   onToggleExpanded,
   onRefresh,
   showRefreshButton = true,
+  showComponentMetrics = true,
   emptyStateMessage,
   searchTerm = "",
   onSearchTermChange,

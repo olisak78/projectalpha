@@ -20,7 +20,7 @@ const getProjectConfig = (project: Project) => {
     }
     
     // Add alerts tab if alerts metadata exists
-    if (project.alerts) {
+    if (project.alerts && typeof project.alerts === 'string' && project.alerts.trim() !== '') {
       tabs.push('alerts');
     }
   
@@ -29,6 +29,9 @@ const getProjectConfig = (project: Project) => {
     tabs: tabs,
     system: project.name,
     showLandscapeFilter: true,
+    showComponentMetrics: project['components-metrics'] === true,
+    alertsUrl: typeof project.alerts === 'string' ? project.alerts : undefined,
+
   };
 
   return defaultConfig;
@@ -52,6 +55,8 @@ const getProjectConfig = (project: Project) => {
       emptyStateMessage={`No ${project.title} components found for this organization.`}
       system={config.system}
       showLandscapeFilter={config.showLandscapeFilter}
+      showComponentsMetrics={config.showComponentMetrics} 
+      alertsUrl={config.alertsUrl}
     />
   );
 }
