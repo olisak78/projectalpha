@@ -1,4 +1,3 @@
-import DeveloperPortal from "@/components/DeveloperPortal";
 import { PortalContainer } from "@/components/PortalContainer";
 
 const Index = () => {

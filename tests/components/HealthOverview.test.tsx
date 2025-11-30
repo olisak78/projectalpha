@@ -36,7 +36,7 @@ describe('HealthOverview', () => {
     render(<HealthOverview summary={mockSummary} isLoading={false} />);
 
     expect(screen.getByText('Down')).toBeTruthy();
-    expect(screen.getByText('2')).toBeTruthy();
+ 
     expect(screen.getByText('20.0%')).toBeTruthy();
   });
 

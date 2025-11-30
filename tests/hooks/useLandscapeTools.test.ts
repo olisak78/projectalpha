@@ -122,7 +122,8 @@ describe('useLandscapeTools', () => {
         kibana: null,
         dynatrace: null,
         cockpit: null,
-        plutono: null
+        plutono: null,
+        operationConsole: null
       },
       availability: {
         git: false,
@@ -130,7 +131,8 @@ describe('useLandscapeTools', () => {
         kibana: false,
         dynatrace: false,
         cockpit: false,
-        plutono: false
+        plutono: false,
+        operationConsole: false
       },
     };
 

@@ -574,3 +574,7 @@ export interface LandscapeHistoryItem {
   id: string;
   timestamp: number;
 }
+
+export const LANDSCAPE_GROUP_ORDER = ['staging', 'integrate', 'canary', 'hotfix', 'live'];
+
+

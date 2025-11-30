@@ -15,6 +15,15 @@ export default defineConfig({
         'tests/',
         '**/*.test.ts',
         '**/*.test.tsx',
+        'dist/',
+        'build/**/*',                 // Alternative build folder
+        'src/components/ui/**/*',     // shadcn/ui components
+        'coverage/**/*',              // Coverage reports
+        'public/**/*',                // Static assets
+        'src/vite-env.d.ts',          // Vite type definitions
+        'components.json',            // shadcn/ui config
+        '*.config.{js,ts}',           // Root level configs
+        'src/vite-env.d.ts',          // Vite type definitions
       ],
       reportsDirectory: './coverage'
     },

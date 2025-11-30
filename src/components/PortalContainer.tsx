@@ -85,7 +85,7 @@ export const PortalContainer: React.FC = () => {
   };
 
   return (
-    <PortalProviders activeProject={activeProject}>
+    <PortalProviders>
       <PortalContent
         activeProject={activeProject}
         projects={sidebarItems}

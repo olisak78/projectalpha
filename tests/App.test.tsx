@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
-import App from '@/App';
+import App from '../src/App';
 
 // Mock all the contexts and providers
 vi.mock('@/contexts/AuthContext', () => ({
@@ -156,15 +156,18 @@ describe('App Component', () => {
         </TestWrapper>
       );
 
-      // Check that all providers are rendered
+      // Check that all App-level providers are rendered
+      expect(screen.getByTestId('query-provider')).toBeInTheDocument();
       expect(screen.getByTestId('projects-provider')).toBeInTheDocument();
       expect(screen.getByTestId('tooltip-provider')).toBeInTheDocument();
       expect(screen.getByTestId('toaster')).toBeInTheDocument();
       expect(screen.getByTestId('sonner')).toBeInTheDocument();
-      expect(screen.getByTestId('query-provider')).toBeInTheDocument();
       expect(screen.getByTestId('auth-provider')).toBeInTheDocument();
       expect(screen.getByTestId('sidebar-provider')).toBeInTheDocument();
-      expect(screen.getByTestId('header-navigation-provider')).toBeInTheDocument();
+      
+      // HeaderNavigationProvider is now inside PortalContainer/PortalProviders
+      // It's not directly accessible at the App level anymore
+      expect(screen.getByTestId('portal-container')).toBeInTheDocument();
     });
 
     it('includes QueryClientProvider with proper setup', () => {

@@ -9,6 +9,7 @@ export interface LandscapeApiResponse {
   description: string;
   domain: string;
   environment: string;
+  'is-central-region'?: boolean;
   git?: string;
   concourse?: string;
   kibana?: string;
@@ -31,7 +32,8 @@ export async function fetchLandscapesByProject(
   });
 
   // Transform API response to internal Landscape type
-  return response.map(landscape => ({
+  return response.map(landscape => {
+    return {
     id: landscape.id, // Keep UUID as id for component filtering
     name: landscape.title || landscape.name, 
     technical_name: landscape.name, 
@@ -57,7 +59,8 @@ export async function fetchLandscapesByProject(
     gardener: landscape.gardener,
     plutono: landscape.plutono,
     isCentral: landscape['is-central-region'] || false,
-  } as any));
+  } as any;
+ });
 }
 
 

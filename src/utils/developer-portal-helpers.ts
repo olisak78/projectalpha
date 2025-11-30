@@ -1,5 +1,5 @@
 import { FeatureToggle, Landscape, User } from "@/types/developer-portal";
-import { projectComponents } from "@/constants/developer-portal";
+import { LANDSCAPE_GROUP_ORDER, projectComponents } from "@/constants/developer-portal";
 
 // Status color helper
 export const getStatusColor = (status: string) => {
@@ -188,4 +188,36 @@ export const getCategoryBgColor = (colorClass: string): string => {
     'bg-orange-500': 'bg-orange-500',
   };
   return colorMap[colorClass] || 'bg-gray-500';
+};
+
+// Helper function to sort landscape groups in the desired order
+export const sortLandscapeGroups = (groups: Record<string, Landscape[]>): [string, Landscape[]][] => {
+  const entries = Object.entries(groups);
+  
+  return entries.sort((a, b) => {
+    const [groupA] = a;
+    const [groupB] = b;
+    
+    // Special case: 'Frequently Visited' should always be first
+    if (groupA === 'Frequently Visited') return -1;
+    if (groupB === 'Frequently Visited') return 1;
+    
+    // Get the index in the desired order
+    const indexA = LANDSCAPE_GROUP_ORDER.indexOf(groupA.toLowerCase());
+    const indexB = LANDSCAPE_GROUP_ORDER.indexOf(groupB.toLowerCase());
+    
+    // If both are in the order array, sort by their position
+    if (indexA !== -1 && indexB !== -1) {
+      return indexA - indexB;
+    }
+    
+    // If only A is in the order array, it comes first
+    if (indexA !== -1) return -1;
+    
+    // If only B is in the order array, it comes first
+    if (indexB !== -1) return 1;
+    
+    // If neither is in the order array, sort alphabetically
+    return groupA.localeCompare(groupB);
+  });
 };

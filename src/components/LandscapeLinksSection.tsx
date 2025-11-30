@@ -36,6 +36,7 @@ export function LandscapeLinksSection({
   onLandscapeChange,
   onShowLandscapeDetails,
 }: LandscapeLinksProps) {
+
   // Convert LandscapeGroup[] to Record<string, Landscape[]> for LandscapeFilter
   // Memoize to prevent infinite re-renders and API calls
   const landscapeGroupsRecord = useMemo(() => {
@@ -50,6 +51,7 @@ export function LandscapeLinksSection({
     }, {} as Record<string, any[]>);
   }, [landscapeGroups]);
 
+ 
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between gap-4">

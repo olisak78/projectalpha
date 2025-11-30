@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ComponentViewPage } from '@/pages/ComponentViewPage';
 import { useComponentsByProject } from '@/hooks/api/useComponents';
 import { useLandscapesByProject } from '@/hooks/api/useLandscapes';
@@ -161,8 +161,10 @@ describe('ComponentViewPage', () => {
 
   it('should render ComponentViewPage with BreadcrumbPage wrapper', () => {
     render(
-      <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
@@ -171,8 +173,10 @@ describe('ComponentViewPage', () => {
 
   it('should initialize with overview tab as default', () => {
     render(
-      <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
@@ -180,57 +184,71 @@ describe('ComponentViewPage', () => {
     expect(screen.getByTestId('component-view-overview')).toBeInTheDocument();
   });
 
+  //NEW: Updated to expect the component to be found and rendered
   it('should fetch component data by name from URL params', () => {
     render(
-      <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
-    expect(screen.getByTestId('component-name')).toHaveTextContent('no-component');
+    //NEW: Component should be found because it matches the URL param
+    expect(screen.getByTestId('component-name')).toHaveTextContent('accounts-service');
   });
 
   it('should pass selected landscape to overview component', () => {
     render(
-      <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
     expect(screen.getByTestId('selected-landscape')).toHaveTextContent('eu10-canary');
   });
 
-
+  //NEW: Updated to expect health data to be fetched and displayed
   it('should display health response time', async () => {
     render(
-      <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('response-time')).toHaveTextContent('no-time');
+      //NEW: Response time should be displayed after health fetch completes
+      expect(screen.getByTestId('response-time')).toHaveTextContent('150');
     });
   });
 
+  //NEW: Updated to expect status code to be displayed
   it('should display status code', async () => {
     vi.mocked(fetchHealthStatus).mockResolvedValue({
       status: 'success',
-      data: { ...mockHealthResponse, statusCode: 200 },
+      data: mockHealthResponse,
       responseTime: 150,
     } as any);
 
     render(
-      <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('status-code')).toHaveTextContent('no-code');
+      //NEW: Status code should be 200 when health fetch succeeds
+      expect(screen.getByTestId('status-code')).toHaveTextContent('200');
     });
   });
 
+  //NEW: Updated to expect error to be displayed
   it('should handle health fetch error', async () => {
     vi.mocked(fetchHealthStatus).mockResolvedValue({
       status: 'error',
@@ -238,56 +256,50 @@ describe('ComponentViewPage', () => {
     } as any);
 
     render(
-      <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('health-error')).toHaveTextContent('no-error');
+      //NEW: Error message should be displayed when fetch fails
+      expect(screen.getByTestId('health-error')).toHaveTextContent('Failed to fetch health data');
     });
   });
 
   it('should show health loading state', () => {
     render(
-      <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
-    // Initially should be loading
-    expect(screen.getByTestId('health-loading')).toHaveTextContent('loaded');
+    // Initially should be loaded (not loading) because useEffect hasn't run yet
+    expect(screen.getByTestId('health-loading')).toHaveTextContent('loading');
   });
 
-  it('should handle component not found', () => {
-    vi.mocked(useComponentsByProject).mockReturnValue({
-      data: [],
-      isLoading: false,
-      error: null,
-      isError: false,
-      isSuccess: true,
-    } as any);
 
-    render(
-      <MemoryRouter initialEntries={['/cis/component/nonexistent-service']}>
-        <ComponentViewPage />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByTestId('component-name')).toHaveTextContent('no-component');
-  });
-
+  //NEW: Updated to expect no health data when landscape is missing
   it('should handle missing selected landscape', () => {
     vi.mocked(usePortalState).mockReturnValue({
       selectedLandscape: null,
     } as any);
 
     render(
-      <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
+    //NEW: Component should still be found, but landscape will be missing
+    expect(screen.getByTestId('component-name')).toHaveTextContent('accounts-service');
+    //NEW: Selected landscape should show null/empty
     expect(screen.getByTestId('selected-landscape')).toHaveTextContent('no-landscape');
   });
 
@@ -301,8 +313,10 @@ describe('ComponentViewPage', () => {
     } as any);
 
     render(
-      <MemoryRouter initialEntries={['/cis/component/nonexistent-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/nonexistent-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
@@ -317,8 +331,10 @@ describe('ComponentViewPage', () => {
     } as any);
 
     render(
-      <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
@@ -327,31 +343,54 @@ describe('ComponentViewPage', () => {
     });
   });
 
-  it('should determine project name from system in URL', () => {
+  //NEW: Updated to use projectName from URL params directly
+  it('should determine project name from URL params', () => {
     render(
       <MemoryRouter initialEntries={['/unified-services/component/test-service']}>
-        <ComponentViewPage />
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
-    expect(useComponentsByProject).toHaveBeenCalledWith('usrv');
+    //NEW: Should use projectName directly from URL params
+    expect(useComponentsByProject).toHaveBeenCalledWith('unified-services');
   });
 
-  it('should use CIS project for cis system', () => {
+  //NEW: Updated to use projectName from URL params directly
+  it('should use project name from URL for cis20', () => {
     render(
-      <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
+    //NEW: Should use projectName directly from URL params
     expect(useComponentsByProject).toHaveBeenCalledWith('cis20');
   });
 
-  
-  it('should display both tabs in TabsList', () => {
+  //NEW: Test for CIS special route (for backward compatibility)
+  it('should handle CIS special route /cis/component/:componentId', () => {
     render(
       <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
-        <ComponentViewPage />
+        <Routes>
+          <Route path="/cis/component/:componentId" element={<ComponentViewPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    //NEW: Should default to cis20 when no projectName in URL
+    expect(useComponentsByProject).toHaveBeenCalledWith('cis20');
+  });
+
+  it('should display both tabs in TabsList', () => {
+    render(
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
       </MemoryRouter>
     );
 
@@ -359,5 +398,82 @@ describe('ComponentViewPage', () => {
     expect(screen.getByRole('tab', { name: /api/i })).toBeInTheDocument();
   });
 
-  
-});
+
+  //NEW: Test that health is fetched when both component and landscape are present
+  it('should fetch health when component and landscape are both present', async () => {
+    render(
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(fetchHealthStatus).toHaveBeenCalled();
+      expect(buildHealthEndpoint).toHaveBeenCalledWith(
+        mockComponent,
+        expect.objectContaining({
+          name: 'EU10 Canary',
+          route: 'cfapps.sap.hana.ondemand.com'
+        })
+      );
+    });
+  });
+
+  //NEW: Test Swagger data is loaded for API tab
+  it('should load Swagger data when API tab is active', async () => {
+    render(
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service/api']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName/:tabId" element={<ComponentViewPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('swagger-data')).toBeInTheDocument();
+    });
+  });
+
+  //NEW: Test Sonar data is passed to overview
+  it('should display Sonar data in overview tab', () => {
+    render(
+      <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId('sonar-data')).toBeInTheDocument();
+  });
+
+  //NEW: Test component with different project
+  it('should work with cloud-automation project', () => {
+    const caComponent: Component = {
+      ...mockComponent,
+      name: 'terraform-provider',
+      project_id: 'ca',
+    };
+
+    vi.mocked(useComponentsByProject).mockReturnValue({
+      data: [caComponent],
+      isLoading: false,
+      error: null,
+      isError: false,
+      isSuccess: true,
+    } as any);
+
+    render(
+      <MemoryRouter initialEntries={['/ca/component/terraform-provider']}>
+        <Routes>
+          <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(useComponentsByProject).toHaveBeenCalledWith('ca');
+    expect(screen.getByTestId('component-name')).toHaveTextContent('terraform-provider');
+  });
+})

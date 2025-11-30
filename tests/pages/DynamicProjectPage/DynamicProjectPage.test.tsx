@@ -13,7 +13,17 @@ vi.mock('@/contexts/ProjectsContext', () => ({
 
 // Mock the ProjectLayout component
 vi.mock('@/components/ProjectLayout', () => ({
-  ProjectLayout: ({ projectName, projectId, tabs, componentsTitle, emptyStateMessage, system, showLandscapeFilter }: any) => (
+  ProjectLayout: ({ 
+    projectName, 
+    projectId, 
+    tabs, 
+    componentsTitle, 
+    emptyStateMessage, 
+    system, 
+    showLandscapeFilter,
+    showComponentsMetrics, //NEW: Add this prop to match actual implementation
+    alertsUrl //NEW: Add this prop to match actual implementation
+  }: any) => (
     <div data-testid="project-layout">
       <div data-testid="project-name">{projectName}</div>
       <div data-testid="project-id">{projectId}</div>
@@ -22,34 +32,39 @@ vi.mock('@/components/ProjectLayout', () => ({
       <div data-testid="empty-state-message">{emptyStateMessage}</div>
       <div data-testid="system">{system}</div>
       <div data-testid="show-landscape-filter">{showLandscapeFilter.toString()}</div>
+      <div data-testid="show-components-metrics">{showComponentsMetrics?.toString() || 'false'}</div>
+      <div data-testid="alerts-url">{alertsUrl || 'none'}</div>
     </div>
   ),
 }));
 
 const mockUseProjectsContext = vi.mocked(useProjectsContext);
 
-// Mock data
+// Mock data - Updated to match actual implementation
 const mockProjects: Project[] = [
   {
     id: '1',
     name: 'cis20',
     title: 'CIS 2.0',
     description: 'Customer Information System 2.0',
-    health: { endpoint: 'default' },
-    alerts: { repo: 'cis20-alerts' }
+    health: true, //NEW: Simplified to boolean as per actual implementation
+    alerts: 'https://github.com/alerts/cis20', //NEW: Changed to string as per actual implementation
+    'components-metrics': true //NEW: Added to test showComponentsMetrics
   },
   {
     id: '2',
     name: 'usrv',
     title: 'User Services',
     description: 'User management services',
-    health: { endpoint: 'custom' }
+    health: true, //NEW: Simplified to boolean
+    'components-metrics': false //NEW: Added to test false case
   },
   {
     id: '3',
     name: 'ca',
     title: 'Customer Analytics',
     description: 'Analytics platform for customer data'
+    // No health, alerts, or components-metrics
   }
 ];
 
@@ -94,6 +109,10 @@ describe('DynamicProjectPage', () => {
       expect(screen.getByTestId('empty-state-message')).toHaveTextContent('No CIS 2.0 components found for this organization.');
       expect(screen.getByTestId('system')).toHaveTextContent('cis20');
       expect(screen.getByTestId('show-landscape-filter')).toHaveTextContent('true');
+      //NEW: Test showComponentsMetrics
+      expect(screen.getByTestId('show-components-metrics')).toHaveTextContent('true');
+      //NEW: Test alertsUrl
+      expect(screen.getByTestId('alerts-url')).toHaveTextContent('https://github.com/alerts/cis20');
     });
 
     it('should render project with only health tab when only health metadata exists', () => {
@@ -113,6 +132,10 @@ describe('DynamicProjectPage', () => {
       expect(screen.getByTestId('components-title')).toHaveTextContent('User Services Components');
       expect(screen.getByTestId('empty-state-message')).toHaveTextContent('No User Services components found for this organization.');
       expect(screen.getByTestId('system')).toHaveTextContent('usrv');
+      //NEW: Test showComponentsMetrics is false
+      expect(screen.getByTestId('show-components-metrics')).toHaveTextContent('false');
+      //NEW: Test alertsUrl is none
+      expect(screen.getByTestId('alerts-url')).toHaveTextContent('none');
     });
 
     it('should render project with only components tab when no metadata exists', () => {
@@ -132,6 +155,8 @@ describe('DynamicProjectPage', () => {
       expect(screen.getByTestId('components-title')).toHaveTextContent('Customer Analytics Components');
       expect(screen.getByTestId('empty-state-message')).toHaveTextContent('No Customer Analytics components found for this organization.');
       expect(screen.getByTestId('system')).toHaveTextContent('ca');
+      //NEW: Test showComponentsMetrics is false
+      expect(screen.getByTestId('show-components-metrics')).toHaveTextContent('false');
     });
   });
 
@@ -231,7 +256,7 @@ describe('DynamicProjectPage', () => {
         name: 'test-project',
         title: 'Test Project',
         description: 'Test project with health',
-        health: { endpoint: 'default' }
+        health: true //NEW: Changed to boolean
       };
 
       mockUseProjectsContext.mockReturnValue({
@@ -246,13 +271,14 @@ describe('DynamicProjectPage', () => {
       expect(screen.getByTestId('tabs')).toHaveTextContent('["components","health"]');
     });
 
-    it('should add alerts tab when alerts metadata exists', () => {
+    //NEW: Updated test to use string alerts instead of object
+    it('should add alerts tab when alerts metadata exists as string', () => {
       const projectWithAlerts: Project = {
         id: '1',
         name: 'test-project',
         title: 'Test Project',
         description: 'Test project with alerts',
-        alerts: { repo: 'test-alerts' }
+        alerts: 'https://github.com/alerts/test' //NEW: Changed to string URL
       };
 
       mockUseProjectsContext.mockReturnValue({
@@ -265,6 +291,52 @@ describe('DynamicProjectPage', () => {
       renderWithProviders(<DynamicProjectPage projectName="test-project" />);
 
       expect(screen.getByTestId('tabs')).toHaveTextContent('["components","alerts"]');
+      expect(screen.getByTestId('alerts-url')).toHaveTextContent('https://github.com/alerts/test');
+    });
+
+    //NEW: Test that empty string alerts doesn't add alerts tab
+    it('should not add alerts tab when alerts is empty string', () => {
+      const projectWithEmptyAlerts: Project = {
+        id: '1',
+        name: 'test-project',
+        title: 'Test Project',
+        description: 'Test project with empty alerts',
+        alerts: '' //NEW: Empty string
+      };
+
+      mockUseProjectsContext.mockReturnValue({
+        projects: [projectWithEmptyAlerts],
+        isLoading: false,
+        error: null,
+        sidebarItems: []
+      });
+
+      renderWithProviders(<DynamicProjectPage projectName="test-project" />);
+
+      expect(screen.getByTestId('tabs')).toHaveTextContent('["components"]');
+      expect(screen.getByTestId('alerts-url')).toHaveTextContent('none');
+    });
+
+    //NEW: Test that whitespace-only alerts doesn't add alerts tab
+    it('should not add alerts tab when alerts is only whitespace', () => {
+      const projectWithWhitespaceAlerts: Project = {
+        id: '1',
+        name: 'test-project',
+        title: 'Test Project',
+        description: 'Test project with whitespace alerts',
+        alerts: '   ' //NEW: Whitespace only
+      };
+
+      mockUseProjectsContext.mockReturnValue({
+        projects: [projectWithWhitespaceAlerts],
+        isLoading: false,
+        error: null,
+        sidebarItems: []
+      });
+
+      renderWithProviders(<DynamicProjectPage projectName="test-project" />);
+
+      expect(screen.getByTestId('tabs')).toHaveTextContent('["components"]');
     });
 
     it('should always include components tab as first tab', () => {
@@ -280,6 +352,48 @@ describe('DynamicProjectPage', () => {
       const tabsText = screen.getByTestId('tabs').textContent;
       const tabs = JSON.parse(tabsText || '[]');
       expect(tabs[0]).toBe('components');
+    });
+  });
+
+  //NEW: Test suite for components-metrics functionality
+  describe('Components Metrics Configuration', () => {
+    it('should set showComponentsMetrics to true when components-metrics is true', () => {
+      mockUseProjectsContext.mockReturnValue({
+        projects: mockProjects,
+        isLoading: false,
+        error: null,
+        sidebarItems: []
+      });
+
+      renderWithProviders(<DynamicProjectPage projectName="cis20" />);
+
+      expect(screen.getByTestId('show-components-metrics')).toHaveTextContent('true');
+    });
+
+    it('should set showComponentsMetrics to false when components-metrics is false', () => {
+      mockUseProjectsContext.mockReturnValue({
+        projects: mockProjects,
+        isLoading: false,
+        error: null,
+        sidebarItems: []
+      });
+
+      renderWithProviders(<DynamicProjectPage projectName="usrv" />);
+
+      expect(screen.getByTestId('show-components-metrics')).toHaveTextContent('false');
+    });
+
+    it('should set showComponentsMetrics to false when components-metrics is undefined', () => {
+      mockUseProjectsContext.mockReturnValue({
+        projects: mockProjects,
+        isLoading: false,
+        error: null,
+        sidebarItems: []
+      });
+
+      renderWithProviders(<DynamicProjectPage projectName="ca" />);
+
+      expect(screen.getByTestId('show-components-metrics')).toHaveTextContent('false');
     });
   });
 });

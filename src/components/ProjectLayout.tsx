@@ -108,7 +108,7 @@ export function ProjectLayout({
       landscapes: landscapes.map(l => ({
         id: l.id,
         name: l.technical_name,
-        isCentral: false // Adjust as needed
+        isCentral: l.isCentral || false  
       }))
     }));
   }, [landscapeGroupsRecord]);
