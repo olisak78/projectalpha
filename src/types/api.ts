@@ -309,6 +309,7 @@ export interface Component {
   metadata?:ComponentMetadata;
   'is-library'?: boolean; // Indicates if component is a library
   health?: boolean;
+  'central-service'?: boolean;
 }
 
 

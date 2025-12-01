@@ -174,21 +174,21 @@ export const buildUserFromAuthData = (userData: any): User => {
   return baseUser;
 };
 
-// Color mapping for dynamic Tailwind classes
-export const getCategoryBgColor = (colorClass: string): string => {
-  const colorMap: Record<string, string> = {
-    'bg-blue-500': 'bg-blue-500',
-    'bg-red-500': 'bg-red-500',
-    'bg-green-500': 'bg-green-500',
-    'bg-purple-500': 'bg-purple-500',
-    'bg-amber-500': 'bg-amber-500',
-    'bg-indigo-500': 'bg-indigo-500',
-    'bg-cyan-500': 'bg-cyan-500',
-    'bg-emerald-500': 'bg-emerald-500',
-    'bg-orange-500': 'bg-orange-500',
-  };
-  return colorMap[colorClass] || 'bg-gray-500';
-};
+// Tailwind CSS safelist - ensures these color classes are not purged during build
+// These classes are used dynamically in category data and need to be preserved.
+// DO NOT REMOVE even though they appear unused.
+const CATEGORY_COLOR_SAFELIST = [
+  'bg-blue-500',
+  'bg-red-500', 
+  'bg-green-500',
+  'bg-purple-500',
+  'bg-amber-500',
+  'bg-indigo-500',
+  'bg-cyan-500',
+  'bg-emerald-500',
+  'bg-orange-500',
+  'bg-pink-500'
+];
 
 // Helper function to sort landscape groups in the desired order
 export const sortLandscapeGroups = (groups: Record<string, Landscape[]>): [string, Landscape[]][] => {

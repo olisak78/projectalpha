@@ -33,6 +33,7 @@ interface ComponentCardProps {
   healthCheck?: ComponentHealthCheck;
   isLoadingHealth?: boolean;
   onClick?: () => void;
+  isCentralLandscape?: boolean;
 }
 
 export default function ComponentCard({
@@ -47,6 +48,7 @@ export default function ComponentCard({
   healthCheck,
   isLoadingHealth = false,
   onClick,
+  isCentralLandscape = false,
 }: ComponentCardProps) {
   const [systemInfo, setSystemInfo] = useState<SystemInformation | null>(null);
   const [loadingSystemInfo, setLoadingSystemInfo] = useState(false);
@@ -57,15 +59,18 @@ export default function ComponentCard({
     component.health ?? false
   );
 
+  const isDisabled = component['central-service'] === true && !isCentralLandscape;
+
   // Handle card click - only navigate if not clicking on buttons
   const handleCardClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     const isHealthUp = !componentHealthResult || componentHealthResult.status === 'success';
-    if (!target.closest('button') && !target.closest('a') && onClick && isHealthUp) {
-      onClick()
+
+    if (!target.closest('button') && !target.closest('a') && onClick && isHealthUp && !isDisabled) {
+      onClick();
     }
   };
-  const isClickable = onClick && (!componentHealthResult || componentHealthResult.status === 'success');
+  const isClickable = onClick && (!componentHealthResult || componentHealthResult.status === 'success') && !isDisabled;
   // SonarQube integration
   const { data: sonarMetrics, isLoading: sonarLoading } = useSonarMeasures(
     component.sonar || null,
@@ -136,15 +141,16 @@ export default function ComponentCard({
     <Card style={isClickable ? { cursor: 'pointer' } : undefined}
       onClick={isClickable ? handleCardClick : undefined} className={cn(
         "transition-all duration-200 border-border/60",
-        healthCheck && healthCheck.status !== 'UP'
+        isDisabled && "opacity-50 cursor-not-allowed bg-muted/50",
+        !isDisabled && healthCheck && healthCheck.status !== 'UP'
           ? "pointer-events-none"
-          : "hover:shadow-lg hover:border-border"
+          : !isDisabled && "hover:shadow-lg hover:border-border"
       )}>
       <CardContent className="p-4">
         {/* Header */}
         <div className={cn(
-
-          healthCheck && healthCheck.status !== 'UP'
+          isDisabled && "opacity-50 grayscale pointer-events-none",
+          !isDisabled && healthCheck && healthCheck.status !== 'UP'
             ? "opacity-50 grayscale pointer-events-none"
             : ""
         )}>
@@ -153,7 +159,13 @@ export default function ComponentCard({
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <h3 className="font-semibold text-base truncate leading-tight">{component.title || component.name}</h3>
-                {getHealthStatusBadge()}
+                {component['central-service'] && (
+                  <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                    Central Only
+                  </Badge>
+                )}
+                {/* Only show health badge if not disabled */}
+                {!isDisabled && getHealthStatusBadge()}
               </div>
               {teamName && (
                 <Badge
@@ -165,6 +177,11 @@ export default function ComponentCard({
                 </Badge>
               )}
             </div>
+            {isDisabled && (
+              <Badge variant="outline" className="text-xs">
+                Not Available in this Landscape
+              </Badge>
+            )}
 
             {/* Version Badges and Action Buttons Row */}
             <div className="flex items-center justify-between gap-2">

@@ -40,6 +40,7 @@ interface ComponentsTabContentProps {
   isLoadingHealth?: boolean;
   viewSwitcher?: ReactNode;
   onComponentClick?: (componentId: string) => void;
+  isCentralLandscape?: boolean;
 }
 
 export function ComponentsTabContent({
@@ -67,6 +68,7 @@ export function ComponentsTabContent({
   isLoadingHealth = false,
   viewSwitcher,
   onComponentClick,
+  isCentralLandscape = false,
 }: ComponentsTabContentProps) {
   const { libraryComponents, nonLibraryComponents } = useMemo(() => {
     let filtered = components;
@@ -84,8 +86,6 @@ export function ComponentsTabContent({
     // Separate library and non-library components
     const libraries: Component[] = [];
     const nonLibraries: Component[] = [];
-
-
 
     filtered.forEach((component) => {
       if (component['is-library']) {
@@ -200,6 +200,7 @@ export function ComponentsTabContent({
                 componentHealthMap={componentHealthMap}
                 isLoadingHealth={isLoadingHealth}
                 onComponentClick={onComponentClick}
+                isCentralLandscape={isCentralLandscape}
               />
             </div>
           )}
@@ -224,6 +225,7 @@ export function ComponentsTabContent({
                 componentHealthMap={componentHealthMap}
                 isLoadingHealth={isLoadingHealth}
                 onComponentClick={onComponentClick}
+                isCentralLandscape={isCentralLandscape}
               />
             </div>
           )}

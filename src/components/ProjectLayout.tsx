@@ -108,7 +108,7 @@ export function ProjectLayout({
       landscapes: landscapes.map(l => ({
         id: l.id,
         name: l.technical_name,
-        isCentral: l.isCentral || false  
+        isCentral: l.isCentral || false
       }))
     }));
   }, [landscapeGroupsRecord]);
@@ -133,6 +133,10 @@ export function ProjectLayout({
     };
   }, [selectedApiLandscape]);
 
+  const isCentralLandscape = useMemo(() => {
+    return selectedApiLandscape?.isCentral ?? false;
+  }, [selectedApiLandscape]);
+
   // Health data hook - only fetch if showComponentsMetrics is true
   const {
     healthChecks,
@@ -142,6 +146,7 @@ export function ProjectLayout({
     components: apiComponents,
     landscape: landscapeConfig,
     enabled: showComponentsMetrics && !!selectedLandscape && !componentsLoading,
+    isCentralLandscape
   });
 
   // Create a map of component health by component ID
@@ -237,11 +242,17 @@ export function ProjectLayout({
 
     // Filter out components with non-UP status
     return apiComponents.filter(component => {
+      const isDisabledCentralComponent = component['central-service'] === true && !isCentralLandscape;
+
+      // If it's a disabled central component, hide it when hideDownComponents is true
+      if (isDisabledCentralComponent) {
+        return false;
+      }
       const healthCheck = componentHealthMap[component.id];
       // Keep component if no health check or if status is UP
       return !healthCheck || healthCheck.status === 'UP';
     });
-  }, [apiComponents, hideDownComponents, showComponentsMetrics, componentHealthMap]);
+  }, [apiComponents, hideDownComponents, showComponentsMetrics, componentHealthMap, isCentralLandscape]);
 
   const handleComponentClick = (componentName: string) => {
     navigate(`/${projectId}/component/${componentName}`);
@@ -313,6 +324,7 @@ export function ProjectLayout({
                           componentHealthMap={componentHealthMap}
                           isLoadingHealth={isLoadingHealth}
                           onComponentClick={handleComponentClick}
+                          isCentralLandscape={isCentralLandscape}
                         />
                       ) : (
                         <div className="border-2 border-dashed rounded-lg p-12 text-center">
@@ -356,6 +368,7 @@ export function ProjectLayout({
                           components={apiComponents}
                           onComponentClick={handleComponentClick}
                           hideDownComponents={hideDownComponents}
+                          isCentralLandscape={isCentralLandscape}
                         />
                       ) : (
                         <div className="border-2 border-dashed rounded-lg p-12 text-center">
@@ -393,6 +406,7 @@ export function ProjectLayout({
                 teamColorsMap={teamColorsMap}
                 sortOrder={componentSortOrder}
                 onSortOrderChange={setComponentSortOrder}
+                isCentralLandscape={isCentralLandscape}
               />
             )}
           </>

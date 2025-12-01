@@ -17,24 +17,26 @@ interface HealthTableProps {
   landscape: string;
   teamNamesMap?: Record<string, string>;
   onComponentClick?: (componentName: string) => void;
-  components?: Array<{ 
-    id: string; 
-    name: string; 
+  components?: Array<{
+    id: string;
+    name: string;
     owner_id?: string | null;
     github?: string;
     sonar?: string;
   }>;
-  hideDownComponents?: boolean; // NEW PROP
+  hideDownComponents?: boolean;
+  isCentralLandscape?: boolean;
 }
 
-export function HealthTable({ 
-  healthChecks, 
-  isLoading, 
-  landscape, 
-  teamNamesMap = {}, 
-  onComponentClick, 
+export function HealthTable({
+  healthChecks,
+  isLoading,
+  landscape,
+  teamNamesMap = {},
+  onComponentClick,
   components = [],
-  hideDownComponents = false, // NEW PROP with default
+  hideDownComponents = false,
+  isCentralLandscape = false,
 }: HealthTableProps) {
   const componentOwnerMap = useMemo(() => {
     const map: Record<string, string | null> = {};
@@ -73,21 +75,21 @@ export function HealthTable({
   const [sortOrder, setSortOrder] = useState<'alphabetic' | 'team'>('alphabetic');
 
   const filteredAndSortedHealthChecks = useMemo(() => {
-    let filtered = healthChecks;
-    
-    // Apply search filter
-    if (searchQuery) {
-      filtered = filtered.filter(check =>
-        check.componentName.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
+    let filtered = healthChecks; // Start with all health checks we have
 
-    // Apply health status filter (using prop instead of local state)
+    // Apply hideDownComponents filter
     if (hideDownComponents) {
       filtered = filtered.filter(check => check.status === 'UP');
     }
 
-    // Apply sorting
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filtered.filter((check) =>
+        check.componentName.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Sort
     const sorted = [...filtered].sort((a, b) => {
       if (sortOrder === 'team') {
         const ownerIdA = componentOwnerMap[a.componentId];
@@ -179,7 +181,7 @@ export function HealthTable({
                 const componentName = componentNameMap[check.componentId];
                 const githubUrl = componentGithubMap[check.componentId];
                 const sonarUrl = componentSonarMap[check.componentId];
-                
+
                 return (
                   <HealthRow
                     key={check.componentId}

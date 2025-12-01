@@ -11,6 +11,7 @@ interface UseHealthOptions {
   components: Component[];
   landscape: LandscapeConfig;
   enabled?: boolean;
+  isCentralLandscape?: boolean;
 }
 
 interface UseHealthReturn {
@@ -52,23 +53,34 @@ function calculateSummary(healthChecks: ComponentHealthCheck[]): HealthSummary {
 export function useHealth({
   components,
   landscape,
-  enabled = true
+  enabled = true,
+  isCentralLandscape = false
 }: UseHealthOptions): UseHealthReturn {
 
-  const componentsWithHealth = components.filter(c => c.health === true);
+  const componentsToCheck = components.filter(c => {
+    // Only check components with health: true
+    if (c.health !== true) return false;
+    
+    // If component is marked as central-service, only check it in central landscape
+    if (c['central-service'] === true && !isCentralLandscape) {
+      return false;
+    }
+    
+    return true;
+  });
 
   const queryResult = useQuery<ComponentHealthCheck[], Error>({
-    queryKey: ['health', landscape.name, landscape.route, componentsWithHealth.length],
+    queryKey: ['health', landscape.name, landscape.route, componentsToCheck.length],
     queryFn: async ({ signal }) => {
-      // Only fetch health for components that have health: true
+      // Only fetch health for filtered components
       const healthChecks = await fetchAllHealthStatuses(
-        componentsWithHealth,
+        componentsToCheck,
         landscape,
         signal
       );
       return healthChecks;
     },
-    enabled: enabled && componentsWithHealth.length > 0,
+    enabled: enabled && componentsToCheck.length > 0,
     staleTime: 60 * 1000, // Consider data stale after 1 minute
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     retry: 1,

@@ -20,6 +20,7 @@ interface TeamComponentsProps {
   componentHealthMap?: Record<string, ComponentHealthCheck>;
   isLoadingHealth?: boolean;
   onComponentClick?: (componentId: string) => void;
+  isCentralLandscape?: boolean;
 }
 
 export function TeamComponents({
@@ -37,6 +38,7 @@ export function TeamComponents({
   componentHealthMap = {},
   isLoadingHealth = false,
   onComponentClick,
+  isCentralLandscape = false,
 
 }: TeamComponentsProps) {
   if (!components || components.length === 0) {
@@ -123,6 +125,7 @@ export function TeamComponents({
         onClick={onComponentClick ? () => {
           onComponentClick(component.name);
         } : undefined}
+        isCentralLandscape={isCentralLandscape}
 
       />
     );

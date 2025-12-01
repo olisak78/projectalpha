@@ -1,9 +1,3 @@
-/**
- * Health Dashboard Component
- * Main container for component health monitoring
- * Now uses React Query for caching with 1-minute cache
- */
-
 import { useMemo } from 'react';
 import { useHealth } from '@/hooks/api/useHealth';
 import { HealthOverview } from './HealthOverview';
@@ -50,6 +44,10 @@ export function HealthDashboard({
     };
   }, [selectedLandscapeObj]);
 
+   const isCentralLandscape = useMemo(() => {
+    return selectedLandscapeObj?.isCentral ?? false;
+  }, [selectedLandscapeObj]);
+
   // Components are NOT landscape-specific in the database
   // All components exist in all landscapes - we just check their health in the selected landscape
 
@@ -64,6 +62,7 @@ export function HealthDashboard({
     components: components || [],
     landscape: landscapeConfig || { name: '', route: '' },
     enabled: !isLoadingComponents && !!selectedLandscape && !!landscapeConfig,
+    isCentralLandscape
   });
 
   const handleRefresh = () => {

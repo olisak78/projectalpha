@@ -10,11 +10,7 @@ import {
   safeLocalStorageSet,
   generateStableLinkId,
   buildUserFromAuthData,
-  getCategoryBgColor,
   getStatusColor,
-  getCurrentProjectLandscapes,
-  getAvailableComponents,
-  getLandscapeGroups,
   getGroupStatus,
   getLogLevelColor,
   getLogLevelIcon,
@@ -432,27 +428,33 @@ describe('developer-portal-helpers', () => {
     });
   });
 
-  describe('getCategoryBgColor', () => {
-    it('should return correct color for valid color classes', () => {
-      expect(getCategoryBgColor('bg-blue-500')).toBe('bg-blue-500');
-      expect(getCategoryBgColor('bg-red-500')).toBe('bg-red-500');
-      expect(getCategoryBgColor('bg-green-500')).toBe('bg-green-500');
-    });
-
-    it('should return default gray color for unknown color classes', () => {
-      expect(getCategoryBgColor('bg-unknown-500')).toBe('bg-gray-500');
-      expect(getCategoryBgColor('invalid-color')).toBe('bg-gray-500');
-    });
-
-    it('should handle all predefined colors', () => {
-      const colors = [
-        'bg-blue-500', 'bg-red-500', 'bg-green-500', 'bg-purple-500',
-        'bg-amber-500', 'bg-indigo-500', 'bg-cyan-500', 'bg-emerald-500',
-        'bg-orange-500'
+  describe('CATEGORY_COLOR_SAFELIST', () => {
+    it('should contain all expected category colors for Tailwind CSS safelist', () => {
+      // Read the source file to verify the safelist exists and contains expected colors
+      const fs = require('fs');
+      const path = require('path');
+      const helpersPath = path.join(__dirname, '../../src/utils/developer-portal-helpers.ts');
+      const helpersContent = fs.readFileSync(helpersPath, 'utf8');
+      
+      // Verify the safelist constant exists
+      expect(helpersContent).toContain('CATEGORY_COLOR_SAFELIST');
+      
+      // Verify it contains all expected colors including bg-pink-500
+      const expectedColors = [
+        'bg-blue-500',
+        'bg-red-500', 
+        'bg-green-500',
+        'bg-purple-500',
+        'bg-amber-500',
+        'bg-indigo-500',
+        'bg-cyan-500',
+        'bg-emerald-500',
+        'bg-orange-500',
+        'bg-pink-500'
       ];
-
-      colors.forEach(color => {
-        expect(getCategoryBgColor(color)).toBe(color);
+      
+      expectedColors.forEach(color => {
+        expect(helpersContent).toContain(`'${color}'`);
       });
     });
   });
