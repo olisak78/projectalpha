@@ -37,6 +37,7 @@ describe('LandscapesApi', () => {
     dynatrace: 'https://dynatrace.test-landscape.example.com',
     cockpit: 'https://cockpit.test-landscape.example.com',
     'operation-console': 'https://ops.test-landscape.example.com',
+    'control-center': 'https://control-center.test-landscape.example.com',
     type: 'development',
     grafana: 'https://grafana.test-landscape.example.com',
     prometheus: 'https://prometheus.test-landscape.example.com',
@@ -138,6 +139,26 @@ describe('LandscapesApi', () => {
 
       expect(result[0].isCentral).toBe(true);
       expect(result[1].isCentral).toBe(false);
+    });
+
+    it('should transform control-center property correctly', async () => {
+      const mockApiResponse: LandscapeApiResponse[] = [
+        createMockLandscapeApiResponse({
+          id: 'landscape-with-control-center',
+          'control-center': 'https://control-center.example.com',
+        }),
+        createMockLandscapeApiResponse({
+          id: 'landscape-without-control-center',
+          'control-center': undefined,
+        }),
+      ];
+
+      vi.mocked(apiClient.get).mockResolvedValue(mockApiResponse);
+
+      const result = await fetchLandscapesByProject('test-project');
+
+      expect(result[0]['control-center']).toBe('https://control-center.example.com');
+      expect(result[1]['control-center']).toBeUndefined();
     });
   });
 

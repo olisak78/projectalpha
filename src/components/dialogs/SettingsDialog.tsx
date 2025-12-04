@@ -1,97 +1,39 @@
-import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useProjectsContext } from '@/contexts/ProjectsContext';
-import { useProjectVisibility } from '@/hooks/useProjectVisibility';
-import { Settings, Layout } from 'lucide-react';
-import ProjectVisibilitySettings from '../ProjectVisibilitySettings';
-import { Project } from '@/types/api';
+import { Settings, User as UserIcon, Palette } from 'lucide-react';
+import CustomizationAppearanceSettings from '../settings/CustomizationAppearanceSettings';
+import UserInformationSettings from '../UserInformationSettings';
+import { useSettings } from '@/hooks/useSettings';
 
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-interface ProjectVisibilityState {
-  [projectId: string]: boolean;
-}
-
-const DEFAULT_VISIBLE_PROJECTS = ['cis20', 'usrv', 'ca'];
-
 export default function SettingsDialog({ 
   open, 
   onOpenChange
 }: SettingsDialogProps) {
-  const { projects, isLoading } = useProjectsContext();
-  const { isProjectVisible, updateProjectVisibility } = useProjectVisibility();
-  const [hasChanges, setHasChanges] = useState(false);
-  const [visibilityState, setVisibilityState] = useState<ProjectVisibilityState>({});
-
-  // Initialize visibility state when projects change
-  useEffect(() => {
-    if (projects && projects.length > 0) {
-      const initialState: ProjectVisibilityState = {};
-      
-      projects.forEach((project: Project) => {
-        initialState[project.id] = isProjectVisible(project);
-      });
-      
-      setVisibilityState(initialState);
-    }
-  }, [projects, isProjectVisible]);
-
-  // Check for changes and notify parent
-  useEffect(() => {
-    if (projects && projects.length > 0) {
-      const hasChanges = projects.some((project: Project) => {
-        const currentVisibility = isProjectVisible(project);
-        const newVisibility = visibilityState[project.id];
-        return currentVisibility !== newVisibility;
-      });
-      setHasChanges(hasChanges);
-    }
-  }, [visibilityState, projects, isProjectVisible]);
-
-  const handleVisibilityChange = (projectId: string, visible: boolean) => {
-    setVisibilityState(prev => ({
-      ...prev,
-      [projectId]: visible
-    }));
-  };
-
-  const handleSelectAll = () => {
-    const newState: ProjectVisibilityState = {};
-    projects.forEach((project: Project) => {
-      newState[project.id] = true;
-    });
-    setVisibilityState(newState);
-  };
-
-  const handleDeselectAll = () => {
-    const newState: ProjectVisibilityState = {};
-    projects.forEach((project: Project) => {
-      newState[project.id] = false;
-    });
-    setVisibilityState(newState);
-  };
+  const {
+    hasChanges,
+    visibilityState,
+    processedUserInfo,
+    isLoading,
+    handleVisibilityChange,
+    handleSelectAll,
+    handleDeselectAll,
+    handleSave: saveSettings,
+    handleCancel: cancelSettings,
+  } = useSettings();
 
   const handleSave = () => {
-    updateProjectVisibility(visibilityState);
-    setHasChanges(false);
+    saveSettings();
     onOpenChange(false);
   };
 
   const handleCancel = () => {
-    // Reset to original state
-    if (projects && projects.length > 0) {
-      const originalState: ProjectVisibilityState = {};
-      projects.forEach((project: Project) => {
-        originalState[project.id] = isProjectVisible(project);
-      });
-      setVisibilityState(originalState);
-    }
-    setHasChanges(false);
+    cancelSettings();
     onOpenChange(false);
   };
 
@@ -129,24 +71,38 @@ export default function SettingsDialog({
         </div>
 
         <div className="flex-1 overflow-hidden min-h-0">
-          <Tabs defaultValue="projects" className="h-full flex">
-            <div className="w-48 flex-shrink-0 border-r bg-muted/30">
+          <Tabs defaultValue="user-info" className="h-full flex">
+            <div className="w-60 flex-shrink-0 border-r bg-muted/30">
               <TabsList className="flex flex-col w-full bg-transparent p-2 space-y-1 h-auto">
                 <TabsTrigger 
-                  value="projects" 
-                  className="w-full justify-start gap-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm h-auto py-2"
+                  value="user-info" 
+                  className="w-full justify-start gap-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm h-auto py-4"
                 >
-                  <Layout className="h-3 w-3" />
-                  Sidebar Settings
+                  <UserIcon className="h-4 w-4" />
+                  User Information
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="projects" 
+                  className="w-full justify-start gap-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm h-auto py-4"
+                >
+                  <Palette className="h-4 w-4" />
+                  Customization/Appearance
                 </TabsTrigger>
               </TabsList>
             </div>
             
             <div className="flex-1 overflow-hidden">
+              <TabsContent value="user-info" className="h-full m-0 p-6 overflow-hidden">
+                <UserInformationSettings
+                  fullName={processedUserInfo.fullName}
+                  email={processedUserInfo.email}
+                  team={processedUserInfo.team}
+                  role={processedUserInfo.role}
+                />
+              </TabsContent>
               <TabsContent value="projects" className="h-full m-0 p-6 overflow-hidden">
-                <ProjectVisibilitySettings
+                <CustomizationAppearanceSettings
                   visibilityState={visibilityState}
-                  defaultProjects={DEFAULT_VISIBLE_PROJECTS}
                   onVisibilityChange={handleVisibilityChange}
                   onSelectAll={handleSelectAll}
                   onDeselectAll={handleDeselectAll}

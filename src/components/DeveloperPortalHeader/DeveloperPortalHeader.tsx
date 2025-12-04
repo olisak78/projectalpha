@@ -33,14 +33,6 @@ export function DeveloperPortalHeader({
     }
   };
 
-  const handleProfileClick = () => {
-    navigate('/profile');
-  };
-
-  const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId);
-  };
-
   return (
     <div className="bg-background">
       {/* Main header row */}
@@ -97,7 +89,6 @@ export function DeveloperPortalHeader({
           {user && (
             <UserProfileDropdown
               user={user}
-              onProfileClick={handleProfileClick}
               onLogout={handleLogout}
             />
           )}

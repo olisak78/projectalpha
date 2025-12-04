@@ -1,4 +1,4 @@
-import { LogOut, User, Settings } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -16,12 +16,11 @@ interface UserProfileDropdownProps {
     picture?: string;
     memberId?: string;
   };
-  onProfileClick: () => void;
   onLogout: () => void;
   isLoading?: boolean;
 }
 
-export function UserProfileDropdown({ user, onProfileClick, onLogout, isLoading }: UserProfileDropdownProps) {
+export function UserProfileDropdown({ user, onLogout, isLoading }: UserProfileDropdownProps) {
   const { user: authUser } = useAuth();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -74,10 +73,6 @@ export function UserProfileDropdown({ user, onProfileClick, onLogout, isLoading 
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onProfileClick}>
-            <User className="mr-2 h-4 w-4" />
-            <span>Profile</span>
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>

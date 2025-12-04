@@ -16,6 +16,7 @@ export interface LandscapeApiResponse {
   dynatrace?: string;
   cockpit?: string;
   'operation-console'?: string;
+  'control-center'?: string;
   type?: string;
   grafana?: string;
   prometheus?: string;
@@ -53,6 +54,7 @@ export async function fetchLandscapesByProject(
     dynatrace: landscape.dynatrace,
     cockpit: landscape.cockpit,
     'operation-console': landscape['operation-console'],
+    'control-center': landscape['control-center'],
     type: landscape.type,
     grafana: landscape.grafana,
     prometheus: landscape.prometheus,

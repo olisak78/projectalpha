@@ -6,12 +6,17 @@ import { vi } from 'vitest';
 import SelfServicePage from '../../../../src/pages/SelfServicePage';
 import { useFetchJenkinsJobParameters } from '../../../../src/hooks/api/useSelfService';
 import { useTriggerJenkinsJob } from '../../../../src/hooks/api/mutations/useSelfServiceMutations';
+import { useCurrentUser } from '../../../../src/hooks/api/useMembers';
+import { useJobStatus, useAddJobStatus } from '../../../../src/hooks/api/useJobStatus';
 import { toast } from '../../../../src/components/ui/use-toast';
 
 // Create typed mock functions
 export const createMockHooks = () => ({
   mockUseFetchJenkinsJobParameters: vi.mocked(useFetchJenkinsJobParameters),
   mockUseTriggerJenkinsJob: vi.mocked(useTriggerJenkinsJob),
+  mockUseCurrentUser: vi.mocked(useCurrentUser),
+  mockUseJobStatus: vi.mocked(useJobStatus),
+  mockUseAddJobStatus: vi.mocked(useAddJobStatus),
   mockToast: vi.mocked(toast)
 });
 
@@ -53,6 +58,27 @@ export const setupDefaultMocks = () => {
     error: null,
     data: undefined,
     isSuccess: false,
+  } as any);
+
+  mocks.mockUseCurrentUser.mockReturnValue({
+    data: {
+      id: 'user-123',
+      iuser: 'testuser',
+      email: 'test@example.com'
+    },
+    isLoading: false,
+    error: null
+  } as any);
+
+  mocks.mockUseJobStatus.mockReturnValue({
+    data: [],
+    isLoading: false,
+    error: null
+  } as any);
+
+  mocks.mockUseAddJobStatus.mockReturnValue({
+    mutate: vi.fn(),
+    isPending: false
   } as any);
 
   // Setup fetch mock for static data loading

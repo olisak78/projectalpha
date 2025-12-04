@@ -18,6 +18,8 @@ export default defineConfig({
         'dist/',
         'build/**/*',                 // Alternative build folder
         'src/components/ui/**/*',     // shadcn/ui components
+        'src/components/icons/**/*',  // Icon components (simple SVG wrappers)
+        'src/data/self-service/selfServiceBlocks.ts', // Static configuration data
         'coverage/**/*',              // Coverage reports
         'public/**/*',                // Static assets
         'src/vite-env.d.ts',          // Vite type definitions

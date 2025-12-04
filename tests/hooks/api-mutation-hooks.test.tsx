@@ -5,8 +5,9 @@ import { ReactNode } from 'react';
 
 // Import all mutation hooks to test
 import {
-  useCreateMember,
+  useCreateUser,
   useUpdateUser,
+  useUpdateUserTeam,
   useDeleteMember,
 } from '../../src/hooks/api/mutations/useMemberMutations';
 
@@ -22,6 +23,10 @@ import {
   useCreateQuickLink,
   useDeleteQuickLink,
 } from '../../src/hooks/api/mutations/useQuickLinkMutations';
+
+import {
+  useDeleteLink,
+} from '../../src/hooks/api/mutations/useLinksMutations';
 
 // Mock the API client
 import { apiClient } from '../../src/services/ApiClient';
@@ -132,9 +137,9 @@ describe('Member Mutation Hooks', () => {
     restoreConsole();
   });
 
-  describe('useCreateMember', () => {
-    it('should create a new member successfully', async () => {
-      const newMemberData = {
+  describe('useCreateUser', () => {
+    it('should create a new user successfully', async () => {
+      const newUserData = {
         organization_id: 'org-123',
         team_id: 'team-123',
         email: 'john@example.com',
@@ -144,25 +149,25 @@ describe('Member Mutation Hooks', () => {
         iuser: 'jdoe',
       };
 
-      const mockResponse = createMockMember(newMemberData);
+      const mockResponse = createMockMember(newUserData);
       vi.mocked(apiClient.post).mockResolvedValue(mockResponse);
 
-      const { result } = renderHook(() => useCreateMember(), {
+      const { result } = renderHook(() => useCreateUser(), {
         wrapper: createWrapper(),
       });
 
       // Trigger mutation
-      result.current.mutate(newMemberData);
+      result.current.mutate(newUserData);
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(result.current.data).toEqual(mockResponse);
-      expect(apiClient.post).toHaveBeenCalledWith('/users', newMemberData);
+      expect(apiClient.post).toHaveBeenCalledWith('/users', newUserData);
     });
 
     it('should call onSuccess callback when mutation succeeds', async () => {
       const onSuccessMock = vi.fn();
-      const newMemberData = {
+      const newUserData = {
         organization_id: 'org-123',
         team_id: 'team-123',
         email: 'john@example.com',
@@ -175,11 +180,11 @@ describe('Member Mutation Hooks', () => {
       vi.mocked(apiClient.post).mockResolvedValue(createMockMember());
 
       const { result } = renderHook(
-        () => useCreateMember({ onSuccess: onSuccessMock }),
+        () => useCreateUser({ onSuccess: onSuccessMock }),
         { wrapper: createWrapper() }
       );
 
-      result.current.mutate(newMemberData);
+      result.current.mutate(newUserData);
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -187,10 +192,10 @@ describe('Member Mutation Hooks', () => {
     });
 
     it('should handle API errors', async () => {
-      const error = new Error('Failed to create member');
+      const error = new Error('Failed to create user');
       vi.mocked(apiClient.post).mockRejectedValue(error);
 
-      const { result } = renderHook(() => useCreateMember(), {
+      const { result } = renderHook(() => useCreateUser(), {
         wrapper: createWrapper(),
       });
 
@@ -208,7 +213,7 @@ describe('Member Mutation Hooks', () => {
       expect(result.current.error).toEqual(error);
     });
 
-    it('should invalidate members query cache on success', async () => {
+    it('should invalidate users query cache on success', async () => {
       const queryClient = createTestQueryClient();
       const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
 
@@ -220,7 +225,7 @@ describe('Member Mutation Hooks', () => {
 
       vi.mocked(apiClient.post).mockResolvedValue(createMockMember());
 
-      const { result } = renderHook(() => useCreateMember(), { wrapper });
+      const { result } = renderHook(() => useCreateUser(), { wrapper });
 
       result.current.mutate({
         organization_id: 'org-123',
@@ -234,6 +239,144 @@ describe('Member Mutation Hooks', () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(invalidateSpy).toHaveBeenCalled();
+    });
+
+    it('should invalidate team queries when user is assigned to a team', async () => {
+      const queryClient = createTestQueryClient();
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      );
+
+      vi.mocked(apiClient.post).mockResolvedValue(createMockMember());
+
+      const { result } = renderHook(() => useCreateUser(), { wrapper });
+
+      result.current.mutate({
+        organization_id: 'org-123',
+        team_id: 'team-123',
+        email: 'test@example.com',
+        first_name: 'Test',
+        last_name: 'User',
+        full_name: 'Test User',
+        iuser: 'tuser',
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['users'] });
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryKey: expect.arrayContaining(['teams', 'team-123'])
+        })
+      );
+    });
+  });
+
+  describe('useUpdateUserTeam', () => {
+    it('should update user team successfully', async () => {
+      const updateData = {
+        user_uuid: 'user-123',
+        new_team_uuid: 'team-456',
+      };
+
+      const mockResponse = createMockMember({
+        id: 'user-123',
+        team_id: 'team-456',
+      });
+
+      vi.mocked(apiClient.put).mockResolvedValue(mockResponse);
+
+      const { result } = renderHook(() => useUpdateUserTeam(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate(updateData);
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toEqual(mockResponse);
+      expect(apiClient.put).toHaveBeenCalledWith('/users', updateData);
+    });
+
+    it('should call onSuccess callback when mutation succeeds', async () => {
+      const onSuccessMock = vi.fn();
+      const updateData = {
+        user_uuid: 'user-123',
+        new_team_uuid: 'team-456',
+      };
+
+      vi.mocked(apiClient.put).mockResolvedValue(createMockMember());
+
+      const { result } = renderHook(
+        () => useUpdateUserTeam({ onSuccess: onSuccessMock }),
+        { wrapper: createWrapper() }
+      );
+
+      result.current.mutate(updateData);
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(onSuccessMock).toHaveBeenCalled();
+    });
+
+    it('should handle update errors', async () => {
+      const error = new Error('Failed to update user team');
+      vi.mocked(apiClient.put).mockRejectedValue(error);
+
+      const { result } = renderHook(() => useUpdateUserTeam(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate({
+        user_uuid: 'user-123',
+        new_team_uuid: 'team-456',
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(result.current.error).toEqual(error);
+    });
+
+    it('should invalidate multiple query caches on success', async () => {
+      const queryClient = createTestQueryClient();
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      );
+
+      vi.mocked(apiClient.put).mockResolvedValue(createMockMember());
+
+      const { result } = renderHook(() => useUpdateUserTeam(), { wrapper });
+
+      result.current.mutate({
+        user_uuid: 'user-123',
+        new_team_uuid: 'team-456',
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      // Should invalidate user queries
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['users', 'user-123'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['users'] });
+      
+      // Should invalidate current user data
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['members', 'currentUser'] });
+      
+      // Should invalidate team data for the new team
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['teams', 'detail', 'team-456'] });
+      
+      // Should invalidate team lists
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['teams', 'list'] });
+      
+      // Verify total number of calls
+      expect(invalidateSpy).toHaveBeenCalledTimes(5);
     });
   });
 
@@ -1120,6 +1263,140 @@ describe('Quick Link Mutation Hooks', () => {
 });
 
 // ============================================================================
+// LINK MUTATION HOOKS TESTS
+// ============================================================================
+
+describe('Link Mutation Hooks', () => {
+  let restoreConsole: () => void;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    restoreConsole = suppressConsole();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    restoreConsole();
+  });
+
+  describe('useDeleteLink', () => {
+    it('should delete a link successfully', async () => {
+      vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+
+      const { result } = renderHook(() => useDeleteLink(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate('link-123');
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(apiClient.delete).toHaveBeenCalledWith('/links/link-123');
+    });
+
+    it('should call onSuccess callback', async () => {
+      const onSuccessMock = vi.fn();
+      vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+
+      const { result } = renderHook(
+        () => useDeleteLink({ onSuccess: onSuccessMock }),
+        { wrapper: createWrapper() }
+      );
+
+      result.current.mutate('link-123');
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(onSuccessMock).toHaveBeenCalled();
+    });
+
+    it('should handle delete errors', async () => {
+      const error = new Error('Failed to delete link');
+      vi.mocked(apiClient.delete).mockRejectedValue(error);
+
+      const { result } = renderHook(() => useDeleteLink(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate('link-123');
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(result.current.error).toEqual(error);
+    });
+
+    it('should invalidate team queries on success', async () => {
+      const queryClient = createTestQueryClient();
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      );
+
+      vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+
+      const { result } = renderHook(() => useDeleteLink(), { wrapper });
+
+      result.current.mutate('link-123');
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      // Should invalidate team lists queries
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryKey: expect.arrayContaining(['teams'])
+        })
+      );
+      
+      // Verify it was called at least twice (for both invalidation calls)
+      expect(invalidateSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('should call user-provided onSuccess callback with correct parameters', async () => {
+      const onSuccessMock = vi.fn();
+      vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+
+      const { result } = renderHook(
+        () => useDeleteLink({ onSuccess: onSuccessMock }),
+        { wrapper: createWrapper() }
+      );
+
+      result.current.mutate('link-123');
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(onSuccessMock).toHaveBeenCalledWith(
+        undefined, // data (void return from delete)
+        'link-123', // linkId
+        undefined, // context
+        expect.objectContaining({
+          client: expect.any(Object),
+          meta: undefined,
+          mutationKey: undefined,
+        }) // fourth parameter as per the hook implementation
+      );
+    });
+
+    it('should handle non-existent link errors', async () => {
+      const error = new Error('Link not found');
+      vi.mocked(apiClient.delete).mockRejectedValue(error);
+
+      const { result } = renderHook(() => useDeleteLink(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate('non-existent-link');
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(result.current.error).toEqual(error);
+    });
+  });
+});
+
+// ============================================================================
 // INTEGRATION TESTS
 // ============================================================================
 
@@ -1151,7 +1428,7 @@ describe('Mutation Hooks Integration Tests', () => {
       const createdMember = createMockMember({ id: 'member-new', ...createData });
       vi.mocked(apiClient.post).mockResolvedValue(createdMember);
 
-      const { result: createResult } = renderHook(() => useCreateMember(), {
+      const { result: createResult } = renderHook(() => useCreateUser(), {
         wrapper: createWrapper(),
       });
 

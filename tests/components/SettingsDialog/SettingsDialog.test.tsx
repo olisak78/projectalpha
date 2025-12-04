@@ -2,21 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import SettingsDialog from '../../../src/components/dialogs/SettingsDialog';
-import { useProjectsContext } from '../../../src/contexts/ProjectsContext';
-import { useProjectVisibility } from '../../../src/hooks/useProjectVisibility';
-import { Project } from '../../../src/types/api';
+import { useSettings } from '../../../src/hooks/useSettings';
 
-// Mock the dependencies
-vi.mock('../../../src/contexts/ProjectsContext', () => ({
-  useProjectsContext: vi.fn()
+// Mock the useSettings hook
+vi.mock('../../../src/hooks/useSettings', () => ({
+  useSettings: vi.fn()
 }));
 
-vi.mock('../../../src/hooks/useProjectVisibility', () => ({
-  useProjectVisibility: vi.fn()
-}));
-
-// Mock the ProjectVisibilitySettings component
-vi.mock('../../../src/components/ProjectVisibilitySettings', () => ({
+// Mock the CustomizationAppearanceSettings component
+vi.mock('../../../src/components/settings/CustomizationAppearanceSettings', () => ({
   default: ({ visibilityState, onVisibilityChange, onSelectAll, onDeselectAll }: any) => (
     <div data-testid="project-visibility-settings">
       <div data-testid="visibility-state">{JSON.stringify(visibilityState)}</div>
@@ -33,52 +27,36 @@ vi.mock('../../../src/components/ProjectVisibilitySettings', () => ({
   )
 }));
 
+// Mock the UserInformationSettings component
+vi.mock('../../../src/components/UserInformationSettings', () => ({
+  default: ({ fullName, email, team, role }: any) => (
+    <div data-testid="user-information-settings">
+      <div data-testid="user-info">{JSON.stringify({ fullName, email, team, role })}</div>
+    </div>
+  )
+}));
+
 /**
  * SettingsDialog Component Tests
  * 
  * Tests for the SettingsDialog component which provides a modal interface
- * for managing application settings, particularly project visibility settings.
- * This is the main settings interface for the developer portal.
+ * for managing application settings. The component now uses the useSettings hook
+ * for all logic and state management.
  * 
  * Component Location: src/components/dialogs/SettingsDialog.tsx
- * Dependencies: ProjectsContext, useProjectVisibility hook, ProjectVisibilitySettings
+ * Dependencies: useSettings hook, CustomizationAppearanceSettings, UserInformationSettings
  */
 
 // ============================================================================
 // TEST UTILITIES
 // ============================================================================
 
-const mockProjects: Project[] = [
-  {
-    id: '1',
-    name: 'cis20',
-    title: 'CIS@2.0',
-    description: 'CIS 2.0 Project',
-    isVisible: true
-  },
-  {
-    id: '2',
-    name: 'usrv',
-    title: 'Unified Services',
-    description: 'Unified Services Project',
-    isVisible: false
-  },
-  {
-    id: '3',
-    name: 'ca',
-    title: 'Cloud Automation',
-    description: 'Cloud Automation Project',
-    isVisible: true
-  }
-];
-
 const defaultProps = {
   open: true,
   onOpenChange: vi.fn()
 };
 
-const mockUseProjectsContext = useProjectsContext as ReturnType<typeof vi.fn>;
-const mockUseProjectVisibility = useProjectVisibility as ReturnType<typeof vi.fn>;
+const mockUseSettings = useSettings as ReturnType<typeof vi.fn>;
 
 /**
  * Helper function to render SettingsDialog with default props and mocks
@@ -89,22 +67,30 @@ function renderSettingsDialog(props?: Partial<typeof defaultProps>) {
 }
 
 /**
- * Helper function to setup default mocks
+ * Helper function to setup default mocks for useSettings hook
  */
 function setupDefaultMocks() {
-  mockUseProjectsContext.mockReturnValue({
-    projects: mockProjects,
+  mockUseSettings.mockReturnValue({
+    hasChanges: false,
+    visibilityState: {
+      '1': true,
+      '2': false,
+      '3': true
+    },
+    processedUserInfo: {
+      fullName: 'John Doe',
+      email: 'john.doe@example.com',
+      team: 'Engineering Team',
+      role: 'Owner'
+    },
     isLoading: false,
-    error: null,
-    sidebarItems: []
-  });
-
-  mockUseProjectVisibility.mockReturnValue({
-    isProjectVisible: vi.fn((project: Project) => project.isVisible || false),
-    updateProjectVisibility: vi.fn(),
-    getVisibleProjects: vi.fn(() => mockProjects.filter(p => p.isVisible)),
-    resetToDefaults: vi.fn(),
-    loadVisibilitySettings: vi.fn(() => ({}))
+    defaultVisibleProjects: ['cis20', 'usrv', 'ca'],
+    handleVisibilityChange: vi.fn(),
+    handleSelectAll: vi.fn(),
+    handleDeselectAll: vi.fn(),
+    handleSave: vi.fn(),
+    handleCancel: vi.fn(),
+    resetChanges: vi.fn()
   });
 }
 
@@ -137,14 +123,15 @@ describe('SettingsDialog Component', () => {
       
       // Tabs structure
       expect(screen.getByRole('tablist')).toBeInTheDocument();
-      expect(screen.getByRole('tab', { name: /sidebar settings/i })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /user information/i })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /customization/i })).toBeInTheDocument();
       
       // Action buttons
       expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument();
       
-      // Child component
-      expect(screen.getByTestId('project-visibility-settings')).toBeInTheDocument();
+      // Child components - User Information should be visible by default
+      expect(screen.getByTestId('user-information-settings')).toBeInTheDocument();
     });
 
     it('should not render when closed', () => {
@@ -159,12 +146,10 @@ describe('SettingsDialog Component', () => {
   // ==========================================================================
 
   describe('Loading State', () => {
-    it('should show loading state and hide content when projects are loading', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: [],
-        isLoading: true,
-        error: null,
-        sidebarItems: []
+    it('should show loading state and hide content when settings are loading', () => {
+      mockUseSettings.mockReturnValue({
+        ...mockUseSettings(),
+        isLoading: true
       });
 
       renderSettingsDialog();
@@ -178,121 +163,71 @@ describe('SettingsDialog Component', () => {
   });
 
   // ==========================================================================
-  // INITIALIZATION TESTS
-  // ==========================================================================
-
-  describe('Initialization', () => {
-    it('should initialize visibility state from hook', () => {
-      const mockIsProjectVisible = vi.fn()
-        .mockReturnValueOnce(true)  // project 1
-        .mockReturnValueOnce(false) // project 2
-        .mockReturnValueOnce(true); // project 3
-
-      mockUseProjectVisibility.mockReturnValue({
-        isProjectVisible: mockIsProjectVisible,
-        updateProjectVisibility: vi.fn(),
-        getVisibleProjects: vi.fn(),
-        resetToDefaults: vi.fn(),
-        loadVisibilitySettings: vi.fn()
-      });
-
-      renderSettingsDialog();
-      
-      // Check that isProjectVisible was called
-      expect(mockIsProjectVisible).toHaveBeenCalledWith(mockProjects[0]);
-      expect(mockIsProjectVisible).toHaveBeenCalledWith(mockProjects[1]);
-      expect(mockIsProjectVisible).toHaveBeenCalledWith(mockProjects[2]);
-      
-      // Verify component renders properly
-      expect(screen.getByTestId('project-visibility-settings')).toBeInTheDocument();
-    });
-
-    it('should handle null projects gracefully', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: null as any,
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderSettingsDialog();
-      
-      expect(screen.getByTestId('project-visibility-settings')).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================================================
   // INTERACTION TESTS
   // ==========================================================================
 
   describe('Interactions', () => {
-    it('should handle button interactions and save/cancel workflow', async () => {
-      const mockUpdateProjectVisibility = vi.fn();
+    it('should handle cancel button correctly and call hook cancel handler', () => {
       const mockOnOpenChange = vi.fn();
+      const mockHandleCancel = vi.fn();
       
-      mockUseProjectVisibility.mockReturnValue({
-        isProjectVisible: vi.fn(() => true),
-        updateProjectVisibility: mockUpdateProjectVisibility,
-        getVisibleProjects: vi.fn(),
-        resetToDefaults: vi.fn(),
-        loadVisibilitySettings: vi.fn()
+      mockUseSettings.mockReturnValue({
+        ...mockUseSettings(),
+        handleCancel: mockHandleCancel
       });
-
+      
       renderSettingsDialog({ onOpenChange: mockOnOpenChange });
       
-      // Initially save button should be disabled
-      const saveButton = screen.getByRole('button', { name: /save changes/i });
-      expect(saveButton).toBeDisabled();
-      
-      // Cancel should work immediately
       const cancelButton = screen.getByRole('button', { name: /cancel/i });
       fireEvent.click(cancelButton);
-      expect(mockOnOpenChange).toHaveBeenCalledWith(false);
       
-      // Reset mock for save test
-      mockOnOpenChange.mockClear();
-      
-      // Make a change to enable save button
-      const changeButton = screen.getByTestId('mock-visibility-change');
-      fireEvent.click(changeButton);
-      
-      await waitFor(() => {
-        expect(saveButton).toBeEnabled();
-      });
-      
-      // Save should call updateProjectVisibility and close dialog
-      fireEvent.click(saveButton);
-      expect(mockUpdateProjectVisibility).toHaveBeenCalled();
+      expect(mockHandleCancel).toHaveBeenCalledTimes(1);
       expect(mockOnOpenChange).toHaveBeenCalledWith(false);
     });
 
-    it('should handle ProjectVisibilitySettings interactions', () => {
+    it('should handle save button correctly and call hook save handler', () => {
+      const mockOnOpenChange = vi.fn();
+      const mockHandleSave = vi.fn();
+      
+      mockUseSettings.mockReturnValue({
+        ...mockUseSettings(),
+        hasChanges: true,
+        handleSave: mockHandleSave
+      });
+      
+      renderSettingsDialog({ onOpenChange: mockOnOpenChange });
+      
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      expect(saveButton).toBeEnabled();
+      
+      fireEvent.click(saveButton);
+      
+      expect(mockHandleSave).toHaveBeenCalledTimes(1);
+      expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it('should have save button disabled when no changes', () => {
+      mockUseSettings.mockReturnValue({
+        ...mockUseSettings(),
+        hasChanges: false
+      });
+      
       renderSettingsDialog();
       
-      // Test individual visibility change
-      const changeButton = screen.getByTestId('mock-visibility-change');
-      fireEvent.click(changeButton);
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      expect(saveButton).toBeDisabled();
+    });
+
+    it('should have save button enabled when there are changes', () => {
+      mockUseSettings.mockReturnValue({
+        ...mockUseSettings(),
+        hasChanges: true
+      });
       
-      const visibilityState = screen.getByTestId('visibility-state');
-      expect(visibilityState.textContent).toContain('"1":false');
+      renderSettingsDialog();
       
-      // Test select all
-      const selectAllButton = screen.getByTestId('mock-select-all');
-      fireEvent.click(selectAllButton);
-      
-      let state = JSON.parse(screen.getByTestId('visibility-state').textContent || '{}');
-      expect(state['1']).toBe(true);
-      expect(state['2']).toBe(true);
-      expect(state['3']).toBe(true);
-      
-      // Test deselect all
-      const deselectAllButton = screen.getByTestId('mock-deselect-all');
-      fireEvent.click(deselectAllButton);
-      
-      state = JSON.parse(screen.getByTestId('visibility-state').textContent || '{}');
-      expect(state['1']).toBe(false);
-      expect(state['2']).toBe(false);
-      expect(state['3']).toBe(false);
+      const saveButton = screen.getByRole('button', { name: /save changes/i });
+      expect(saveButton).toBeEnabled();
     });
   });
 
@@ -302,20 +237,19 @@ describe('SettingsDialog Component', () => {
   // ==========================================================================
 
   describe('Dialog Behavior', () => {
-    it('should handle dialog open/close state changes and reinitialize properly', () => {
+    it('should handle dialog open/close state changes', () => {
       const { rerender } = renderSettingsDialog({ open: true });
       
       expect(screen.getByRole('dialog')).toBeInTheDocument();
-      expect(screen.getByTestId('project-visibility-settings')).toBeInTheDocument();
+      expect(screen.getByTestId('user-information-settings')).toBeInTheDocument();
       
       // Close dialog
       rerender(<SettingsDialog open={false} onOpenChange={vi.fn()} />);
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('project-visibility-settings')).not.toBeInTheDocument();
       
       // Reopen dialog - component should reinitialize
       rerender(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
-      expect(screen.getByTestId('project-visibility-settings')).toBeInTheDocument();
+      expect(screen.getByTestId('user-information-settings')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument();
     });
   });
@@ -343,9 +277,9 @@ describe('SettingsDialog Component', () => {
       
       // Tab navigation
       const tabList = screen.getByRole('tablist');
-      const tab = screen.getByRole('tab', { name: /sidebar settings/i });
+      const userInfoTab = screen.getByRole('tab', { name: /user information/i });
       expect(tabList).toBeInTheDocument();
-      expect(tab).toHaveAttribute('aria-selected', 'true');
+      expect(userInfoTab).toHaveAttribute('aria-selected', 'true');
       
       // Keyboard navigation
       cancelButton.focus();
@@ -358,88 +292,58 @@ describe('SettingsDialog Component', () => {
   // ==========================================================================
 
   describe('Edge Cases', () => {
-    it('should handle context errors and dynamic project changes gracefully', () => {
-      // Test with context error
-      mockUseProjectsContext.mockReturnValue({
-        projects: [],
+    it('should handle hook errors gracefully', () => {
+      // Mock useSettings to return minimal valid state even with errors
+      mockUseSettings.mockReturnValue({
+        hasChanges: false,
+        visibilityState: {},
+        processedUserInfo: {
+          fullName: 'Unknown',
+          email: 'Unknown',
+          team: 'Unknown',
+          role: 'Unknown'
+        },
         isLoading: false,
-        error: new Error('Failed to load projects'),
-        sidebarItems: []
+        defaultVisibleProjects: [],
+        handleVisibilityChange: vi.fn(),
+        handleSelectAll: vi.fn(),
+        handleDeselectAll: vi.fn(),
+        handleSave: vi.fn(),
+        handleCancel: vi.fn(),
+        resetChanges: vi.fn()
       });
 
-      const { rerender } = renderSettingsDialog();
+      renderSettingsDialog();
       expect(screen.getByText('Settings')).toBeInTheDocument();
-      
-      // Test dynamic project changes
-      const newProjects = [
-        ...mockProjects,
-        {
-          id: '4',
-          name: 'new-project',
-          title: 'New Project',
-          description: 'A new project',
-          isVisible: false
-        }
-      ];
+      expect(screen.getByTestId('user-information-settings')).toBeInTheDocument();
+    });
 
-      mockUseProjectsContext.mockReturnValue({
-        projects: newProjects,
-        isLoading: false,
-        error: null,
-        sidebarItems: []
+    it('should pass correct props to child components', () => {
+      const mockProcessedUserInfo = {
+        fullName: 'Test User',
+        email: 'test@example.com',
+        team: 'Test Team',
+        role: 'Test Role'
+      };
+
+      mockUseSettings.mockReturnValue({
+        ...mockUseSettings(),
+        processedUserInfo: mockProcessedUserInfo
       });
 
-      rerender(<SettingsDialog open={true} onOpenChange={vi.fn()} />);
-      expect(screen.getByTestId('project-visibility-settings')).toBeInTheDocument();
+      renderSettingsDialog();
+
+      // Check that user info is passed correctly to UserInformationSettings
+      const userInfoElement = screen.getByTestId('user-info');
+      expect(userInfoElement).toHaveTextContent(JSON.stringify(mockProcessedUserInfo));
+
+      // Verify that the tabs are working by checking tab structure
+      const projectsTab = screen.getByRole('tab', { name: /customization/i });
+      expect(projectsTab).toBeInTheDocument();
+      
+      // The component should be properly structured with tabs
+      expect(screen.getByRole('tablist')).toBeInTheDocument();
     });
   });
 
-  // ==========================================================================
-  // INTEGRATION TESTS
-  // ==========================================================================
-
-  describe('Integration Tests', () => {
-    it('should handle complete workflow with complex state changes', async () => {
-      const mockUpdateProjectVisibility = vi.fn();
-      const mockOnOpenChange = vi.fn();
-
-      mockUseProjectVisibility.mockReturnValue({
-        isProjectVisible: vi.fn((project: Project) => project.isVisible || false),
-        updateProjectVisibility: mockUpdateProjectVisibility,
-        getVisibleProjects: vi.fn(),
-        resetToDefaults: vi.fn(),
-        loadVisibilitySettings: vi.fn()
-      });
-
-      renderSettingsDialog({ onOpenChange: mockOnOpenChange });
-      
-      // Make multiple changes in sequence
-      const changeButton = screen.getByTestId('mock-visibility-change');
-      const selectAllButton = screen.getByTestId('mock-select-all');
-      const deselectAllButton = screen.getByTestId('mock-deselect-all');
-      
-      fireEvent.click(changeButton);
-      fireEvent.click(selectAllButton);
-      fireEvent.click(deselectAllButton);
-      
-      // Final state should have all projects hidden
-      const visibilityState = screen.getByTestId('visibility-state');
-      const state = JSON.parse(visibilityState.textContent || '{}');
-      expect(state['1']).toBe(false);
-      expect(state['2']).toBe(false);
-      expect(state['3']).toBe(false);
-      
-      // Save button should be enabled and workflow should complete
-      await waitFor(() => {
-        const saveButton = screen.getByRole('button', { name: /save changes/i });
-        expect(saveButton).toBeEnabled();
-      });
-      
-      const saveButton = screen.getByRole('button', { name: /save changes/i });
-      fireEvent.click(saveButton);
-      
-      expect(mockUpdateProjectVisibility).toHaveBeenCalled();
-      expect(mockOnOpenChange).toHaveBeenCalledWith(false);
-    });
-  });
 });

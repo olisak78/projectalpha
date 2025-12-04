@@ -55,6 +55,8 @@ function mockUseLandscapeTools(overrides?: Partial<ReturnType<typeof useLandscap
       dynatrace: 'https://dynatrace.example.com',
       cockpit: 'https://cockpit.example.com',
       plutono: 'https://plutono.example.com',
+      operationConsole: 'https://ops.example.com',
+      controlCenter: 'https://control-center.example.com',
     },
     availability: {
       git: true,
@@ -63,6 +65,8 @@ function mockUseLandscapeTools(overrides?: Partial<ReturnType<typeof useLandscap
       dynatrace: true,
       cockpit: true,
       plutono: true,
+      operationConsole: true,
+      controlCenter: true,
     },
   };
 
@@ -100,6 +104,8 @@ describe('LandscapeToolsButtons', () => {
       expect(screen.getByRole('button', { name: /dynatrace/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /cockpit/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /plutono/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /operation console/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /control center/i })).toBeInTheDocument();
     });
 
     it('should not render when no landscape is selected', () => {
@@ -118,7 +124,9 @@ describe('LandscapeToolsButtons', () => {
           kibana: true,
           dynatrace: true,
           cockpit: true,
-          plutono: true
+          plutono: true,
+          operationConsole: true,
+          controlCenter: true
         },
       });
       renderLandscapeToolsButtons();
@@ -136,7 +144,9 @@ describe('LandscapeToolsButtons', () => {
           kibana: true,
           dynatrace: true,
           cockpit: true,
-          plutono: true
+          plutono: true,
+          operationConsole: true,
+          controlCenter: true
         },
       });
       renderLandscapeToolsButtons();
@@ -154,7 +164,9 @@ describe('LandscapeToolsButtons', () => {
           kibana: false,
           dynatrace: true,
           cockpit: true,
-          plutono: true
+          plutono: true,
+          operationConsole: true,
+          controlCenter: true
         },
       });
       renderLandscapeToolsButtons();
@@ -172,7 +184,9 @@ describe('LandscapeToolsButtons', () => {
           kibana: true,
           dynatrace: false,
           cockpit: true,
-          plutono: true
+          plutono: true,
+          operationConsole: true,
+          controlCenter: true
         },
       });
       renderLandscapeToolsButtons();
@@ -190,7 +204,9 @@ describe('LandscapeToolsButtons', () => {
           kibana: true,
           dynatrace: true,
           cockpit: false,
-          plutono: true
+          plutono: true,
+          operationConsole: true,
+          controlCenter: true
         },
       });
       renderLandscapeToolsButtons();
@@ -208,7 +224,9 @@ describe('LandscapeToolsButtons', () => {
           kibana: true,
           dynatrace: true,
           cockpit: true,
-          plutono: false
+          plutono: false,
+          operationConsole: true,
+          controlCenter: true
         },
       });
       renderLandscapeToolsButtons();
@@ -226,7 +244,9 @@ describe('LandscapeToolsButtons', () => {
           kibana: false,
           dynatrace: false,
           cockpit: false,
-          plutono: false
+          plutono: false,
+          operationConsole: false,
+          controlCenter: false
         },
       });
       renderLandscapeToolsButtons();
@@ -251,8 +271,8 @@ describe('LandscapeToolsButtons', () => {
     it('should open Git URL when Git button is clicked', () => {
       const gitUrl = 'https://github.com';
       mockUseLandscapeTools({
-        urls: { git: gitUrl, concourse: null, kibana: null, dynatrace: null, plutono: null, cockpit: null },
-        availability: { git: true, concourse: false, kibana: false, dynatrace: false, plutono: false, cockpit: false },
+        urls: { git: gitUrl, concourse: null, kibana: null, dynatrace: null, plutono: null, cockpit: null, operationConsole: null, controlCenter: null },
+        availability: { git: true, concourse: false, kibana: false, dynatrace: false, plutono: false, cockpit: false, operationConsole: false, controlCenter: false },
       });
       renderLandscapeToolsButtons();
 
@@ -266,8 +286,8 @@ describe('LandscapeToolsButtons', () => {
     it('should open Concourse URL when Concourse button is clicked', () => {
       const concourseUrl = 'https://concourse.example.com';
       mockUseLandscapeTools({
-        urls: { git: null, concourse: concourseUrl, kibana: null, dynatrace: null, plutono: null, cockpit: null },
-        availability: { git: false, concourse: true, kibana: false, dynatrace: false, plutono: false, cockpit: false },
+        urls: { git: null, concourse: concourseUrl, kibana: null, dynatrace: null, plutono: null, cockpit: null, operationConsole: null, controlCenter: null },
+        availability: { git: false, concourse: true, kibana: false, dynatrace: false, plutono: false, cockpit: false, operationConsole: false, controlCenter: false },
       });
       renderLandscapeToolsButtons();
 
@@ -280,8 +300,8 @@ describe('LandscapeToolsButtons', () => {
     it('should open Kibana URL when Kibana button is clicked', () => {
       const kibanaUrl = 'https://kibana.example.com';
       mockUseLandscapeTools({
-        urls: { git: null, concourse: null, kibana: kibanaUrl, dynatrace: null, plutono: null, cockpit: null },
-        availability: { git: false, concourse: false, kibana: true, dynatrace: false, plutono: false, cockpit: false },
+        urls: { git: null, concourse: null, kibana: kibanaUrl, dynatrace: null, plutono: null, cockpit: null, operationConsole: null, controlCenter: null },
+        availability: { git: false, concourse: false, kibana: true, dynatrace: false, plutono: false, cockpit: false, operationConsole: false, controlCenter: false },
       });
       renderLandscapeToolsButtons();
 
@@ -294,8 +314,8 @@ describe('LandscapeToolsButtons', () => {
     it('should open Dynatrace URL when Dynatrace button is clicked', () => {
       const dynatraceUrl = 'https://dynatrace.example.com';
       mockUseLandscapeTools({
-        urls: { git: null, concourse: null, kibana: null, dynatrace: dynatraceUrl, plutono: null, cockpit: null },
-        availability: { git: false, concourse: false, kibana: false, dynatrace: true, plutono: false, cockpit: false },
+        urls: { git: null, concourse: null, kibana: null, dynatrace: dynatraceUrl, plutono: null, cockpit: null, operationConsole: null, controlCenter: null },
+        availability: { git: false, concourse: false, kibana: false, dynatrace: true, plutono: false, cockpit: false, operationConsole: false, controlCenter: false },
       });
       renderLandscapeToolsButtons();
 
@@ -303,6 +323,20 @@ describe('LandscapeToolsButtons', () => {
       fireEvent.click(dynatraceButton);
 
       expect(mockWindowOpen).toHaveBeenCalledWith(dynatraceUrl, '_blank', 'noopener,noreferrer');
+    });
+
+    it('should open Control Center URL when Control Center button is clicked', () => {
+      const controlCenterUrl = 'https://control-center.example.com';
+      mockUseLandscapeTools({
+        urls: { git: null, concourse: null, kibana: null, dynatrace: null, plutono: null, cockpit: null, operationConsole: null, controlCenter: controlCenterUrl },
+        availability: { git: false, concourse: false, kibana: false, dynatrace: false, plutono: false, cockpit: false, operationConsole: false, controlCenter: true },
+      });
+      renderLandscapeToolsButtons();
+
+      const controlCenterButton = screen.getByRole('button', { name: /control center/i });
+      fireEvent.click(controlCenterButton);
+
+      expect(mockWindowOpen).toHaveBeenCalledWith(controlCenterUrl, '_blank', 'noopener,noreferrer');
     });
   });
 
@@ -344,11 +378,13 @@ describe('LandscapeToolsButtons', () => {
         kibana: 'https://custom-kibana.com',
         dynatrace: 'https://custom-dynatrace.com',
         plutono: 'https://custom-plutono.com',
-        cockpit: 'https://custom-cockpit.com'
+        cockpit: 'https://custom-cockpit.com',
+        operationConsole: 'https://custom-ops.com',
+        controlCenter: 'https://custom-control-center.com'
       };
       mockUseLandscapeTools({
         urls: customUrls,
-        availability: { git: true, concourse: true, kibana: true, dynatrace: true, plutono: true, cockpit: true },
+        availability: { git: true, concourse: true, kibana: true, dynatrace: true, plutono: true, cockpit: true, operationConsole: true, controlCenter: true },
       });
       renderLandscapeToolsButtons();
 

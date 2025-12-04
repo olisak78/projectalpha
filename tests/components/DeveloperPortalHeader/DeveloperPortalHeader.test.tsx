@@ -50,10 +50,9 @@ vi.mock('../../../src/components/Breadcrumbs', () => ({
 
 // Mock UserProfileDropdown component
 vi.mock('../../../src/components/DeveloperPortalHeader/UserProfileDropdown', () => ({
-  UserProfileDropdown: ({ user, onProfileClick, onLogout }: any) => (
+  UserProfileDropdown: ({ user, onLogout }: any) => (
     <div data-testid="user-profile-dropdown">
       <span data-testid="user-name">{user.name}</span>
-      <button data-testid="profile-button" onClick={onProfileClick}>Profile</button>
       <button data-testid="logout-button" onClick={onLogout}>Logout</button>
     </div>
   )
@@ -248,18 +247,6 @@ describe('DeveloperPortalHeader', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/');
     });
 
-    it('navigates to profile when profile button is clicked', () => {
-      render(
-        <TestWrapper>
-          <DeveloperPortalHeader {...defaultProps} />
-        </TestWrapper>
-      );
-
-      const profileButton = screen.getByTestId('profile-button');
-      fireEvent.click(profileButton);
-
-      expect(mockNavigate).toHaveBeenCalledWith('/profile');
-    });
   });
 
   describe('Logout functionality', () => {

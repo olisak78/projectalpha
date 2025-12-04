@@ -19,22 +19,25 @@ const mockProjects: Project[] = [
     id: '1',
     name: 'cis20',
     title: 'CIS 2.0',
-    description: 'Customer Information System 2.0',
-    health: { endpoint: 'default' },
-    alerts: { repo: 'cis20-alerts' }
+    description: 'Customer Information System 2.0'
   },
   {
     id: '2',
     name: 'usrv',
     title: 'User Services',
-    description: 'User management services',
-    health: { endpoint: 'custom' }
+    description: 'User management services'
   },
   {
     id: '3',
     name: 'ca',
     title: 'Customer Analytics',
     description: 'Analytics platform for customer data'
+  },
+  {
+    id: '4',
+    name: 'other-project',
+    title: 'Other Project',
+    description: 'Some other project'
   }
 ];
 
@@ -120,12 +123,13 @@ describe('ProjectsContext', () => {
 
       expect(screen.getByTestId('loading')).toHaveTextContent('not-loading');
       expect(screen.getByTestId('error')).toHaveTextContent('no-error');
-      expect(screen.getByTestId('projects-count')).toHaveTextContent('3');
+      expect(screen.getByTestId('projects-count')).toHaveTextContent('4');
       
       // Check that projects are rendered
       expect(screen.getByTestId('project-cis20')).toHaveTextContent('CIS 2.0');
       expect(screen.getByTestId('project-usrv')).toHaveTextContent('User Services');
       expect(screen.getByTestId('project-ca')).toHaveTextContent('Customer Analytics');
+      expect(screen.getByTestId('project-other-project')).toHaveTextContent('Other Project');
     });
 
     it('should provide loading state', () => {
@@ -193,7 +197,7 @@ describe('ProjectsContext', () => {
       expect(screen.getByTestId('projects-count')).toHaveTextContent('0');
     });
 
-    it('should generate correct sidebar items', () => {
+    it('should generate correct sidebar items with proper project ordering', () => {
       mockUseFetchProjects.mockReturnValue({
         data: mockProjects,
         isLoading: false,
@@ -220,23 +224,96 @@ describe('ProjectsContext', () => {
 
       renderWithProviders(<TestComponent />);
 
-      // Should have static items + project titles
+      // Should have static items + project titles in correct order (default projects first)
       const expectedSidebarItems = [
         'Home',
         'Teams',
-        'CIS 2.0',
-        'User Services', 
-        'Customer Analytics',
+        'CIS 2.0',        // cis20 - default project (first in defaultProjectNames)
+        'Customer Analytics', // ca - default project (second in defaultProjectNames)
+        'User Services',  // usrv - default project (third in defaultProjectNames)
+        'Other Project',  // other-project - regular project
         'Links',
         'Self Service',
         'AI Arena'
       ];
 
-      expect(screen.getByTestId('sidebar-items-count')).toHaveTextContent('8');
+      expect(screen.getByTestId('sidebar-items-count')).toHaveTextContent('9');
       
       expectedSidebarItems.forEach((item, index) => {
         expect(screen.getByTestId(`sidebar-item-${index}`)).toHaveTextContent(item);
       });
+    });
+
+    it('should order default projects (cis20, ca, usrv) at the top', () => {
+      // Create test data with projects in random order to verify sorting
+      const unorderedProjects: Project[] = [
+        {
+          id: '4',
+          name: 'other-project',
+          title: 'Other Project',
+          description: 'Some other project'
+        },
+        {
+          id: '2',
+          name: 'usrv',
+          title: 'User Services',
+          description: 'User management services'
+        },
+        {
+          id: '5',
+          name: 'another-project',
+          title: 'Another Project',
+          description: 'Another regular project'
+        },
+        {
+          id: '3',
+          name: 'ca',
+          title: 'Customer Analytics',
+          description: 'Analytics platform for customer data'
+        },
+        {
+          id: '1',
+          name: 'cis20',
+          title: 'CIS 2.0',
+          description: 'Customer Information System 2.0'
+        }
+      ];
+
+      mockUseFetchProjects.mockReturnValue({
+        data: unorderedProjects,
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+        isError: false,
+        isSuccess: true,
+        status: 'success',
+        dataUpdatedAt: Date.now(),
+        errorUpdatedAt: 0,
+        failureCount: 0,
+        failureReason: null,
+        fetchStatus: 'idle',
+        isInitialLoading: false,
+        isLoadingError: false,
+        isPaused: false,
+        isPending: false,
+        isPlaceholderData: false,
+        isRefetchError: false,
+        isRefetching: false,
+        isStale: false,
+        remove: vi.fn(),
+      });
+
+      renderWithProviders(<TestComponent />);
+
+      const projectsContainer = screen.getByTestId('projects');
+      const projectElements = projectsContainer.children;
+
+      // Verify the order: default projects first (cis20, ca, usrv), then others
+      expect(projectElements[0]).toHaveAttribute('data-testid', 'project-cis20');
+      expect(projectElements[1]).toHaveAttribute('data-testid', 'project-ca');
+      expect(projectElements[2]).toHaveAttribute('data-testid', 'project-usrv');
+      expect(projectElements[3]).toHaveAttribute('data-testid', 'project-other-project');
+      expect(projectElements[4]).toHaveAttribute('data-testid', 'project-another-project');
     });
 
     it('should handle empty projects array', () => {

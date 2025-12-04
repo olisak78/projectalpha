@@ -5,9 +5,9 @@ import { ConcourseIcon } from "@/components/icons/ConcourseIcon";
 import { KibanaIcon } from "@/components/icons/KibanaIcon";
 import { DynatraceIcon } from "@/components/icons/DynatraceIcon";
 import { PlutonoIcon } from "@/components/icons/PlutonoIcon";
-import { Plane, Monitor } from "lucide-react";
+import { Plane, Monitor, Settings } from "lucide-react";
 
-export type ToolButton = 'git' | 'concourse' | 'kibana' | 'dynatrace' | 'plutono' | 'cockpit' | 'operationConsole';
+export type ToolButton = 'git' | 'concourse' | 'kibana' | 'dynatrace' | 'plutono' | 'cockpit' | 'operationConsole' | 'controlCenter';
 
 interface LandscapeToolsButtonsProps {
   selectedLandscape: string | null;
@@ -111,6 +111,18 @@ export function LandscapeToolsButtons({ selectedLandscape, landscapeData }: Land
         >
           <Monitor className="h-4 w-4" />
           <span className="font-medium">Operation Console</span>
+        </Button>
+      )}
+
+      {availability.controlCenter && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleToolClick(urls.controlCenter)}
+          className="flex items-center gap-2"
+        >
+          <Settings className="h-4 w-4" />
+          <span className="font-medium">Control Center</span>
         </Button>
       )}
     </div>

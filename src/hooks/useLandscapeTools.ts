@@ -13,6 +13,7 @@ interface LandscapeData {
   dynatrace?: string;
   cockpit?: string;
   'operation-console'?: string;
+  'control-center'?: string;
   type?: string;
   grafana?: string;
   prometheus?: string;
@@ -28,6 +29,7 @@ interface LandscapeToolUrls {
   cockpit: string | null;
   plutono: string | null;
   operationConsole: string | null;
+  controlCenter: string | null;
 }
 
 interface LandscapeToolsAvailability {
@@ -38,6 +40,7 @@ interface LandscapeToolsAvailability {
   cockpit: boolean;
   plutono: boolean;
   operationConsole: boolean;
+  controlCenter: boolean;
 }
 
 interface UseLandscapeToolsReturn {
@@ -59,7 +62,8 @@ export function useLandscapeTools(
           dynatrace: null,
           cockpit: null,
           plutono: null,
-          operationConsole: null
+          operationConsole: null,
+          controlCenter: null
         },
         availability: {
           git: false,
@@ -68,7 +72,8 @@ export function useLandscapeTools(
           dynatrace: false,
           cockpit: false,
           plutono: false,
-          operationConsole: false
+          operationConsole: false,
+          controlCenter: false
         },
       };
     }
@@ -86,7 +91,8 @@ export function useLandscapeTools(
           dynatrace: null,
           cockpit: null,
           plutono: null,
-          operationConsole: null
+          operationConsole: null,
+          controlCenter: null
         },
         availability: {
           git: false,
@@ -95,7 +101,8 @@ export function useLandscapeTools(
           dynatrace: false,
           cockpit: false,
           plutono: false,
-          operationConsole: false
+          operationConsole: false,
+          controlCenter: false
         },
       };
     }
@@ -106,6 +113,7 @@ export function useLandscapeTools(
     const cockpitUrl = landscape.cockpit || null;
     const plutonoUrl = landscape.plutono || null;
     const operationConsoleUrl = landscape['operation-console'] || null;
+    const controlCenterUrl = landscape['control-center'] || null;
 
     return {
       urls: {
@@ -115,7 +123,8 @@ export function useLandscapeTools(
         dynatrace: dynatraceUrl,
         cockpit: cockpitUrl,
         plutono: plutonoUrl,
-        operationConsole: operationConsoleUrl
+        operationConsole: operationConsoleUrl,
+        controlCenter: controlCenterUrl
       },
       availability: {
         git: !!gitUrl,
@@ -124,7 +133,8 @@ export function useLandscapeTools(
         dynatrace: !!dynatraceUrl,
         cockpit: !!cockpitUrl,
         plutono: !!plutonoUrl,
-        operationConsole: !!operationConsoleUrl
+        operationConsole: !!operationConsoleUrl,
+        controlCenter: !!controlCenterUrl
       },
     };
   }, [selectedLandscapeId, landscapeData]);

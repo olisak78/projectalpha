@@ -43,6 +43,7 @@ export interface Landscape {
   dynatrace?: string;
   cockpit?: string;
   'operation-console'?: string;
+  'control-center'?: string;
   type?: string;
   grafana?: string;
   prometheus?: string;
@@ -325,6 +326,10 @@ export interface LandscapeToolUrls {
   concourse: string | null;
   kibana: string | null;
   dynatrace: string | null;
+  cockpit: string | null;
+  plutono: string | null;
+  operationConsole: string | null;
+  controlCenter: string | null;
 }
 
 export interface LandscapeToolsAvailability {
@@ -332,6 +337,10 @@ export interface LandscapeToolsAvailability {
   concourse: boolean;
   kibana: boolean;
   dynatrace: boolean;
+  cockpit: boolean;
+  plutono: boolean;
+  operationConsole: boolean;
+  controlCenter: boolean;
 }
 
 export interface UseLandscapeToolsReturn {

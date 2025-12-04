@@ -87,11 +87,6 @@ vi.mock('@/pages/HomePage', () => ({
   default: () => <div data-testid="home-page">Home Page</div>
 }));
 
-vi.mock('@/pages/ProfilePage', () => ({
-  __esModule: true,
-  default: () => <div data-testid="profile-page">Profile Page</div>
-}));
-
 vi.mock('@/pages/TeamsPage', () => ({
   __esModule: true,
   default: () => <div data-testid="teams-page">Teams Page</div>

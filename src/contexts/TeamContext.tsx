@@ -99,7 +99,7 @@ interface TeamContextValue {
   error: Error | null;
 }
 
-const TeamContext = createContext<TeamContextValue | null>(null);
+export const TeamContext = createContext<TeamContextValue | null>(null);
 
 interface TeamProviderProps {
   children: ReactNode;

@@ -13,9 +13,35 @@ interface ProjectsContextValue {
 
 const ProjectsContext = createContext<ProjectsContextValue | undefined>(undefined);
 
+// Define default projects that should always be at the top
+const DEFAULT_PROJECT_NAMES = ['cis20', 'ca', 'usrv'];
+
 export const ProjectsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { data, isLoading, error } = useFetchProjects();
-  const projects = data || [];
+  const rawProjects = data || [];
+
+  // Sort projects to put default projects at the top
+  const projects = React.useMemo(() => {
+    const defaultProjects: Project[] = [];
+    const otherProjects: Project[] = [];
+
+    rawProjects.forEach((project: Project) => {
+      if (DEFAULT_PROJECT_NAMES.includes(project.name)) {
+        defaultProjects.push(project);
+      } else {
+        otherProjects.push(project);
+      }
+    });
+
+    // Sort default projects in the specified order
+    defaultProjects.sort((a, b) => {
+      const aIndex = DEFAULT_PROJECT_NAMES.indexOf(a.name);
+      const bIndex = DEFAULT_PROJECT_NAMES.indexOf(b.name);
+      return aIndex - bIndex;
+    });
+
+    return [...defaultProjects, ...otherProjects];
+  }, [rawProjects, DEFAULT_PROJECT_NAMES]);
 
   // Define the static sidebar items
   const sidebarItems: string[] = [

@@ -44,11 +44,6 @@ async function updateUserTeam(data: UpdateUserTeamRequest): Promise<User> {
   return apiClient.put<User>('/users', data);
 }
 
-
-async function updateMember({ id, data }: { id: string, data: Partial<Member> }): Promise<Member> {
-  return apiClient.put<Member>(`/members/${id}`, data);
-}
-
 async function deleteMember(id: string): Promise<void> {
   return apiClient.delete(`/members/${id}`);
 }
@@ -86,34 +81,6 @@ export function useCreateUser(
   });
 }
 
-/**
- * Hook to create a new member (using user endpoint)
- */
-export function useCreateMember(
-  options?: UseMutationOptions<User, Error, CreateUserRequest>
-) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: createUser,
-    
-    onSuccess: (data, variables, context) => {
-      // Invalidate user lists
-      queryClient.invalidateQueries({ 
-        queryKey: ['users'] 
-      });
-      
-      // Also invalidate team lists if user was assigned to a team
-      if (variables.team_id) {
-        queryClient.invalidateQueries({ 
-          queryKey: queryKeys.teams.detail(variables.team_id) 
-        });
-      }
-    },
-    
-    ...options,
-  });
-}
 
 /**
  * Hook to update an existing user

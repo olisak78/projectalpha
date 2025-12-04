@@ -69,7 +69,6 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
 // Mock icons
 vi.mock('lucide-react', () => ({
   LogOut: () => <div data-testid="logout-icon">LogOut</div>,
-  User: () => <div data-testid="user-icon">User</div>,
   Settings: () => <div data-testid="settings-icon">Settings</div>
 }));
 
@@ -121,7 +120,6 @@ const defaultUser = {
 
 const defaultProps = {
   user: defaultUser,
-  onProfileClick: vi.fn(),
   onLogout: vi.fn(),
   isLoading: false
 };
@@ -160,9 +158,8 @@ describe('UserProfileDropdown', () => {
     );
 
     const menuItems = screen.getAllByTestId('dropdown-menu-item');
-    expect(menuItems).toHaveLength(4);
+    expect(menuItems).toHaveLength(3);
     
-    expect(screen.getByTestId('user-icon')).toBeInTheDocument();
     expect(screen.getByTestId('settings-icon')).toBeInTheDocument();
     expect(screen.getByTestId('swagger-icon')).toBeInTheDocument();
     expect(screen.getByTestId('logout-icon')).toBeInTheDocument();
@@ -195,27 +192,18 @@ describe('UserProfileDropdown', () => {
   });
 
   it('handles menu item clicks correctly', () => {
-    const onProfileClick = vi.fn();
     const onLogout = vi.fn();
     
     render(
       <TestWrapper>
         <UserProfileDropdown 
-          {...defaultProps} 
-          onProfileClick={onProfileClick}
+          {...defaultProps}
           onLogout={onLogout}
         />
       </TestWrapper>
     );
 
     const menuItems = screen.getAllByTestId('dropdown-menu-item');
-    
-    // Test Profile click
-    const profileItem = menuItems.find(item => 
-      item.textContent?.includes('Profile')
-    );
-    fireEvent.click(profileItem!);
-    expect(onProfileClick).toHaveBeenCalledTimes(1);
 
     // Test Logout click
     const logoutItem = menuItems.find(item => 

@@ -12,6 +12,8 @@ describe('useLandscapeTools', () => {
     expect(result.current.urls.dynatrace).toBe(null);
     expect(result.current.urls.cockpit).toBe(null);
     expect(result.current.urls.plutono).toBe(null);
+    expect(result.current.urls.operationConsole).toBe(null);
+    expect(result.current.urls.controlCenter).toBe(null);
 
     expect(result.current.availability.git).toBe(false);
     expect(result.current.availability.concourse).toBe(false);
@@ -19,6 +21,8 @@ describe('useLandscapeTools', () => {
     expect(result.current.availability.dynatrace).toBe(false);
     expect(result.current.availability.cockpit).toBe(false);
     expect(result.current.availability.plutono).toBe(false);
+    expect(result.current.availability.operationConsole).toBe(false);
+    expect(result.current.availability.controlCenter).toBe(false);
   });
 
   it('should use direct URLs from landscape data', () => {
@@ -123,7 +127,8 @@ describe('useLandscapeTools', () => {
         dynatrace: null,
         cockpit: null,
         plutono: null,
-        operationConsole: null
+        operationConsole: null,
+        controlCenter: null
       },
       availability: {
         git: false,
@@ -132,11 +137,63 @@ describe('useLandscapeTools', () => {
         dynatrace: false,
         cockpit: false,
         plutono: false,
-        operationConsole: false
+        operationConsole: false,
+        controlCenter: false
       },
     };
 
     expect(result.current).toEqual(defaultDisabledState);
+  });
+
+  it('should handle control-center URL correctly', () => {
+    const landscapeData = {
+      id: "test-landscape",
+      name: "test-landscape-1",
+      title: "Test Landscape",
+      domain: "test.example.com",
+      git: "https://github.example.com/test",
+      'control-center': "https://control-center.test.example.com",
+      'operation-console': "https://ops.test.example.com"
+    };
+
+    const { result } = renderHook(() =>
+      useLandscapeTools('test-landscape-1', landscapeData)
+    );
+
+    expect(result.current.urls.controlCenter).toBe("https://control-center.test.example.com");
+    expect(result.current.urls.operationConsole).toBe("https://ops.test.example.com");
+    expect(result.current.availability.controlCenter).toBe(true);
+    expect(result.current.availability.operationConsole).toBe(true);
+  });
+
+  it('should disable control-center when URL is missing or empty', () => {
+    const landscapeDataMissing = {
+      id: "test-landscape",
+      name: "test-landscape-1",
+      git: "https://github.example.com/test"
+      // control-center is missing
+    };
+
+    const { result: resultMissing } = renderHook(() =>
+      useLandscapeTools('test-landscape-1', landscapeDataMissing)
+    );
+
+    expect(resultMissing.current.urls.controlCenter).toBe(null);
+    expect(resultMissing.current.availability.controlCenter).toBe(false);
+
+    const landscapeDataEmpty = {
+      id: "test-landscape",
+      name: "test-landscape-1",
+      git: "https://github.example.com/test",
+      'control-center': ""  // Empty string
+    };
+
+    const { result: resultEmpty } = renderHook(() =>
+      useLandscapeTools('test-landscape-1', landscapeDataEmpty)
+    );
+
+    expect(resultEmpty.current.urls.controlCenter).toBe(null);
+    expect(resultEmpty.current.availability.controlCenter).toBe(false);
   });
   it('should use direct URLs from Unified Services landscape data', () => {
     const landscapeData = {

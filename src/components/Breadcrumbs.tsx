@@ -19,7 +19,6 @@ interface RouteConfig {
 // Route configuration - easily maintainable and extensible
 const routeConfigs: RouteConfig[] = [
   { label: 'Home', path: '/' },
-  { label: 'Profile', path: '/profile', parent: '/' },
   { label: 'Teams', path: '/teams', parent: '/' },
   { label: 'CIS@2.0', path: '/cis', parent: '/' },
   { label: 'Component View', path: '/cis/component', parent: '/cis' },

@@ -13,7 +13,6 @@ import { PortalContainer } from "./components/PortalContainer";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import LoginPage from "./pages/LoginPage";
-import ProfilePage from "./pages/ProfilePage";
 import TeamsPage from "./pages/TeamsPage";
 import NotFound from "./pages/NotFound";
 import SelfServicePage from "./pages/SelfServicePage";
@@ -78,7 +77,6 @@ const App = () => {
                     }
                   >
                     <Route index element={<HomePage />} />
-                    <Route path="profile" element={<ProfilePage />} />
                     <Route path="teams" element={<TeamsPage />} />
                     <Route path="teams/:teamName/:tabId" element={<TeamsPage />} />
                     <Route path="self-service" element={<SelfServicePage />} />
