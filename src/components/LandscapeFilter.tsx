@@ -7,27 +7,42 @@ import { Badge } from "@/components/ui/badge";
 import { Landscape } from "@/types/developer-portal";
 import { getLandscapeHistory, addToLandscapeHistory } from "@/utils/landscapeHistory";
 import { sortLandscapeGroups } from "@/utils/developer-portal-helpers";
+import { usePortalState } from "@/contexts/hooks";
 
 interface LandscapeFilterProps {
-  selectedLandscape: string | null;
+  selectedLandscape?: string | null; // Made optional for backward compatibility
   landscapeGroups: Record<string, Landscape[]>;
   onLandscapeChange: (landscape: string | null) => void;
   onShowLandscapeDetails: () => void;
   showClearButton?: boolean;
   placeholder?: string;
   showViewAllButton?: boolean;
+  projectId?: string; // New prop for project-specific landscape selection
 }
 
 export function LandscapeFilter({
-  selectedLandscape,
+  selectedLandscape: propSelectedLandscape,
   landscapeGroups,
   onLandscapeChange,
   onShowLandscapeDetails,
   showClearButton = true,
   showViewAllButton = true,
-  placeholder = "Filter by Landscape"
+  placeholder = "Filter by Landscape",
+  projectId
 }: LandscapeFilterProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Use context for project-specific landscape selection
+  const { 
+    getSelectedLandscapeForProject, 
+    setSelectedLandscapeForProject,
+    selectedLandscape: globalSelectedLandscape 
+  } = usePortalState();
+  
+  // Determine which landscape to use: project-specific if projectId is provided, otherwise use prop or global
+  const selectedLandscape = projectId 
+    ? getSelectedLandscapeForProject(projectId) 
+    : (propSelectedLandscape ?? globalSelectedLandscape);
 
   const frequentlyVisitedGroup = useMemo(() => {
     const history = getLandscapeHistory();
@@ -112,6 +127,12 @@ export function LandscapeFilter({
     if (value) {
       addToLandscapeHistory(value);
     }
+    
+    // Use project-specific landscape setting if projectId is provided
+    if (projectId) {
+      setSelectedLandscapeForProject(projectId, value);
+    }
+    
     onLandscapeChange(value);
   };
 
@@ -194,7 +215,13 @@ export function LandscapeFilter({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onLandscapeChange(null)}
+          onClick={() => {
+            // Use project-specific landscape clearing if projectId is provided
+            if (projectId) {
+              setSelectedLandscapeForProject(projectId, null);
+            }
+            onLandscapeChange(null);
+          }}
           className="flex items-center gap-2"
         >
           <X className="h-4 w-4" />

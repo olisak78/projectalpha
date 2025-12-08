@@ -1,4 +1,4 @@
-import { GitHubPRQueryParams, GitHubPullRequestsResponse } from '@/types/developer-portal';
+import { ClosePullRequestParams, ClosePullRequestPayload, ClosePullRequestResponse, GitHubPRQueryParams, GitHubPullRequestsResponse } from '@/types/developer-portal';
 import { apiClient } from './ApiClient';
 import { GitHubContributionsResponse, GitHubAveragePRTimeResponse, GitHubHeatmapResponse, GitHubPRReviewCommentsResponse } from '@/types/api';
 
@@ -29,4 +29,9 @@ export async function fetchGitHubPRReviewComments(period?: string): Promise<GitH
   return apiClient.get<GitHubPRReviewCommentsResponse>('/github/pr-review-comments', {
     params: period ? { period } : undefined,
   });
+}
+
+export async function closePullRequest(params: ClosePullRequestParams): Promise<{ message: string }> {
+  const { prNumber, ...body } = params;
+  return apiClient.patch<{ message: string }>(`/github/pull-requests/close/${prNumber}`, body);
 }

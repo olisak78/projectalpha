@@ -3,6 +3,8 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { LandscapeFilter } from '../../../src/components/LandscapeFilter';
 import { Landscape } from '../../../src/types/developer-portal';
+import { AppStateProvider } from '../../../src/contexts/AppStateContext';
+import { ReactNode } from 'react';
 
 /**
  * LandscapeFilter Component Tests
@@ -46,7 +48,7 @@ function createMockLandscape(overrides?: Partial<Landscape>): Landscape {
     status: 'active',
     githubConfig: 'https://github.com/config',
     awsAccount: '123456789',
-    camProfile: 'https://cam.example.com',
+    cam: 'https://cam.example.com',
     deploymentStatus: 'deployed',
     ...overrides,
   };
@@ -82,7 +84,11 @@ function renderLandscapeFilter(props?: Partial<React.ComponentProps<typeof Lands
     onShowLandscapeDetails: vi.fn(),
   };
 
-  return render(<LandscapeFilter {...defaultProps} {...props} />);
+  return render(
+    <AppStateProvider>
+      <LandscapeFilter {...defaultProps} {...props} />
+    </AppStateProvider>
+  );
 }
 
 // ============================================================================
@@ -407,12 +413,14 @@ describe('LandscapeFilter Component', () => {
       expect(screen.getByText('Production EU')).toBeInTheDocument();
 
       rerender(
-        <LandscapeFilter
-          selectedLandscape="prod-us"
-          landscapeGroups={createMockLandscapeGroups()}
-          onLandscapeChange={mockOnLandscapeChange}
-          onShowLandscapeDetails={mockOnShowLandscapeDetails}
-        />
+        <AppStateProvider>
+          <LandscapeFilter
+            selectedLandscape="prod-us"
+            landscapeGroups={createMockLandscapeGroups()}
+            onLandscapeChange={mockOnLandscapeChange}
+            onShowLandscapeDetails={mockOnShowLandscapeDetails}
+          />
+        </AppStateProvider>
       );
 
       expect(screen.getByText('Production US')).toBeInTheDocument();
@@ -429,12 +437,14 @@ describe('LandscapeFilter Component', () => {
       expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
 
       rerender(
-        <LandscapeFilter
-          selectedLandscape="prod-eu"
-          landscapeGroups={createMockLandscapeGroups()}
-          onLandscapeChange={mockOnLandscapeChange}
-          onShowLandscapeDetails={mockOnShowLandscapeDetails}
-        />
+        <AppStateProvider>
+          <LandscapeFilter
+            selectedLandscape="prod-eu"
+            landscapeGroups={createMockLandscapeGroups()}
+            onLandscapeChange={mockOnLandscapeChange}
+            onShowLandscapeDetails={mockOnShowLandscapeDetails}
+          />
+        </AppStateProvider>
       );
 
       // Now Clear button should appear

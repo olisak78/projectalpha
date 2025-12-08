@@ -1,11 +1,13 @@
-import { useState, useEffect, Dispatch, SetStateAction} from "react";
+import { useState, useEffect, Dispatch, SetStateAction } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { GitPullRequest, Loader2, Wrench, Database, List } from "lucide-react";
-import { GitHubPullRequestsResponse } from "@/types/developer-portal";
+import { Loader2, Wrench, Database, List, X } from "lucide-react";
+import { GitHubPullRequestsResponse, GitHubPullRequest as PRType } from "@/types/developer-portal";
 import QuickFilterButtons, { FilterOption } from "@/components/QuickFilterButtons";
+import { useClosePullRequest } from "@/hooks/api/useClosePullRequest";
+import { ClosePRDialog } from "@/components/dialogs/ClosePRDialog";
 
 type GithubFilterType = "tools" | "wdf" | "both";
 
@@ -30,21 +32,33 @@ export default function GithubPrsTab({
   setPrPage,
   perPage,
 }: GithubPrsTabProps) {
-  
+
   // Repository filter state
   const [filter, setFilter] = useState<GithubFilterType>("tools");
-  
+
+  // Close PR dialog state
+  const [closePRDialog, setClosePRDialog] = useState<{
+    isOpen: boolean;
+    pullRequest: PRType | null;
+  }>({
+    isOpen: false,
+    pullRequest: null,
+  });
+
+  // Close PR mutation
+  const closePRMutation = useClosePullRequest();
+
   // Filter options for repository type
   const repoFilterOptions: FilterOption<GithubFilterType>[] = [
     { value: "tools", label: "Tools", icon: Wrench },
     { value: "wdf", label: "WDF", icon: Database, isDisabled: true, tooltip: "WDF is not supported yet" },
     { value: "both", label: "Both", icon: List, isDisabled: true },
   ];
-  
- // Extract PRs and total from response
+
+  // Extract PRs and total from response
   const pullRequests = data?.pull_requests || [];
   const total = data?.total || 0;
-  
+
   // Calculate total pages from API total
   const prTotalPages = Math.max(1, Math.ceil(total / perPage));
 
@@ -69,6 +83,28 @@ export default function GithubPrsTab({
   const getStatusText = (state: string, isDraft: boolean) => {
     if (isDraft) return 'Draft';
     return state.charAt(0).toUpperCase() + state.slice(1);
+  };
+
+  // Handle close PR button click
+  const handleClosePRClick = (pr: PRType) => {
+    setClosePRDialog({
+      isOpen: true,
+      pullRequest: pr,
+    });
+  };
+
+  // Handle close PR confirmation
+  const handleClosePRConfirm = (deleteBranch: boolean) => {
+    if (!closePRDialog.pullRequest) return;
+
+    closePRMutation.mutate({
+      prNumber: closePRDialog.pullRequest.number,
+      owner: closePRDialog.pullRequest.repository.owner,
+      repo: closePRDialog.pullRequest.repository.name,
+      delete_branch: deleteBranch,
+    });
+
+    setClosePRDialog({ isOpen: false, pullRequest: null });
   };
 
   return (
@@ -104,13 +140,14 @@ export default function GithubPrsTab({
               <TableHead>Title</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Updated</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {/* Loading State */}
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8">
+                <TableCell colSpan={5} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
@@ -119,7 +156,7 @@ export default function GithubPrsTab({
             {/* Error State */}
             {error && !isLoading && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-destructive py-8">
+                <TableCell colSpan={5} className="text-center text-destructive py-8">
                   Error loading pull requests: {error.message}
                 </TableCell>
               </TableRow>
@@ -149,13 +186,27 @@ export default function GithubPrsTab({
                 <TableCell>
                   {new Date(pr.updated_at).toLocaleString()}
                 </TableCell>
+                <TableCell className="text-right">
+                  {/* Only show close button for open PRs */}
+                  {pr.state === 'open' && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleClosePRClick(pr)}
+                      className="h-8 px-3"
+                      title="Close pull request"
+                    >
+                      <X className="h-4 w-4  hover:text-destructive" />
+                    </Button>
+                  )}
+                </TableCell>
               </TableRow>
             ))}
 
             {/* Empty State */}
             {!isLoading && !error && pullRequests.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                   No pull requests found
                 </TableCell>
               </TableRow>
@@ -188,6 +239,14 @@ export default function GithubPrsTab({
           </Button>
         </div>
       </div>
+      {/* Close PR Dialog */}
+      <ClosePRDialog
+        open={closePRDialog.isOpen}
+        onOpenChange={(open) => setClosePRDialog({ isOpen: open, pullRequest: null })}
+        pullRequest={closePRDialog.pullRequest}
+        onConfirm={handleClosePRConfirm}
+        isLoading={closePRMutation.isPending}
+      />
     </div>
   );
 }

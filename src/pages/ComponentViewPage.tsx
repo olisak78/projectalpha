@@ -1,12 +1,13 @@
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BreadcrumbPage } from "@/components/BreadcrumbPage";
 import { useComponentsByProject } from "@/hooks/api/useComponents";
 import { useLandscapesByProject } from "@/hooks/api/useLandscapes";
 import { usePortalState } from "@/contexts/hooks";
+import { useHeaderNavigation } from "@/contexts/HeaderNavigationContext";
 import { fetchHealthStatus, buildHealthEndpoint } from "@/services/healthApi";
 import { useSonarMeasures } from "@/hooks/api/useSonarMeasures";
+import { getDefaultLandscapeId } from "@/services/LandscapesApi";
 import type { Component } from "@/types/api";
 import type { HealthResponse } from "@/types/health";
 import { useSwaggerUI } from "@/hooks/api/useSwaggerUI";
@@ -18,26 +19,28 @@ export function ComponentViewPage() {
     const componentName = params.componentName || params.componentId;
     const tabId = params.tabId;
     const navigate = useNavigate();
-    const location = useLocation();
-    const [activeTab, setActiveTab] = useState("overview");
-    const { selectedLandscape } = usePortalState();
+    const { getSelectedLandscapeForProject, setSelectedLandscapeForProject } = usePortalState();
+    const { setTabs, activeTab, setActiveTab } = useHeaderNavigation();
 
     const projectName = params.projectName || 'cis20';
-
+    
     // Fetch components and landscapes
     const { data: landscapesData, isLoading: isLoadingLandscapes } = useLandscapesByProject(projectName);
-
-    // Fetch components and landscapes
     const { data: components } = useComponentsByProject(projectName);
     const { data: apiLandscapes } = useLandscapesByProject(projectName);
+    
+    // Get project-specific selected landscape (reactive to changes)
+    const effectiveSelectedLandscape = useMemo(() => {
+        return getSelectedLandscapeForProject(projectName);
+    }, [getSelectedLandscapeForProject, projectName]);
 
     const component = components?.find((c: Component) => c.name === componentName);
 
 
     // Find the selected landscape from API data
     const selectedApiLandscape = useMemo(() => {
-        return apiLandscapes?.find((l: any) => l.id === selectedLandscape);
-    }, [apiLandscapes, selectedLandscape]);
+        return apiLandscapes?.find((l: any) => l.id === effectiveSelectedLandscape);
+    }, [apiLandscapes, effectiveSelectedLandscape]);
 
     // State for health data
     const [healthData, setHealthData] = useState<HealthResponse | null>(null);
@@ -48,14 +51,14 @@ export function ComponentViewPage() {
 
     // Find the selected landscape data
     const landscapeConfig = useMemo(() => {
-        if (!landscapesData || !selectedLandscape) return null;
-        const landscape = landscapesData.find(l => l.id === selectedLandscape);
+        if (!landscapesData || !effectiveSelectedLandscape) return null;
+        const landscape = landscapesData.find(l => l.id === effectiveSelectedLandscape);
         if (!landscape) return null;
         return {
             name: landscape.name,
             route: landscape.landscape_url || 'sap.hana.ondemand.com'
         };
-    }, [landscapesData, selectedLandscape]);
+    }, [landscapesData, effectiveSelectedLandscape]);
 
     // Fetch Swagger data
     const { data: swaggerData, isLoading: isLoadingSwagger, error: swaggerError } = useSwaggerUI(
@@ -72,12 +75,38 @@ export function ComponentViewPage() {
         true
     );
 
+    // Set up header navigation tabs
+    useEffect(() => {
+        setTabs([
+            { id: 'overview', label: 'Overview' },
+            { id: 'api', label: 'API' }
+        ]);
+    }, []); // Remove setTabs from dependency array to prevent infinite loop
+
     // Set initial tab from URL
     useEffect(() => {
         if (tabId && ['overview', 'api'].includes(tabId)) {
             setActiveTab(tabId);
         }
-    }, [tabId]);
+    }, [tabId, setActiveTab]);
+
+    // Set default landscape when landscapes are loaded
+    useEffect(() => {
+        if (apiLandscapes && apiLandscapes.length > 0) {
+            // Check if the currently selected landscape is valid for this project
+            const isSelectedLandscapeValid = effectiveSelectedLandscape && 
+                apiLandscapes.some(landscape => landscape.id === effectiveSelectedLandscape);
+            
+            // If no landscape is selected or the selected one is invalid for this project,
+            // set a default landscape
+            if (!isSelectedLandscapeValid) {
+                const defaultLandscapeId = getDefaultLandscapeId(apiLandscapes, projectName);
+                if (defaultLandscapeId) {
+                    setSelectedLandscapeForProject(projectName, defaultLandscapeId);
+                }
+            }
+        }
+    }, [apiLandscapes, effectiveSelectedLandscape, setSelectedLandscapeForProject, projectName]);
 
     // Fetch health data when component or landscape changes
     useEffect(() => {
@@ -116,11 +145,6 @@ export function ComponentViewPage() {
         fetchHealth();
     }, [component, selectedApiLandscape]);
 
-    // Update URL when tab changes
-    const handleTabChange = (value: string) => {
-        setActiveTab(value);
-        navigate(`/${projectName}/component/${componentName}/${value}`, { replace: true });
-    };
 
     if (!component) {
         return (
@@ -146,35 +170,28 @@ export function ComponentViewPage() {
     return (
         <BreadcrumbPage>
             <div className="space-y-6">
-                <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                    <TabsList>
-                        <TabsTrigger value="overview">Overview</TabsTrigger>
-                        <TabsTrigger value="api">API</TabsTrigger>
-                    </TabsList>
+                {activeTab === 'overview' && (
+                    <ComponentViewOverview
+                        component={component}
+                        selectedLandscape={effectiveSelectedLandscape}
+                        selectedApiLandscape={selectedApiLandscape}
+                        healthData={healthData}
+                        healthLoading={healthLoading}
+                        healthError={healthError}
+                        responseTime={responseTime}
+                        statusCode={statusCode}
+                        sonarData={sonarData}
+                        sonarLoading={sonarLoading}
+                    />
+                )}
 
-                    <TabsContent value="overview" className="mt-6">
-                        <ComponentViewOverview
-                            component={component}
-                            selectedLandscape={selectedLandscape}
-                            selectedApiLandscape={selectedApiLandscape}
-                            healthData={healthData}
-                            healthLoading={healthLoading}
-                            healthError={healthError}
-                            responseTime={responseTime}
-                            statusCode={statusCode}
-                            sonarData={sonarData}
-                            sonarLoading={sonarLoading}
-                        />
-                    </TabsContent>
-
-                    <TabsContent value="api" className="mt-6">
-                        <ComponentViewApi
-                            isLoading={isLoadingSwagger}
-                            error={swaggerError}
-                            swaggerData={swaggerData}
-                        />
-                    </TabsContent>
-                </Tabs>
+                {activeTab === 'api' && (
+                    <ComponentViewApi
+                        isLoading={isLoadingSwagger}
+                        error={swaggerError}
+                        swaggerData={swaggerData}
+                    />
+                )}
             </div>
         </BreadcrumbPage>
     );

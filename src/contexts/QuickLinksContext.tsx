@@ -47,6 +47,7 @@ export interface QuickLinksContextValue {
   handleDeleteClick: (linkId: string, linkTitle: string) => void;
   handleDeleteConfirm: () => void;
   handleDeleteCancel: () => void;
+  handleEditClick: (linkId: string) => void;
   
   // Delete dialog state
   deleteDialog: {
@@ -54,6 +55,13 @@ export interface QuickLinksContextValue {
     linkId: string;
     linkTitle: string;
   };
+
+  // Edit dialog state
+  editDialog: {
+    isOpen: boolean;
+    linkId: string;
+  };
+  handleEditCancel: () => void;
   
   // Configuration
   ownerId?: string;
@@ -289,8 +297,28 @@ export const QuickLinksProvider: React.FC<QuickLinksProviderProps> = ({
     });
   }, [deleteDialog, customHandlers, deleteLinkMutation, toast, handleDeleteCancel]);
 
+  // Edit dialog state
+  const [editDialog, setEditDialog] = useState({
+    isOpen: false,
+    linkId: '',
+  });
+
+  const handleEditClick = useCallback((linkId: string) => {
+    setEditDialog({
+      isOpen: true,
+      linkId,
+    });
+  }, []);
+
+  const handleEditCancel = useCallback(() => {
+    setEditDialog({
+      isOpen: false,
+      linkId: '',
+    });
+  }, []);
+
   const contextValue: QuickLinksContextValue = {
-    quickLinks,
+   quickLinks,
     filteredQuickLinks,
     linkCategories,
     isLoading: !userData,
@@ -304,7 +332,10 @@ export const QuickLinksProvider: React.FC<QuickLinksProviderProps> = ({
     handleDeleteClick,
     handleDeleteConfirm,
     handleDeleteCancel,
+    handleEditClick,
     deleteDialog,
+    editDialog,
+    handleEditCancel,
     ownerId,
     customHandlers,
     alwaysShowDelete,

@@ -114,7 +114,7 @@ export const UnifiedLinksGrid = ({
 
             {/* Links Grid - Horizontal Layout - Conditionally Rendered */}
             {!isCollapsed && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-6 gap-3">
+              <div className="flex flex-wrap gap-3">
                 {categoryLinks.map((link) => (
                   <UnifiedLinkCard
                     key={link.id}

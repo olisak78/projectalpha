@@ -13,6 +13,8 @@ export function usePortalState() {
     setSelectedComponent: appState.setSelectedComponent,
     selectedLandscape: appState.selectedLandscape,
     setSelectedLandscape: appState.setSelectedLandscape,
+    getSelectedLandscapeForProject: appState.getSelectedLandscapeForProject,
+    setSelectedLandscapeForProject: appState.setSelectedLandscapeForProject,
     showLandscapeDetails: appState.showLandscapeDetails,
     setShowLandscapeDetails: appState.setShowLandscapeDetails,
     meHighlightNotifications: appState.meHighlightNotifications,

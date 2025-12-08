@@ -347,3 +347,23 @@ export interface UseLandscapeToolsReturn {
   urls: LandscapeToolUrls;
   availability: LandscapeToolsAvailability;
 }
+
+export interface ClosePullRequestPayload {
+  delete_branch: boolean;
+  owner: string;
+  repo: string;
+}
+
+export interface ClosePullRequestResponse {
+  success: boolean;
+  message: string;
+  pr_number: number;
+  branch_deleted?: boolean;
+}
+
+export interface ClosePullRequestParams {
+  prNumber: number;
+  owner: string;
+  repo: string;
+  delete_branch: boolean;
+}

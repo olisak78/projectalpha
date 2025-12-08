@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { QuickLinksGrid } from "./QuickLinksGrid";
-import { LoadingState, ErrorState, EmptyState } from "./QuickLinksStates";
+import { LoadingState} from "./QuickLinksStates";
 import { UserMeResponse } from "@/types/api";
 import { useCurrentUser } from "@/hooks/api/useMembers";
 import { AddLinkDialog } from "@/components/dialogs/AddLinkDialog";
@@ -18,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { EditLinkDialog } from "@/components/dialogs/EditLinkDialog";
 
 interface QuickLinksTabProps {
   userData?: UserMeResponse;
@@ -40,8 +41,29 @@ const QuickLinksTabContent = ({ emptyMessage, title }: { emptyMessage?: string; 
     handleDeleteConfirm,
     handleDeleteCancel,
     deleteDialog,
+    editDialog,
+    handleEditCancel,
     ownerId,
   } = useQuickLinksContext();
+
+   // Find the link being edited
+  const linkToEdit = useMemo(() => {
+    if (!editDialog.isOpen || !editDialog.linkId) return null;
+    const link = quickLinks.find(link => link.id === editDialog.linkId);
+    if (!link) return null;
+    
+    // Convert QuickLink to UserLink format expected by EditLinkDialog
+    return {
+      id: link.id,
+      name: link.title,
+      title: link.title,
+      description: link.description || '',
+      url: link.url,
+      category_id: link.categoryId,
+      tags: link.tags || [],
+      favorite: link.isFavorite
+    };
+  }, [editDialog, quickLinks]);
 
   // Render states
   if (isLoading) {
@@ -92,6 +114,17 @@ const QuickLinksTabContent = ({ emptyMessage, title }: { emptyMessage?: string; 
         onOpenChange={setIsAddLinkDialogOpen}
         ownerId={ownerId || currentUser?.uuid}
       />
+
+       {/* Edit Link Dialog */}
+      {linkToEdit && (
+        <EditLinkDialog
+          open={editDialog.isOpen}
+          onOpenChange={(open) => {
+            if (!open) handleEditCancel();
+          }}
+          linkData={linkToEdit}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialog.isOpen} onOpenChange={() => handleDeleteCancel()}>

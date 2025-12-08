@@ -23,6 +23,9 @@ vi.mock('@/components/ComponentsTabContent', () => ({
     system, 
     emptyStateMessage, 
     showLandscapeFilter,
+    showComponentMetrics,
+    summary,
+    isLoadingHealthSummary,
     onComponentClick //NEW: Added to test click handler
   }: any) => 
     React.createElement('div', { 'data-testid': 'components-tab-content' }, 
@@ -30,7 +33,11 @@ vi.mock('@/components/ComponentsTabContent', () => ({
       React.createElement('div', { 'data-testid': 'components-system' }, system),
       React.createElement('div', { 'data-testid': 'components-empty-message' }, emptyStateMessage),
       React.createElement('div', { 'data-testid': 'components-show-filter' }, showLandscapeFilter?.toString()),
-      React.createElement('div', { 'data-testid': 'components-has-click-handler' }, (!!onComponentClick).toString())
+      React.createElement('div', { 'data-testid': 'components-has-click-handler' }, (!!onComponentClick).toString()),
+      showComponentMetrics && React.createElement('div', { 'data-testid': 'health-overview' },
+        React.createElement('div', { 'data-testid': 'health-overview-loading' }, isLoadingHealthSummary?.toString()),
+        React.createElement('div', { 'data-testid': 'health-overview-summary' }, JSON.stringify(summary || {}))
+      )
     ),
 }));
 
@@ -72,7 +79,13 @@ vi.mock('@/contexts/HeaderNavigationContext', () => ({
 }));
 
 vi.mock('@/contexts/hooks', () => ({
-  usePortalState: () => ({ selectedLandscape: 'test', setSelectedLandscape: vi.fn(), setShowLandscapeDetails: vi.fn() }),
+  usePortalState: () => ({ 
+    selectedLandscape: 'test', 
+    setSelectedLandscape: vi.fn(), 
+    setShowLandscapeDetails: vi.fn(),
+    getSelectedLandscapeForProject: vi.fn(() => 'test'),
+    setSelectedLandscapeForProject: vi.fn()
+  }),
   useLandscapeManagement: () => ({ getFilteredLandscapeIds: vi.fn(), getProductionLandscapeIds: vi.fn() }),
   useComponentManagement: () => ({ componentFilter: '', setComponentFilter: vi.fn(), getAvailableComponents: vi.fn() }),
   useFeatureToggles: () => ({ 
@@ -87,7 +100,14 @@ vi.mock('@/hooks/useTabRouting', () => ({
 }));
 
 vi.mock('@/hooks/api/useComponents', () => ({
-  useComponentsByProject: () => ({ data: [], isLoading: false, error: null, refetch: mockRefetch }),
+  useComponentsByProject: () => ({ 
+    data: [
+      { id: 'comp-1', name: 'test-component', title: 'Test Component', project_id: 'test-project' }
+    ], 
+    isLoading: false, 
+    error: null, 
+    refetch: mockRefetch 
+  }),
 }));
 
 vi.mock('@/hooks/api/useLandscapes', () => ({
@@ -102,7 +122,7 @@ vi.mock('@/hooks/api/useTeams', () => ({
 vi.mock('@/hooks/api/useHealth', () => ({
   useHealth: () => ({ 
     healthChecks: [], 
-    summary: { total: 0, healthy: 0, down: 0, errors: 0 }, 
+    summary: { total: 10, up: 8, down: 2, error: 0, avgResponseTime: 150 }, 
     isLoading: false 
   }),
 }));

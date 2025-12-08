@@ -29,9 +29,11 @@ export const UnifiedLinkCard = ({
   const {
     showStarButton,
     showDeleteButton,
+    showEditButton,
     category,
     handleToggleFavorite,
-    handleDelete
+    handleDelete,
+    handleEdit
   } = useLinkCard(linkData);
 
   // Handle different favorite field names between contexts
@@ -43,8 +45,10 @@ export const UnifiedLinkCard = ({
     isFavorite,
     showStarButton,
     showDeleteButton,
+    showEditButton,
     onToggleFavorite: handleToggleFavorite,
-    onDelete: handleDelete
+    onDelete: handleDelete,
+    onEdit: handleEdit
   };
 
   // Use the appropriate component based on variant

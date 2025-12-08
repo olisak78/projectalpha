@@ -88,6 +88,11 @@ vi.mock('../../src/lib/utils', () => ({
   cn: (...classes: any[]) => classes.filter(Boolean).join(' '),
 }));
 
+// Mock healthApi
+vi.mock('../../src/services/healthApi', () => ({
+  fetchSystemInformation: vi.fn(),
+}));
+
 // Mock window.open
 const mockWindowOpen = vi.fn();
 Object.defineProperty(window, 'open', {
@@ -99,6 +104,7 @@ describe('ComponentCard', () => {
   let queryClient: QueryClient;
   let mockUseSonarMeasures: any;
   let mockUseComponentHealth: any;
+  let mockFetchSystemInformation: any;
 
   const mockComponent: Component = {
     id: 'comp-1',
@@ -145,8 +151,10 @@ describe('ComponentCard', () => {
     // Get the mocked functions
     const { useSonarMeasures } = await import('../../src/hooks/api/useSonarMeasures');
     const { useComponentHealth } = await import('../../src/hooks/api/useComponentHealth');
+    const { fetchSystemInformation } = await import('../../src/services/healthApi');
     mockUseSonarMeasures = vi.mocked(useSonarMeasures);
     mockUseComponentHealth = vi.mocked(useComponentHealth);
+    mockFetchSystemInformation = vi.mocked(fetchSystemInformation);
 
     // Default mock implementations
     mockUseSonarMeasures.mockReturnValue({
@@ -168,6 +176,12 @@ describe('ComponentCard', () => {
       },
       isLoading: false,
       error: null,
+    });
+
+    // Default mock for fetchSystemInformation to prevent errors in other tests
+    mockFetchSystemInformation.mockResolvedValue({
+      status: 'error',
+      error: 'No landscape data provided'
     });
   });
 
@@ -211,7 +225,7 @@ describe('ComponentCard', () => {
         <ComponentCard {...defaultProps} component={centralComponent} />
       );
 
-      expect(screen.getByText('Central Only')).toBeInTheDocument();
+      expect(screen.getByText('Central Service')).toBeInTheDocument();
     });
   });
 
@@ -632,6 +646,206 @@ describe('ComponentCard', () => {
       );
 
       expect(screen.getByTestId('component-card')).toBeInTheDocument();
+    });
+  });
+
+  describe('System Information', () => {
+    it('should fetch and display system information when landscape is selected', async () => {
+      // Mock successful system information response
+      const mockSystemInfo = {
+        app: '1.2.3',
+        sapui5: '1.108.0',
+        buildProperties: {
+          version: {
+            app: '1.2.3',
+            sapui5: '1.108.0'
+          }
+        }
+      };
+
+      mockFetchSystemInformation.mockResolvedValue({
+        status: 'success',
+        data: mockSystemInfo
+      });
+
+      const propsWithLandscapeData = {
+        ...defaultProps,
+        selectedLandscapeData: {
+          name: 'Production',
+          metadata: {
+            route: 'sap.hana.ondemand.com'
+          }
+        }
+      };
+
+      renderWithQueryClient(<ComponentCard {...propsWithLandscapeData} />);
+
+      // Wait for the useEffect to complete and system info to be fetched
+      await waitFor(() => {
+        expect(mockFetchSystemInformation).toHaveBeenCalledWith(
+          mockComponent,
+          {
+            name: 'Production',
+            route: 'sap.hana.ondemand.com'
+          }
+        );
+      });
+
+      // Check that version badges are displayed
+      await waitFor(() => {
+        expect(screen.getByText('App: 1.2.3')).toBeInTheDocument();
+        expect(screen.getByText('UI5: 1.108.0')).toBeInTheDocument();
+      });
+    });
+
+    it('should display version from buildProperties when direct app/sapui5 properties are not available', async () => {
+      const mockSystemInfo = {
+        buildProperties: {
+          version: {
+            app: '2.0.0',
+            sapui5: '1.110.0'
+          }
+        }
+      };
+
+      mockFetchSystemInformation.mockResolvedValue({
+        status: 'success',
+        data: mockSystemInfo
+      });
+
+      const propsWithLandscapeData = {
+        ...defaultProps,
+        selectedLandscapeData: {
+          name: 'Production',
+          metadata: {
+            route: 'sap.hana.ondemand.com'
+          }
+        }
+      };
+
+      renderWithQueryClient(<ComponentCard {...propsWithLandscapeData} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('App: 2.0.0')).toBeInTheDocument();
+        expect(screen.getByText('UI5: 1.110.0')).toBeInTheDocument();
+      });
+    });
+
+    it('should display simple string version when version is not an object', async () => {
+      const mockSystemInfo = {
+        buildProperties: {
+          version: '3.1.0'
+        }
+      };
+
+      mockFetchSystemInformation.mockResolvedValue({
+        status: 'success',
+        data: mockSystemInfo
+      });
+
+      const propsWithLandscapeData = {
+        ...defaultProps,
+        selectedLandscapeData: {
+          name: 'Production',
+          metadata: {
+            route: 'sap.hana.ondemand.com'
+          }
+        }
+      };
+
+      renderWithQueryClient(<ComponentCard {...propsWithLandscapeData} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('3.1.0')).toBeInTheDocument();
+      });
+    });
+
+    it('should show loading state while fetching system information', async () => {
+      // Mock a delayed response
+      mockFetchSystemInformation.mockImplementation(() => 
+        new Promise(resolve => setTimeout(() => resolve({
+          status: 'success',
+          data: { app: '1.0.0' }
+        }), 100))
+      );
+
+      const propsWithLandscapeData = {
+        ...defaultProps,
+        selectedLandscapeData: {
+          name: 'Production',
+          metadata: {
+            route: 'sap.hana.ondemand.com'
+          }
+        }
+      };
+
+      renderWithQueryClient(<ComponentCard {...propsWithLandscapeData} />);
+
+      // Should show loading state
+      expect(screen.getByText('Loading...')).toBeInTheDocument();
+
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(screen.getByText('App: 1.0.0')).toBeInTheDocument();
+      });
+    });
+
+    it('should not fetch system information when no landscape is selected', () => {
+      const propsWithoutLandscape = {
+        ...defaultProps,
+        selectedLandscape: null
+      };
+
+      renderWithQueryClient(<ComponentCard {...propsWithoutLandscape} />);
+
+      expect(mockFetchSystemInformation).not.toHaveBeenCalled();
+    });
+
+    it('should not fetch system information when component is disabled', () => {
+      const centralComponent = { ...mockComponent, 'central-service': true };
+      const propsWithDisabledComponent = {
+        ...defaultProps,
+        component: centralComponent,
+        isCentralLandscape: false,
+        selectedLandscapeData: {
+          name: 'Production',
+          metadata: {
+            route: 'sap.hana.ondemand.com'
+          }
+        }
+      };
+
+      renderWithQueryClient(<ComponentCard {...propsWithDisabledComponent} />);
+
+      expect(mockFetchSystemInformation).not.toHaveBeenCalled();
+    });
+
+    it('should handle system information fetch errors gracefully', async () => {
+      mockFetchSystemInformation.mockResolvedValue({
+        status: 'error',
+        error: 'Failed to fetch system info'
+      });
+
+      const propsWithLandscapeData = {
+        ...defaultProps,
+        selectedLandscapeData: {
+          name: 'Production',
+          metadata: {
+            route: 'sap.hana.ondemand.com'
+          }
+        }
+      };
+
+      renderWithQueryClient(<ComponentCard {...propsWithLandscapeData} />);
+
+      await waitFor(() => {
+        expect(mockFetchSystemInformation).toHaveBeenCalled();
+      });
+
+      // Should not crash and should not display version badges
+      expect(screen.getByTestId('component-card')).toBeInTheDocument();
+      expect(screen.queryByText(/App:/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/UI5:/)).not.toBeInTheDocument();
     });
   });
 });

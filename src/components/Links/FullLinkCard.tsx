@@ -1,4 +1,4 @@
-import { ExternalLink, Star, Trash2 } from "lucide-react";
+import { ExternalLink, Pencil, Star, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Link } from "@/types/developer-portal";
@@ -16,9 +16,11 @@ interface FullLinkCardProps {
   isFavorite: boolean;
   showStarButton: boolean;
   showDeleteButton: boolean;
+  showEditButton?: boolean;
   category?: Category;
   onToggleFavorite?: (linkId: string) => void;
   onDelete?: (linkId: string, linkTitle: string) => void;
+  onEdit?: (linkId: string) => void;
 }
 
 export const FullLinkCard = ({ 
@@ -26,11 +28,13 @@ export const FullLinkCard = ({
   isFavorite, 
   showStarButton, 
   showDeleteButton, 
+  showEditButton = false,
   category, 
   onToggleFavorite, 
-  onDelete 
+  onDelete,
+  onEdit 
 }: FullLinkCardProps) => {
-  // Extract common data
+  
   const { id, title, url, description, tags = [] } = linkData;
 
   const CategoryIcon = category?.icon;
@@ -49,6 +53,14 @@ export const FullLinkCard = ({
     e.stopPropagation();
     if (onDelete) {
       onDelete(id, title);
+    }
+  };
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onEdit) {
+      onEdit(id);
     }
   };
 
@@ -82,6 +94,15 @@ export const FullLinkCard = ({
               />
             </button>
           ) : null}
+           {showEditButton && (
+            <button
+              onClick={handleEditClick}
+              className="p-1.5 hover:bg-accent rounded-md transition-colors"
+              title="Edit link"
+            >
+              <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
+            </button>
+          )}
           {showDeleteButton && (
             <button
               onClick={handleDeleteClick}

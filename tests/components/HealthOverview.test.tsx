@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { HealthOverview } from '../../src/components/Health/HealthOverview';
+import { HealthOverview, calculateHealthPercentage } from '../../src/components/Health/HealthOverview';
 import type { HealthSummary } from '../../src/types/health';
 import '@testing-library/jest-dom/vitest';
 
@@ -80,5 +80,63 @@ describe('HealthOverview', () => {
     // Should have responsive grid classes
     expect(grid.className).toContain('flex gap-3');
  
+  });
+
+  describe('calculateHealthPercentage', () => {
+    it('should calculate healthy percentage correctly', () => {
+      const summary: HealthSummary = {
+        total: 10,
+        up: 8,
+        down: 2,
+        unknown: 0,
+        avgResponseTime: 125,
+        error: 0
+      };
+
+      const result = calculateHealthPercentage('Healthy', summary);
+      expect(result).toBe('80.0');
+    });
+
+    it('should calculate down percentage correctly with both down and error', () => {
+      const summary: HealthSummary = {
+        total: 10,
+        up: 7,
+        down: 2,
+        unknown: 0,
+        avgResponseTime: 125,
+        error: 1
+      };
+
+      const result = calculateHealthPercentage('Down', summary);
+      expect(result).toBe('30.0'); // (2 + 1) / 10 * 100 = 30.0
+    });
+
+    it('should return 0 when total is 0', () => {
+      const summary: HealthSummary = {
+        total: 0,
+        up: 0,
+        down: 0,
+        unknown: 0,
+        avgResponseTime: 0,
+        error: 0
+      };
+
+      expect(calculateHealthPercentage('Healthy', summary)).toBe('0');
+      expect(calculateHealthPercentage('Down', summary)).toBe('0');
+    });
+
+    it('should return 0 for unknown label', () => {
+      const summary: HealthSummary = {
+        total: 10,
+        up: 8,
+        down: 2,
+        unknown: 0,
+        avgResponseTime: 125,
+        error: 0
+      };
+
+      const result = calculateHealthPercentage('Unknown', summary);
+      expect(result).toBe('0');
+    });
   });
 });

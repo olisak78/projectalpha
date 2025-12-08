@@ -1,4 +1,4 @@
-import { Star, Trash2 } from "lucide-react";
+import { Star, Trash2, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "@/types/developer-portal";
 import type { QuickLink } from "@/contexts/QuickLinksContext";
@@ -8,8 +8,10 @@ interface CompactLinkCardProps {
   isFavorite: boolean;
   showStarButton: boolean;
   showDeleteButton: boolean;
+  showEditButton?: boolean;
   onToggleFavorite?: (linkId: string) => void;
   onDelete?: (linkId: string, linkTitle: string) => void;
+  onEdit?: (linkId: string) => void;
 }
 
 export const CompactLinkCard = ({ 
@@ -17,10 +19,12 @@ export const CompactLinkCard = ({
   isFavorite, 
   showStarButton, 
   showDeleteButton, 
+  showEditButton = false,
   onToggleFavorite, 
-  onDelete 
+  onDelete, 
+  onEdit
 }: CompactLinkCardProps) => {
-  // Extract common data
+ 
   const { id, title, url } = linkData;
 
   // Create handlers for the action buttons
@@ -40,15 +44,23 @@ export const CompactLinkCard = ({
     }
   };
 
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onEdit) {
+      onEdit(id);
+    }
+  };
+
   return (
     <div className="group">
       <a
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="block px-3 py-1.5 border rounded hover:shadow-sm hover:border-primary/50 transition-all duration-200 bg-background relative"
+        className="block px-3 py-2 border rounded hover:shadow-sm hover:border-primary/50 transition-all duration-200 bg-background relative"
       >
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-2 min-h-[1.5rem]">
           {/* Star on the left */}
           {showStarButton && (
             <button
@@ -67,9 +79,20 @@ export const CompactLinkCard = ({
             </button>
           )}
           
-          <h4 className="text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1 flex-1">
+          <h4 className="text-sm font-medium text-foreground group-hover:text-primary transition-colors whitespace-nowrap">
             {title}
           </h4>
+
+          {/* Edit button */}
+          {showEditButton && (
+            <button
+              onClick={handleEditClick}
+              className="p-1 hover:bg-accent rounded-md transition-colors flex-shrink-0 relative z-10"
+              title="Edit link"
+            >
+              <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
+            </button>
+          )}
           
           {/* Delete button on the right */}
           {showDeleteButton && (

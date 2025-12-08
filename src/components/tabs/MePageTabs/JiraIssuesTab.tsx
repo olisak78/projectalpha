@@ -8,12 +8,14 @@ import TablePagination from "@/components/TablePagination";
 import QuickFilterButtons, { FilterOption } from "@/components/QuickFilterButtons";
 
 type QuickFilterType = "bugs" | "tasks" | "both";
+type SubtaskFilterType = "parents" | "all" | "subtasks";
 
 export default function JiraIssuesTab() {
   const [search, setSearch] = useState<string>("");
   const [jiStatus, setJiStatus] = useState<string>("all");
   const [jiProject, setJiProject] = useState<string>("all");
   const [quickFilter, setQuickFilter] = useState<QuickFilterType>("both");
+  const [subtaskFilter, setSubtaskFilter] = useState<SubtaskFilterType>("parents");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<string>("updated_desc");
   const perPage = 10;
@@ -42,9 +44,97 @@ export default function JiraIssuesTab() {
   const filteredIssues = useMemo(() => {
     let filtered = allIssues;
 
-    // First, filter out issues that have a parent (they are subtasks)
-    // They will be displayed under their parent issue instead
-    filtered = filtered.filter((issue: JiraIssue) => !issue.fields?.parent);
+    // Apply subtask filtering based on subtaskFilter state
+    if (subtaskFilter === "parents") {
+      // Show only parent/regular tasks (filter out any issues that have a parent field)
+      // This is the original behavior
+      filtered = filtered.filter((issue: JiraIssue) => !issue.fields?.parent);
+
+    } else if (subtaskFilter === "all") {
+      // Show both parents and extract their subtasks as separate items
+      const parentsAndSubtasks: JiraIssue[] = [];
+      
+      allIssues.forEach((issue: JiraIssue) => {
+        // Add the parent/regular issue
+        if (!issue.fields?.parent) {
+          parentsAndSubtasks.push(issue);
+        }
+        
+        // If it has subtasks, extract and add them as separate issues
+        if (issue.fields?.subtasks && issue.fields.subtasks.length > 0) {
+          issue.fields.subtasks.forEach((subtask) => {
+            // Convert subtask to JiraIssue format
+            const subtaskIssue: JiraIssue = {
+              id: subtask.id,
+              key: subtask.key,
+              fields: {
+                summary: subtask.fields.summary,
+                status: subtask.fields.status,
+                issuetype: subtask.fields.issuetype,
+                priority: subtask.fields.priority,
+                created: issue.fields.created,
+                updated: issue.fields.updated,
+                parent: {
+                  id: issue.id,
+                  key: issue.key,
+                  fields: {
+                    summary: issue.fields.summary,
+                    status: issue.fields.status,
+                    issuetype: issue.fields.issuetype,
+                    priority: issue.fields.priority,
+                  },
+                },
+              },
+              project: issue.project,
+              link: `${issue.link.split('/browse/')[0]}/browse/${subtask.key}`,
+            };
+            parentsAndSubtasks.push(subtaskIssue);
+          });
+        }
+      });
+      
+      filtered = parentsAndSubtasks;
+
+    } else if (subtaskFilter === "subtasks") {
+      // Extract only subtasks from parent issues
+      const subtasksOnly: JiraIssue[] = [];
+      
+      allIssues.forEach((issue: JiraIssue) => {
+        if (issue.fields?.subtasks && issue.fields.subtasks.length > 0) {
+          issue.fields.subtasks.forEach((subtask) => {
+            // Convert subtask to JiraIssue format
+            const subtaskIssue: JiraIssue = {
+              id: subtask.id,
+              key: subtask.key,
+              fields: {
+                summary: subtask.fields.summary,
+                status: subtask.fields.status,
+                issuetype: subtask.fields.issuetype,
+                priority: subtask.fields.priority,
+                created: issue.fields.created,
+                updated: issue.fields.updated,
+                parent: {
+                  id: issue.id,
+                  key: issue.key,
+                  fields: {
+                    summary: issue.fields.summary,
+                    status: issue.fields.status,
+                    issuetype: issue.fields.issuetype,
+                    priority: issue.fields.priority,
+                  },
+                },
+              },
+              project: issue.project,
+              link: `${issue.link.split('/browse/')[0]}/browse/${subtask.key}`,
+            };
+            subtasksOnly.push(subtaskIssue);
+          });
+        }
+      });
+      
+      filtered = subtasksOnly;
+
+    }
 
     // Filter by quick filter (bugs/tasks/both)
     if (quickFilter !== "both") {
@@ -119,7 +209,7 @@ export default function JiraIssuesTab() {
     });
 
     return sorted;
-  }, [allIssues, quickFilter, search, jiStatus, jiProject, sortBy]);
+  }, [allIssues, quickFilter, search, jiStatus, jiProject, sortBy, subtaskFilter]);
 
   // Client-side pagination
   const totalPages = Math.ceil(filteredIssues.length / perPage);
@@ -127,7 +217,7 @@ export default function JiraIssuesTab() {
   const paginatedIssues = filteredIssues.slice(startIndex, startIndex + perPage);
 
   // Reset to first page when filters change
-  useEffect(() => setCurrentPage(1), [quickFilter, search, jiStatus, jiProject, sortBy]);
+  useEffect(() => setCurrentPage(1), [quickFilter, search, jiStatus, jiProject, sortBy, subtaskFilter]);
 
   // Get unique statuses and projects from all issues for filter options
   const availableStatuses = useMemo(() => {
@@ -167,7 +257,7 @@ export default function JiraIssuesTab() {
       <div>
         <QuickFilterButtons
           activeFilter={quickFilter}
-          onFilterChange={setQuickFilter}
+          onFilterChange={(filter) => setQuickFilter(filter as QuickFilterType)}
           filters={jiraFilterOptions}
         />
       </div>
@@ -184,6 +274,8 @@ export default function JiraIssuesTab() {
         onProjectChange={setJiProject}
         sortBy={sortBy}
         onSortByChange={setSortBy}
+        subtaskFilter={subtaskFilter}
+        onSubtaskFilterChange={(filter) => setSubtaskFilter(filter as SubtaskFilterType)}
       />
       {isLoading ? (
         <div className="flex items-center justify-center py-8">

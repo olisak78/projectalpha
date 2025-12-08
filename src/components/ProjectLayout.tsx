@@ -64,7 +64,16 @@ export function ProjectLayout({
   const { currentTabFromUrl, syncTabWithUrl } = useTabRouting();
 
   // Context hooks
-  const { selectedLandscape, setSelectedLandscape, setShowLandscapeDetails } = usePortalState();
+  const { 
+    getSelectedLandscapeForProject, 
+    setSelectedLandscapeForProject, 
+    setShowLandscapeDetails
+  } = usePortalState();
+  
+  // Get project-specific selected landscape (reactive to changes)
+  const selectedLandscape = useMemo(() => {
+    return getSelectedLandscapeForProject(projectId);
+  }, [getSelectedLandscapeForProject, projectId]);
 
   // API hooks
   const {
@@ -216,23 +225,23 @@ export function ProjectLayout({
     }
   }, [headerActiveTab, activeTab]);
 
-  // Set default landscape
+  // Set default landscape if no valid landscape is selected for this project
   useEffect(() => {
     if (apiLandscapes && apiLandscapes.length > 0) {
-      // Check if the currently selected landscape is valid for this project
-      const isSelectedLandscapeValid = selectedLandscape && 
-        apiLandscapes.some(landscape => landscape.id === selectedLandscape);
+      // Check if there's a valid landscape selection for this project
+      const currentSelection = getSelectedLandscapeForProject(projectId);
+      const isValidSelection = currentSelection && 
+        apiLandscapes.some(landscape => landscape.id === currentSelection);
       
-      // If no landscape is selected or the selected one is invalid for this project,
-      // set a default landscape
-      if (!isSelectedLandscapeValid) {
+      // If no valid selection exists, set the default
+      if (!isValidSelection) {
         const defaultLandscapeId = getDefaultLandscapeId(apiLandscapes, projectId);
         if (defaultLandscapeId) {
-          setSelectedLandscape(defaultLandscapeId);
+          setSelectedLandscapeForProject(projectId, defaultLandscapeId);
         }
       }
     }
-  }, [apiLandscapes, selectedLandscape, setSelectedLandscape, projectId]);
+  }, [apiLandscapes, setSelectedLandscapeForProject, projectId, getSelectedLandscapeForProject]);
 
   // Handlers
   const handleToggleComponentExpansion = (componentId: string) => {
@@ -275,7 +284,7 @@ export function ProjectLayout({
               selectedLandscape={selectedLandscape}
               selectedLandscapeData={selectedApiLandscape}
               landscapeGroups={landscapeGroupsArray}
-              onLandscapeChange={setSelectedLandscape}
+              onLandscapeChange={(landscapeId) => setSelectedLandscapeForProject(projectId, landscapeId)}
               onShowLandscapeDetails={() => setShowLandscapeDetails(true)}
               projectId={projectId}
             />
@@ -295,7 +304,6 @@ export function ProjectLayout({
                               {visibleComponents.length}
                             </Badge>
                           )}
-                          <HealthOverview summary={summary} isLoading={isLoadingHealth} />
                         </div>
                         <div className="flex items-center gap-2">
 
@@ -323,6 +331,7 @@ export function ProjectLayout({
                           onSearchTermChange={setComponentSearchTerm}
                           system={system}
                           showLandscapeFilter={showLandscapeFilter}
+                          showComponentMetrics={showComponentsMetrics}
                           selectedLandscape={selectedLandscape}
                           selectedLandscapeData={selectedApiLandscape}
                           teamNamesMap={teamNamesMap}
@@ -333,6 +342,8 @@ export function ProjectLayout({
                           isLoadingHealth={isLoadingHealth}
                           onComponentClick={handleComponentClick}
                           isCentralLandscape={isCentralLandscape}
+                          summary={summary}
+                          isLoadingHealthSummary={isLoadingHealth}
                         />
                       ) : (
                         <div className="border-2 border-dashed rounded-lg p-12 text-center">
@@ -356,7 +367,6 @@ export function ProjectLayout({
                               {apiComponents.length}
                             </Badge>
                           )}
-                          <HealthOverview summary={summary} isLoading={isLoadingHealth} />
                         </div>
                         <div className="flex items-center gap-2">
                           <HealthStatusFilter
@@ -415,6 +425,8 @@ export function ProjectLayout({
                 sortOrder={componentSortOrder}
                 onSortOrderChange={setComponentSortOrder}
                 isCentralLandscape={isCentralLandscape}
+                summary={summary}
+                isLoadingHealthSummary={isLoadingHealth}
               />
             )}
           </>
@@ -426,7 +438,7 @@ export function ProjectLayout({
             components={apiComponents}
             landscapeGroups={landscapeGroupsRecord}
             selectedLandscape={selectedLandscape}
-            onLandscapeChange={setSelectedLandscape}
+            onLandscapeChange={(landscapeId) => setSelectedLandscapeForProject(projectId, landscapeId)}
             onShowLandscapeDetails={() => setShowLandscapeDetails(true)}
             isLoadingComponents={componentsLoading}
           />

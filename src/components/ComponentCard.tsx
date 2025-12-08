@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Activity,
   Shield,
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Component } from "@/types/api";
 import { useSonarMeasures } from "@/hooks/api/useSonarMeasures";
-import { type SystemInformation } from "@/services/healthApi";
+import { type SystemInformation, fetchSystemInformation } from "@/services/healthApi";
 import type { ComponentHealthCheck } from "@/types/health";
 import { GithubIcon } from "./icons/GithubIcon";
 import { useComponentHealth } from "@/hooks/api/useComponentHealth";
@@ -60,6 +60,41 @@ export default function ComponentCard({
   );
 
   const isDisabled = component['central-service'] === true && !isCentralLandscape;
+
+  // Fetch system information when landscape changes
+  useEffect(() => {
+    const loadSystemInfo = async () => {
+      if (!selectedLandscape || !selectedLandscapeData || isDisabled) {
+        setSystemInfo(null);
+        return;
+      }
+
+      setLoadingSystemInfo(true);
+      try {
+        const landscapeConfig = {
+          name: selectedLandscapeData.name || selectedLandscape,
+          route: selectedLandscapeData.metadata?.route ||
+            selectedLandscapeData.landscape_url ||
+            'cfapps.sap.hana.ondemand.com',
+        };
+        
+        const result = await fetchSystemInformation(component, landscapeConfig);
+        
+        if (result.status === 'success' && result.data) {
+          setSystemInfo(result.data);
+        } else {
+          setSystemInfo(null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch system info:', error);
+        setSystemInfo(null);
+      } finally {
+        setLoadingSystemInfo(false);
+      }
+    };
+
+    loadSystemInfo();
+  }, [component, selectedLandscape, selectedLandscapeData, isDisabled, setSystemInfo, setLoadingSystemInfo]);
 
   // Handle card click - only navigate if not clicking on buttons
   const handleCardClick = (e: React.MouseEvent) => {
@@ -161,7 +196,7 @@ export default function ComponentCard({
                 <h3 className="font-semibold text-base truncate leading-tight">{component.title || component.name}</h3>
                 {component['central-service'] && (
                   <Badge variant="secondary" className="text-xs px-2 py-0.5">
-                    Central Only
+                    Central Service
                   </Badge>
                 )}
                 {/* Only show health badge if not disabled */}
@@ -177,11 +212,13 @@ export default function ComponentCard({
                 </Badge>
               )}
             </div>
-            {isDisabled && (
-              <Badge variant="outline" className="text-xs">
-                Not Available in this Landscape
-              </Badge>
-            )}
+            <div className="h-5 flex items-center">
+              {isDisabled && (
+                <Badge variant="outline" className="text-xs">
+                  Not Available in this Landscape
+                </Badge>
+              )}
+            </div>
 
             {/* Version Badges and Action Buttons Row */}
             <div className="flex items-center justify-between gap-2">

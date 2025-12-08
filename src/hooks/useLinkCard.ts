@@ -29,6 +29,7 @@ export const useLinkCard = (linkData: Link | QuickLink) => {
   // Configure behavior based on context type
   let handleToggleFavorite: ((linkId: string) => void) | undefined;
   let handleDelete: ((linkId: string, linkTitle: string) => void) | undefined;
+  let handleEdit: ((linkId: string) => void) | undefined;
   let linkCategories: any[] = [];
   let alwaysShowDelete = false;
   let showStarButton = false;
@@ -37,6 +38,7 @@ export const useLinkCard = (linkData: Link | QuickLink) => {
     case 'quicklinks':
       handleToggleFavorite = quickLinksContext!.handleToggleFavorite;
       handleDelete = quickLinksContext!.handleDeleteClick;
+      handleEdit = quickLinksContext!.handleEditClick;
       linkCategories = quickLinksContext!.linkCategories;
       alwaysShowDelete = quickLinksContext!.alwaysShowDelete || false;
       // HomePage (Quick Links): Show star if link is favorite. Teams: always show star
@@ -71,11 +73,16 @@ export const useLinkCard = (linkData: Link | QuickLink) => {
     return false;
   })();
 
+  // Edit button should be shown only for deletable links (same logic as delete button)
+  const showEditButton = showDeleteButton && !!handleEdit;
+
   return {
     showStarButton,
     showDeleteButton,
+    showEditButton,
     category,
     handleToggleFavorite,
-    handleDelete
+    handleDelete,
+    handleEdit
   };
 };

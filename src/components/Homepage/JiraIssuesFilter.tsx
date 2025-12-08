@@ -12,6 +12,8 @@ interface JiraIssuesFilterProps {
   onProjectChange: (project: string) => void;
   sortBy?: string;
   onSortByChange?: (sortBy: string) => void;
+  subtaskFilter?: string;
+  onSubtaskFilterChange?: (filter: string) => void;
 }
 
 function LabelText({ children }: { children: React.ReactNode }) {
@@ -29,6 +31,8 @@ export default function JiraIssuesFilter({
   onProjectChange,
   sortBy,
   onSortByChange,
+  subtaskFilter,
+  onSubtaskFilterChange,
 }: JiraIssuesFilterProps) {
   return (
     <div className="flex flex-col md:flex-row gap-3 md:items-end">
@@ -75,6 +79,23 @@ export default function JiraIssuesFilter({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Subtask Filter - NEW */}
+      {onSubtaskFilterChange && (
+        <div className="min-w-[180px]">
+          <LabelText>Show</LabelText>
+          <Select value={subtaskFilter || "parents"} onValueChange={onSubtaskFilterChange}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="parents">Parent Tasks Only</SelectItem>
+              <SelectItem value="all">All (Parents + Subtasks)</SelectItem>
+              <SelectItem value="subtasks">Subtasks Only</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Order by */}
       {onSortByChange && (

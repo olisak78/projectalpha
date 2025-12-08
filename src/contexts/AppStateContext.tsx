@@ -23,6 +23,10 @@ interface AppStateContextType {
   selectedLandscape: string | null;
   setSelectedLandscape: (landscape: string | null) => void;
   
+  // Project-specific landscape selection
+  getSelectedLandscapeForProject: (projectId: string) => string | null;
+  setSelectedLandscapeForProject: (projectId: string, landscapeId: string | null) => void;
+  
   // Notifications
   meHighlightNotifications: boolean;
   setMeHighlightNotifications: (highlight: boolean) => void;
@@ -57,12 +61,70 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
     "table"
   );
   
+  // Non-persisted state (session-only) - selectedLandscape should not be persisted
+  const [selectedLandscape, setSelectedLandscape] = useState<string | null>(null);
+  
+  // Project-specific landscape selections stored in React state
+  const [projectLandscapeSelections, setProjectLandscapeSelections] = useState<Record<string, string>>({});
+  
   // Non-persisted state (session-only)
   const [activeTab, setActiveTab] = useState("components");
   const [showLandscapeDetails, setShowLandscapeDetails] = useState(false);
   const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
-  const [selectedLandscape, setSelectedLandscape] = useState<string | null>(null);
   const [meHighlightNotifications, setMeHighlightNotifications] = useState(false);
+
+  // Initialize project landscape selections from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('selectedLandscapes');
+      if (saved) {
+        const savedLandscapes: Array<{projectId: string, landscapeId: string}> = JSON.parse(saved);
+        const selections: Record<string, string> = {};
+        savedLandscapes.forEach(item => {
+          selections[item.projectId] = item.landscapeId;
+        });
+        setProjectLandscapeSelections(selections);
+      }
+    } catch (error) {
+      console.warn('Failed to load landscape selections from localStorage:', error);
+    }
+  }, []);
+
+  // Project-specific landscape functions
+  const getSelectedLandscapeForProject = (projectId: string): string | null => {
+    return projectLandscapeSelections[projectId] || null;
+  };
+
+  const setSelectedLandscapeForProject = (projectId: string, landscapeId: string | null): void => {
+    // Update React state
+    setProjectLandscapeSelections(prev => {
+      const updated = { ...prev };
+      if (landscapeId) {
+        updated[projectId] = landscapeId;
+      } else {
+        delete updated[projectId];
+      }
+      return updated;
+    });
+
+    // Update localStorage
+    try {
+      const saved = localStorage.getItem('selectedLandscapes');
+      const savedLandscapes: Array<{projectId: string, landscapeId: string}> = saved ? JSON.parse(saved) : [];
+      
+      // Remove existing entry for this project
+      const filteredLandscapes = savedLandscapes.filter(item => item.projectId !== projectId);
+      
+      // Add new entry if landscapeId is provided
+      if (landscapeId) {
+        filteredLandscapes.push({ projectId, landscapeId });
+      }
+      
+      localStorage.setItem('selectedLandscapes', JSON.stringify(filteredLandscapes));
+    } catch (error) {
+      console.warn('Failed to set selected landscape for project:', error);
+    }
+  };
 
   const value: AppStateContextType = {
     currentDevId,
@@ -77,6 +139,8 @@ export function AppStateProvider({ children }: AppStateProviderProps) {
     setSelectedComponent,
     selectedLandscape,
     setSelectedLandscape,
+    getSelectedLandscapeForProject,
+    setSelectedLandscapeForProject,
     meHighlightNotifications,
     setMeHighlightNotifications,
   };

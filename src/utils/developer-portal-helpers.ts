@@ -85,6 +85,11 @@ export const getBasePath = (projects: string[], pathname: string): string | null
   if (segments[0] === 'teams') return '/teams';
   if (segments[0] === 'ai-arena') return '/ai-arena';
   
+  // Handle component view pages - these should have their own tab management
+  if (projects.includes(segments[0]) && segments[1] === 'component' && segments[2]) {
+    return `/${segments[0]}/component/${segments[2]}`;
+  }
+  
   // Handle dynamic project pages
   if (projects.includes(segments[0])) {
     return `/${segments[0]}`;

@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { TeamComponents } from "@/components/Team/TeamComponents";
+import { HealthOverview } from "@/components/Health/HealthOverview";
 import { Component } from "@/types/api";
 import type { ComponentHealthCheck } from "@/types/health";
 import {
@@ -41,6 +42,8 @@ interface ComponentsTabContentProps {
   viewSwitcher?: ReactNode;
   onComponentClick?: (componentId: string) => void;
   isCentralLandscape?: boolean;
+  summary?: any;
+  isLoadingHealthSummary?: boolean;
 }
 
 export function ComponentsTabContent({
@@ -69,6 +72,8 @@ export function ComponentsTabContent({
   viewSwitcher,
   onComponentClick,
   isCentralLandscape = false,
+  summary,
+  isLoadingHealthSummary = false,
 }: ComponentsTabContentProps) {
   const { libraryComponents, nonLibraryComponents } = useMemo(() => {
     let filtered = components;
@@ -170,6 +175,9 @@ export function ComponentsTabContent({
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
+          )}
+          {showComponentMetrics && (
+            <HealthOverview summary={summary} isLoading={isLoadingHealthSummary} />
           )}
         </div>
       )}

@@ -17,6 +17,7 @@ import '@testing-library/jest-dom/vitest';
 vi.mock('@/hooks/api/useComponents');
 vi.mock('@/hooks/api/useLandscapes');
 vi.mock('@/contexts/hooks');
+vi.mock('@/contexts/HeaderNavigationContext');
 vi.mock('@/services/healthApi');
 vi.mock('@/hooks/api/useSonarMeasures');
 vi.mock('@/hooks/api/useSwaggerUI');
@@ -111,8 +112,22 @@ const mockSonarData = {
 };
 
 describe('ComponentViewPage', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+
+    // Mock useHeaderNavigation hook
+    const { useHeaderNavigation } = await import('@/contexts/HeaderNavigationContext');
+    vi.mocked(useHeaderNavigation).mockReturnValue({
+      tabs: [
+        { id: 'overview', label: 'Overview' },
+        { id: 'api', label: 'API' }
+      ],
+      activeTab: 'overview',
+      setTabs: vi.fn(),
+      setActiveTab: vi.fn(),
+      isDropdown: false,
+      setIsDropdown: vi.fn(),
+    });
 
     vi.mocked(useComponentsByProject).mockReturnValue({
       data: [mockComponent],
@@ -132,6 +147,8 @@ describe('ComponentViewPage', () => {
 
     vi.mocked(usePortalState).mockReturnValue({
       selectedLandscape: 'eu10-canary',
+      getSelectedLandscapeForProject: vi.fn().mockReturnValue('eu10-canary'),
+      setSelectedLandscapeForProject: vi.fn(),
     } as any);
 
     vi.mocked(buildHealthEndpoint).mockReturnValue('https://accounts-service.cfapps.sap.hana.ondemand.com/health');
@@ -180,7 +197,7 @@ describe('ComponentViewPage', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('tab', { name: /overview/i, selected: true })).toBeInTheDocument();
+    // ComponentViewPage should render the overview component by default
     expect(screen.getByTestId('component-view-overview')).toBeInTheDocument();
   });
 
@@ -287,6 +304,8 @@ describe('ComponentViewPage', () => {
   it('should handle missing selected landscape', () => {
     vi.mocked(usePortalState).mockReturnValue({
       selectedLandscape: null,
+      getSelectedLandscapeForProject: vi.fn().mockReturnValue(null),
+      setSelectedLandscapeForProject: vi.fn(),
     } as any);
 
     render(
@@ -328,6 +347,8 @@ describe('ComponentViewPage', () => {
   it('should not fetch health when landscape is missing', async () => {
     vi.mocked(usePortalState).mockReturnValue({
       selectedLandscape: null,
+      getSelectedLandscapeForProject: vi.fn().mockReturnValue(null),
+      setSelectedLandscapeForProject: vi.fn(),
     } as any);
 
     render(
@@ -394,8 +415,9 @@ describe('ComponentViewPage', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /api/i })).toBeInTheDocument();
+    // ComponentViewPage should render the overview component by default
+    // Tabs are now managed by HeaderNavigation, not rendered directly by ComponentViewPage
+    expect(screen.getByTestId('component-view-overview')).toBeInTheDocument();
   });
 
 
@@ -423,6 +445,20 @@ describe('ComponentViewPage', () => {
 
   //NEW: Test Swagger data is loaded for API tab
   it('should load Swagger data when API tab is active', async () => {
+    // Mock the header navigation to return 'api' as active tab
+    const { useHeaderNavigation } = await import('@/contexts/HeaderNavigationContext');
+    vi.mocked(useHeaderNavigation).mockReturnValue({
+      tabs: [
+        { id: 'overview', label: 'Overview' },
+        { id: 'api', label: 'API' }
+      ],
+      activeTab: 'api', // Set API tab as active
+      setTabs: vi.fn(),
+      setActiveTab: vi.fn(),
+      isDropdown: false,
+      setIsDropdown: vi.fn(),
+    });
+
     render(
       <MemoryRouter initialEntries={['/cis20/component/accounts-service/api']}>
         <Routes>
