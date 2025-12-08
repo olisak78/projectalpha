@@ -18,43 +18,55 @@ import { ReactNode } from 'react';
 export interface PluginMetadata {
   /** Unique identifier for the plugin */
   id: string;
-  
-  /** Human-readable name displayed in the portal */
+
+  /** Machine-friendly plugin name */
   name: string;
-  
+
+  /** Human-readable title displayed in the portal */
+  title: string;
+
   /** Short description of what the plugin does */
   description: string;
-  
+
+  /** Who created the plugin */
+  createdBy: string;
+
   /** Version following semver (e.g., "1.0.0") */
-  version: string;
-  
+  version?: string;
+
   /** Author/developer name or team */
-  author: string;
-  
+  author?: string;
+
   /** URL to the compiled JS bundle (e.g., GitHub raw URL or CDN) */
-  bundleUrl: string;
-  
+  bundleUrl?: string;
+
+  /** Path to the compiled JS bundle as provided by the registry */
+  jsPath?: string;
+
+  /** Path to the plugin component inside the bundle (if applicable) */
+  componentPath?: string;
+
   /** Optional icon URL or emoji */
   icon?: string;
-  
+
   /** Category for organizing plugins (e.g., "Data", "Monitoring", "Tools") */
   category?: string;
-  
+
   /** Tags for searchability */
   tags?: string[];
-  
+
   /** Whether the plugin is currently active/enabled */
-  enabled: boolean;
-  
+  enabled?: boolean;
+
   /** Timestamp when the plugin was registered */
-  createdAt: string;
-  
+  createdAt?: string;
+
   /** Timestamp of last update */
-  updatedAt: string;
-  
+  updatedAt?: string;
+
   /** Optional configuration schema for plugin settings */
   configSchema?: Record<string, any>;
-  
+
   /** Minimum portal version required (semver) */
   minPortalVersion?: string;
 }
@@ -315,10 +327,14 @@ export interface PluginQueryParams {
  */
 export interface RegisterPluginRequest {
   name: string;
+  title: string;
   description: string;
   version: string;
   author: string;
+  createdBy?: string;
   bundleUrl: string;
+  jsPath?: string;
+  componentPath?: string;
   icon?: string;
   category?: string;
   tags?: string[];
@@ -331,9 +347,12 @@ export interface RegisterPluginRequest {
  */
 export interface UpdatePluginRequest {
   name?: string;
+  title?: string;
   description?: string;
   version?: string;
   bundleUrl?: string;
+  jsPath?: string;
+  componentPath?: string;
   icon?: string;
   category?: string;
   tags?: string[];

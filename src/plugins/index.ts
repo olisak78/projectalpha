@@ -12,6 +12,6 @@ export * from './types';
 export { PluginApiClient } from './api/PluginApiClient';
 
 // Components
-export { PluginContainer } from './components/PluginContainer';
-export { PluginHeader } from './components/PluginHeader';
-export { PluginBody } from './components/PluginBody';
+export { BaseContainer, PluginContainer } from './components/PluginContainer';
+export { BaseHeader, PluginHeader } from './components/PluginHeader';
+export { BaseBody, PluginBody } from './components/PluginBody';

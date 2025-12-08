@@ -9,27 +9,27 @@ import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 
-interface PluginBodyProps {
+interface BaseBodyProps {
   /** Plugin content */
   children: React.ReactNode;
-  
+
   /** Loading state */
   isLoading?: boolean;
-  
+
   /** Error state */
   error?: Error | string | null;
-  
+
   /** Optional custom loading message */
   loadingMessage?: string;
-  
+
   /** Optional retry handler for errors */
   onRetry?: () => void;
-  
+
   /** Minimum height for the body */
   minHeight?: string;
 }
 
-export const PluginBody: React.FC<PluginBodyProps> = ({
+export const BaseBody: React.FC<BaseBodyProps> = ({
   children,
   isLoading = false,
   error = null,
@@ -49,8 +49,8 @@ export const PluginBody: React.FC<PluginBodyProps> = ({
         <Loader2
           className={`
             w-8 h-8 animate-spin
-            ${actualTheme === 'dark' 
-              ? 'text-gray-400' 
+            ${actualTheme === 'dark'
+              ? 'text-gray-400'
               : 'text-gray-600'
             }
           `}
@@ -58,8 +58,8 @@ export const PluginBody: React.FC<PluginBodyProps> = ({
         <p
           className={`
             mt-4 text-sm
-            ${actualTheme === 'dark' 
-              ? 'text-gray-400' 
+            ${actualTheme === 'dark'
+              ? 'text-gray-400'
               : 'text-gray-600'
             }
           `}
@@ -82,8 +82,8 @@ export const PluginBody: React.FC<PluginBodyProps> = ({
         <div
           className={`
             rounded-full p-3 mb-4
-            ${actualTheme === 'dark' 
-              ? 'bg-red-900/20' 
+            ${actualTheme === 'dark'
+              ? 'bg-red-900/20'
               : 'bg-red-50'
             }
           `}
@@ -91,8 +91,8 @@ export const PluginBody: React.FC<PluginBodyProps> = ({
           <AlertCircle
             className={`
               w-8 h-8
-              ${actualTheme === 'dark' 
-                ? 'text-red-400' 
+              ${actualTheme === 'dark'
+                ? 'text-red-400'
                 : 'text-red-600'
               }
             `}
@@ -102,8 +102,8 @@ export const PluginBody: React.FC<PluginBodyProps> = ({
         <h3
           className={`
             text-lg font-semibold mb-2
-            ${actualTheme === 'dark' 
-              ? 'text-gray-100' 
+            ${actualTheme === 'dark'
+              ? 'text-gray-100'
               : 'text-gray-900'
             }
           `}
@@ -114,8 +114,8 @@ export const PluginBody: React.FC<PluginBodyProps> = ({
         <p
           className={`
             text-sm text-center max-w-md mb-4
-            ${actualTheme === 'dark' 
-              ? 'text-gray-400' 
+            ${actualTheme === 'dark'
+              ? 'text-gray-400'
               : 'text-gray-600'
             }
           `}
@@ -150,3 +150,5 @@ export const PluginBody: React.FC<PluginBodyProps> = ({
     </div>
   );
 };
+
+export const PluginBody = BaseBody;

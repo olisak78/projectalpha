@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronRight, ChevronLeft, Users, Wrench, Home, Link, Network, Brain, MessageSquare } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Users, Wrench, Home, Link, Network, Brain, MessageSquare, Puzzle } from 'lucide-react';
 import { useSidebarState } from '@/contexts/SidebarContext';
 import { useProjectVisibility } from '@/hooks/useProjectVisibility';
 import { CloudAutomationIcon } from '../icons/CloudAutomationIcon';
@@ -23,6 +23,7 @@ const getProjectIcon = (project: string, projectsData) => {
         case 'Teams': return <Users size={16} />;
         case 'Self Service': return <Wrench size={16} />;
         case 'Links': return <Link size={16} />;
+        case 'Plugins': return <Puzzle size={16} />;
         case 'AI Arena': return <Brain size={16} />;
         default: break;
     }
@@ -61,7 +62,7 @@ export const SideBar: React.FC<SideBarProps> = ({ activeProject, onProjectChange
     // Function to determine if a project should be visible in the sidebar based on visibility rules
     const isProjectVisibleInSidebar = (project: string, projectsData: any[]) => {
         // Static projects (always show)
-        const staticProjects = ['Home', 'Teams', 'Self Service', 'Links', 'AI Arena'];
+        const staticProjects = ['Home', 'Teams', 'Self Service', 'Links', 'Plugins', 'AI Arena'];
         if (staticProjects.includes(project)) {
             return true;
         }

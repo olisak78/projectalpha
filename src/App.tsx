@@ -20,6 +20,7 @@ import HomePage from "./pages/HomePage";
 import LinksPage from "./pages/LinksPage";
 import AIArenaPage from "./pages/AIArenaPage";
 import { DynamicProjectPage } from "./pages/DynamicProjectPage";
+import PluginsPage from "./pages/PluginsPage";
 
 import { QueryProvider } from './providers/QueryProvider';
 import ComponentViewPage from "./pages/ComponentViewPage";
@@ -83,6 +84,7 @@ const App = () => {
                     <Route path="links" element={<LinksPage />} />
                     <Route path="ai-arena" element={<AIArenaPage />} />
                     <Route path="ai-arena/:tabId" element={<AIArenaPage />} />
+                    <Route path="plugins" element={<PluginsPage />} />
 
                     {/* Dynamic projects */}
                     <Route path=":projectName">

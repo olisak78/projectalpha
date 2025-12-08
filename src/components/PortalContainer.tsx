@@ -9,6 +9,7 @@ const staticRouteToProjectMap: Record<string, string> = {
   "/": "Home",
   "/teams": "Teams",
   "/links": "Links",
+  "/plugins": "Plugins",
   "/self-service": "Self Service",
   "/ai-arena": "AI Arena",
 };
@@ -18,6 +19,7 @@ const staticProjectToRouteMap: Record<string, string> = {
   "Teams": "/teams",
   "Self Service": "/self-service",
   "Links": "/links",
+  "Plugins": "/plugins",
   "AI Arena": "/ai-arena",
 };
 
@@ -33,6 +35,7 @@ export const PortalContainer: React.FC = () => {
     "Teams",
     ...projects.map(project => project.title || project.name),
     "Links",
+    "Plugins",
     "Self Service",
     "AI Arena",
   ];
