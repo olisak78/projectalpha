@@ -5,7 +5,6 @@
  * All requests are scoped to /api/plugins/:pluginId/*
  */
 
-import { PluginApiClient as IPluginApiClient } from '../types';
 
 export class PluginApiClient implements IPluginApiClient {
   private baseUrl: string;

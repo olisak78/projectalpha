@@ -8,21 +8,21 @@ import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import * as LucideIcons from 'lucide-react';
 
-interface PluginHeaderProps {
+interface BaseHeaderProps {
   /** Plugin title */
   title: string;
-  
+
   /** Optional description */
   description?: string;
-  
+
   /** Optional Lucide icon name */
   icon?: string;
-  
+
   /** Optional action buttons/elements */
   actions?: React.ReactNode;
 }
 
-export const PluginHeader: React.FC<PluginHeaderProps> = ({
+export const BaseHeader: React.FC<BaseHeaderProps> = ({
   title,
   description,
   icon,
@@ -31,7 +31,7 @@ export const PluginHeader: React.FC<PluginHeaderProps> = ({
   const { actualTheme } = useTheme();
 
   // Dynamically get icon component from Lucide
-  const IconComponent = icon 
+  const IconComponent = icon
     ? (LucideIcons as any)[icon] as React.ComponentType<{ className?: string }>
     : null;
 
@@ -39,8 +39,8 @@ export const PluginHeader: React.FC<PluginHeaderProps> = ({
     <div
       className={`
         px-6 py-4 border-b
-        ${actualTheme === 'dark' 
-          ? 'border-gray-700' 
+        ${actualTheme === 'dark'
+          ? 'border-gray-700'
           : 'border-gray-200'
         }
       `}
@@ -51,8 +51,8 @@ export const PluginHeader: React.FC<PluginHeaderProps> = ({
             <div
               className={`
                 mt-1
-                ${actualTheme === 'dark' 
-                  ? 'text-gray-400' 
+                ${actualTheme === 'dark'
+                  ? 'text-gray-400'
                   : 'text-gray-600'
                 }
               `}
@@ -60,26 +60,26 @@ export const PluginHeader: React.FC<PluginHeaderProps> = ({
               <IconComponent className="w-5 h-5" />
             </div>
           )}
-          
+
           <div>
             <h2
               className={`
                 text-lg font-semibold
-                ${actualTheme === 'dark' 
-                  ? 'text-gray-100' 
+                ${actualTheme === 'dark'
+                  ? 'text-gray-100'
                   : 'text-gray-900'
                 }
               `}
             >
               {title}
             </h2>
-            
+
             {description && (
               <p
                 className={`
                   mt-1 text-sm
-                  ${actualTheme === 'dark' 
-                    ? 'text-gray-400' 
+                  ${actualTheme === 'dark'
+                    ? 'text-gray-400'
                     : 'text-gray-600'
                   }
                 `}
@@ -99,3 +99,5 @@ export const PluginHeader: React.FC<PluginHeaderProps> = ({
     </div>
   );
 };
+
+export const PluginHeader = BaseHeader;

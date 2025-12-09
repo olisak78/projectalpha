@@ -212,18 +212,14 @@ export default function ComponentCard({
                 </Badge>
               )}
             </div>
-            <div className="h-5 flex items-center">
-              {isDisabled && (
-                <Badge variant="outline" className="text-xs">
-                  Not Available in this Landscape
-                </Badge>
-              )}
-            </div>
-
             {/* Version Badges and Action Buttons Row */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 flex-wrap min-h-[20px]">
-                {selectedLandscape && systemInfo && (() => {
+                {isDisabled ? (
+                  <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 font-normal text-muted-foreground">
+                    Not Available in this Landscape
+                  </Badge>
+                ) : selectedLandscape && systemInfo && (() => {
                   // Check for direct app/sapui5 properties (from /version endpoint)
                   if (systemInfo.app || systemInfo.sapui5) {
                     return (
@@ -264,11 +260,15 @@ export default function ComponentCard({
                     );
                   }
                   // Simple string version
-                  return (
-                    <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 font-normal text-muted-foreground">
-                      {version}
-                    </Badge>
-                  );
+                  if (typeof version === 'string') {
+                    return (
+                      <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 font-normal text-muted-foreground">
+                        {version}
+                      </Badge>
+                    );
+                  }
+                  
+                  return null;
                 })()}
                 {selectedLandscape && loadingSystemInfo && (
                   <span className="text-[11px] text-muted-foreground">Loading...</span>

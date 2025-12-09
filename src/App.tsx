@@ -20,9 +20,9 @@ import HomePage from "./pages/HomePage";
 import LinksPage from "./pages/LinksPage";
 import AIArenaPage from "./pages/AIArenaPage";
 import { DynamicProjectPage } from "./pages/DynamicProjectPage";
-
 import { QueryProvider } from './providers/QueryProvider';
 import ComponentViewPage from "./pages/ComponentViewPage";
+import PluginsPage from "./pages/PluginsPage";
 
 // --- Wrapper components for dynamic projects ---
 const DynamicProjectPageWrapper = () => {
@@ -83,6 +83,7 @@ const App = () => {
                     <Route path="links" element={<LinksPage />} />
                     <Route path="ai-arena" element={<AIArenaPage />} />
                     <Route path="ai-arena/:tabId" element={<AIArenaPage />} />
+                    <Route path="plugins" element={<PluginsPage />} />
 
                     {/* Dynamic projects */}
                     <Route path=":projectName">

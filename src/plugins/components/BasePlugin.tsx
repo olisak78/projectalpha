@@ -1,21 +1,23 @@
 /**
  * BasePlugin Component
- * 
+ *
  * Wrapper component that provides a standardized environment for all plugins.
  */
 
-import React, { Suspense, useState, useEffect } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Loader2 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertCircle, Loader2, Puzzle, Shield } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
+import { BaseBody } from './PluginBody';
+import { BaseContainer } from './PluginContainer';
+import { BaseHeader } from './PluginHeader';
 import { loadPlugin } from '../utils/pluginLoader';
-import { PluginContext, PluginMetadata, PluginState, PluginTheme } from '../types/plugin.types';
+import { PluginContext, PluginManifest, PluginMetadata, PluginState, PluginTheme } from '../types/plugin.types';
 import { PluginApiClient } from '../utils/PluginApiClient';
-
 
 interface BasePluginProps {
   metadata: PluginMetadata;
@@ -66,43 +68,25 @@ function PluginSkeleton() {
 
 function PluginCrashScreen({ error, onRetry }: { error?: Error; onRetry: () => void }) {
   return (
-    <Card className="border-destructive">
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <CardTitle className="text-destructive">Plugin Crashed</CardTitle>
-        </div>
-        <CardDescription>The plugin encountered an error.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error && (
-          <div className="bg-muted p-4 rounded-md">
-            <p className="text-sm font-mono text-destructive">{error.message}</p>
-          </div>
-        )}
-        <Button onClick={onRetry} variant="outline">Retry</Button>
-      </CardContent>
-    </Card>
+    <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+      <div className="flex items-center justify-center h-12 w-12 rounded-full bg-destructive/10 text-destructive">
+        <AlertCircle className="h-6 w-6" />
+      </div>
+      <div>
+        <p className="font-semibold text-destructive">Plugin Crashed</p>
+        <p className="text-sm text-muted-foreground">{error?.message ?? 'An unexpected error occurred.'}</p>
+      </div>
+      <Button onClick={onRetry} variant="outline">Retry</Button>
+    </div>
   );
 }
 
-function PluginLoadError({ error, onRetry }: { error: string; onRetry: () => void }) {
-  return (
-    <Card className="border-destructive">
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <CardTitle className="text-destructive">Failed to Load Plugin</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="bg-muted p-4 rounded-md">
-          <p className="text-sm text-destructive">{error}</p>
-        </div>
-        <Button onClick={onRetry} variant="outline">Retry</Button>
-      </CardContent>
-    </Card>
-  );
+function formatBundleUrl(metadata: PluginMetadata) {
+  return metadata.jsPath || metadata.bundleUrl;
+}
+
+if (typeof window !== 'undefined' && !(window as any).React) {
+  (window as any).React = React;
 }
 
 export function BasePlugin({ metadata, config }: BasePluginProps) {
@@ -110,9 +94,21 @@ export function BasePlugin({ metadata, config }: BasePluginProps) {
   const navigate = useNavigate();
   const [pluginState, setPluginState] = useState<PluginState>({ loadState: 'idle' });
 
-  const apiClient = React.useMemo(() => new PluginApiClient(metadata.id), [metadata.id]);
+  const normalizedMetadata = useMemo(
+    () => ({
+      version: '0.0.1',
+      enabled: true,
+      author: metadata.createdBy,
+      ...metadata,
+      bundleUrl: formatBundleUrl(metadata),
+      jsPath: formatBundleUrl(metadata),
+    }),
+    [metadata]
+  );
 
-  const pluginTheme: PluginTheme = React.useMemo(() => {
+  const apiClient = useMemo(() => new PluginApiClient(normalizedMetadata.id), [normalizedMetadata.id]);
+
+  const pluginTheme: PluginTheme = useMemo(() => {
     const isDark = actualTheme === 'dark';
     return {
       mode: actualTheme,
@@ -128,11 +124,11 @@ export function BasePlugin({ metadata, config }: BasePluginProps) {
     };
   }, [actualTheme]);
 
-  const context: PluginContext = React.useMemo(
+  const context: PluginContext = useMemo(
     () => ({
       theme: pluginTheme,
       apiClient,
-      metadata,
+      metadata: normalizedMetadata,
       config,
       utils: {
         toast: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => {
@@ -141,14 +137,17 @@ export function BasePlugin({ metadata, config }: BasePluginProps) {
         navigate: (path: string) => navigate(path),
       },
     }),
-    [pluginTheme, apiClient, metadata, config, navigate]
+    [pluginTheme, apiClient, normalizedMetadata, config, navigate]
   );
 
   useEffect(() => {
+    if (pluginState.loadState !== 'idle') return;
+
     let cancelled = false;
+    let manifestRef: PluginManifest | undefined;
 
     async function load() {
-      if (!metadata.enabled) {
+      if (normalizedMetadata.enabled === false) {
         setPluginState({
           loadState: 'error',
           error: { type: 'compatibility', message: 'Plugin is disabled' },
@@ -156,12 +155,21 @@ export function BasePlugin({ metadata, config }: BasePluginProps) {
         return;
       }
 
+      if (!normalizedMetadata.bundleUrl) {
+        setPluginState({
+          loadState: 'error',
+          error: { type: 'network', message: 'Bundle URL is missing' },
+        });
+        return;
+      }
+
       setPluginState({ loadState: 'loading' });
 
       try {
-        const manifest = await loadPlugin(metadata.bundleUrl);
+        const manifest = await loadPlugin(normalizedMetadata.bundleUrl);
         if (cancelled) return;
 
+        manifestRef = manifest;
         setPluginState({
           loadState: 'ready',
           manifest,
@@ -192,15 +200,20 @@ export function BasePlugin({ metadata, config }: BasePluginProps) {
 
     return () => {
       cancelled = true;
-      if (pluginState.manifest?.hooks?.onUnmount) {
+      if (manifestRef?.hooks?.onUnmount) {
         try {
-          pluginState.manifest.hooks.onUnmount();
+          manifestRef.hooks.onUnmount();
         } catch (error) {
           console.error('[Plugin] onUnmount error:', error);
         }
       }
     };
-  }, [metadata.bundleUrl, metadata.enabled, metadata.version]);
+  }, [
+    normalizedMetadata.bundleUrl,
+    normalizedMetadata.enabled,
+    normalizedMetadata.version,
+    pluginState.loadState,
+  ]);
 
   useEffect(() => {
     if (pluginState.manifest?.hooks?.onConfigChange && config) {
@@ -210,7 +223,7 @@ export function BasePlugin({ metadata, config }: BasePluginProps) {
         console.error('[Plugin] onConfigChange error:', error);
       }
     }
-  }, [config]);
+  }, [config, pluginState.manifest]);
 
   const handleRuntimeError = (error: Error) => {
     toast({ title: 'Plugin Error', description: error.message, variant: 'destructive' });
@@ -218,58 +231,57 @@ export function BasePlugin({ metadata, config }: BasePluginProps) {
 
   const handleRetry = () => setPluginState({ loadState: 'idle' });
 
-  if (pluginState.loadState === 'loading') {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{metadata.name}</CardTitle>
-          <CardDescription>{metadata.description}</CardDescription>
-        </CardHeader>
-        <CardContent><PluginSkeleton /></CardContent>
-      </Card>
-    );
-  }
+  const renderContent = () => {
+    if (pluginState.loadState === 'ready' && pluginState.manifest) {
+      const PluginComponent = pluginState.manifest.component;
+      return (
+        <PluginErrorBoundary onError={handleRuntimeError}>
+          <Suspense fallback={<PluginSkeleton />}>
+            <PluginComponent context={context} />
+          </Suspense>
+        </PluginErrorBoundary>
+      );
+    }
 
-  if (pluginState.loadState === 'error' && pluginState.error) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{metadata.name}</CardTitle>
-          <CardDescription>{metadata.description}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PluginLoadError error={pluginState.error.message} onRetry={handleRetry} />
-        </CardContent>
-      </Card>
-    );
-  }
+    if (pluginState.loadState === 'idle') {
+      return (
+        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            <span>Plugin sandbox is ready. Load when bundle is available.</span>
+          </div>
+          <p className="text-muted-foreground">
+            Source: {normalizedMetadata.bundleUrl || 'Awaiting bundle path'}
+          </p>
+        </div>
+      );
+    }
 
-  if (pluginState.loadState === 'ready' && pluginState.manifest) {
-    const PluginComponent = pluginState.manifest.component;
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{metadata.name}</CardTitle>
-          <CardDescription>{metadata.description}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PluginErrorBoundary onError={handleRuntimeError}>
-            <Suspense fallback={<PluginSkeleton />}>
-              <PluginComponent context={context} />
-            </Suspense>
-          </PluginErrorBoundary>
-        </CardContent>
-      </Card>
-    );
-  }
+    return null;
+  };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{metadata.name}</CardTitle>
-        <CardDescription>{metadata.description}</CardDescription>
-      </CardHeader>
-      <CardContent><p className="text-muted-foreground">Initializing plugin...</p></CardContent>
-    </Card>
+    <BaseContainer>
+      <BaseHeader
+        title={normalizedMetadata.title || normalizedMetadata.name}
+        description={normalizedMetadata.description}
+        icon={normalizedMetadata.icon || 'Puzzle'}
+        actions={
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {normalizedMetadata.createdBy && <Badge variant="secondary">{normalizedMetadata.createdBy}</Badge>}
+            {normalizedMetadata.version && <Badge variant="outline">v{normalizedMetadata.version}</Badge>}
+          </div>
+        }
+      />
+      <BaseBody
+        isLoading={pluginState.loadState === 'loading'}
+        error={pluginState.loadState === 'error' ? pluginState.error?.message : null}
+        onRetry={handleRetry}
+        loadingMessage="Loading plugin bundle..."
+        minHeight="320px"
+      >
+        {renderContent()}
+      </BaseBody>
+    </BaseContainer>
   );
 }

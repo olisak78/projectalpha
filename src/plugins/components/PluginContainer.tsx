@@ -8,12 +8,12 @@
 import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 
-interface PluginContainerProps {
+interface BaseContainerProps {
   children: React.ReactNode;
   className?: string;
 }
 
-export const PluginContainer: React.FC<PluginContainerProps> = ({
+export const BaseContainer: React.FC<BaseContainerProps> = ({
   children,
   className = '',
 }) => {
@@ -23,8 +23,8 @@ export const PluginContainer: React.FC<PluginContainerProps> = ({
     <div
       className={`
         rounded-lg border
-        ${actualTheme === 'dark' 
-          ? 'bg-gray-800 border-gray-700' 
+        ${actualTheme === 'dark'
+          ? 'bg-gray-800 border-gray-700'
           : 'bg-white border-gray-200'
         }
         shadow-sm
@@ -35,3 +35,6 @@ export const PluginContainer: React.FC<PluginContainerProps> = ({
     </div>
   );
 };
+
+// Backwards compatibility with earlier naming while aligning to Base* convention
+export const PluginContainer = BaseContainer;
