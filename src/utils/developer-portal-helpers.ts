@@ -1,5 +1,6 @@
 import { FeatureToggle, Landscape, User } from "@/types/developer-portal";
 import { LANDSCAPE_GROUP_ORDER, projectComponents } from "@/constants/developer-portal";
+import { UserMeResponse } from "@/types/api";
 
 // Status color helper
 export const getStatusColor = (status: string) => {
@@ -166,15 +167,16 @@ export const generateStableLinkId = (key: string, url: string, title: string): s
   return `${key}-${btoa(stableData).replace(/[^a-zA-Z0-9]/g, '').substring(0, 16)}`;
 };
 
-// Helper function to build User object from auth data
-export const buildUserFromAuthData = (userData: any): User => {
+
+export const buildUserFromMe = (me: UserMeResponse): User => {
+  const fullName = `${me.first_name || ''} ${me.last_name || ''}`.trim();
   const baseUser: User = {
-    id: userData.profile.sub || userData.profile.id || userData.profile.login,
-    name: userData.profile.name || userData.profile.displayName || userData.profile.login,
-    email: userData.profile.email,
-    picture: userData.profile.avatar_url || userData.profile.picture,
+    id: me.id || me.uuid,
+    name: fullName || me.email,
+    email: me.email,
     provider: 'githubtools',
-    memberId: userData.profile.memberId
+    team_role: me.team_role,
+    portal_admin: me.portal_admin,
   };
   return baseUser;
 };

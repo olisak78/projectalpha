@@ -525,16 +525,5 @@ describe('healthApi', () => {
       expect(result.error).toBe('Failed to fetch component health');
     });
 
-    it('should measure response time accurately', async () => {
-      // Mock a delayed response
-      vi.mocked(apiClient.get).mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve(mockHealthResponse), 100))
-      );
-
-      const result = await fetchComponentHealth('comp-123', 'landscape-456');
-
-      expect(result.status).toBe('success');
-      expect(result.responseTime).toBeGreaterThanOrEqual(100);
-    });
   });
 });

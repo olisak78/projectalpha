@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Puzzle } from 'lucide-react';
 import { PluginMetadata } from '@/plugins/types/plugin.types';
@@ -24,7 +23,22 @@ const demoMetadata: PluginMetadata = {
   updatedAt: new Date().toISOString(),
 };
 
-const pluginOptions: PluginMetadata[] = [demoMetadata];
+const dogBreedsMetadata: PluginMetadata = {
+  id: 'dog-breeds-explorer',
+  name: 'dog-breeds-explorer',
+  title: 'Dog Breeds Explorer',
+  description: 'Fetch and explore dog breed data from TheDogAPI with search and sorting capabilities.',
+  createdBy: 'Portal Team',
+  version: '1.0.0',
+  componentPath: 'DogBreedsPlugin',
+  jsPath: '/plugins/dog-breeds-plugin.js',
+  bundleUrl: '/plugins/dog-breeds-plugin.js',
+  enabled: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+const pluginOptions: PluginMetadata[] = [demoMetadata, dogBreedsMetadata];
 
 const metadataTemplate = {
   id: 'string',
@@ -39,7 +53,7 @@ const metadataTemplate = {
 };
 
 export default function PluginsPage() {
-  const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(demoMetadata);
+  const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(null);
 
   const metadataTemplateString = useMemo(
     () => JSON.stringify(metadataTemplate, null, 2),
@@ -54,13 +68,16 @@ export default function PluginsPage() {
           <CardTitle className="text-xl">Plugins</CardTitle>
         </div>
         <p className="text-sm text-muted-foreground max-w-3xl">
-          Load plugin bundles on demand. Click the demo plugin below to fetch its metadata and JavaScript bundle, then render it inside the portal with the BasePlugin wrapper.
+          Load plugin bundles on demand. Click a plugin below to fetch its metadata and JavaScript bundle, then render it inside the portal with the BasePlugin wrapper.
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         {pluginOptions.map((plugin) => (
-          <Card key={plugin.id}>
+          <Card 
+            key={plugin.id}
+            className={selectedPlugin?.id === plugin.id ? 'ring-2 ring-primary' : ''}
+          >
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
@@ -71,12 +88,16 @@ export default function PluginsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex gap-2 text-xs text-muted-foreground">
+              <div className="flex gap-2 text-xs text-muted-foreground flex-wrap">
                 <Badge variant="outline">{plugin.createdBy}</Badge>
                 <Badge variant="outline">Bundle: {plugin.jsPath}</Badge>
               </div>
-              <Button onClick={() => setSelectedPlugin(plugin)} size="sm">
-                Load demo plugin
+              <Button 
+                onClick={() => setSelectedPlugin(plugin)} 
+                size="sm"
+                variant={selectedPlugin?.id === plugin.id ? 'default' : 'outline'}
+              >
+                {selectedPlugin?.id === plugin.id ? 'Selected' : 'Load plugin'}
               </Button>
             </CardContent>
           </Card>

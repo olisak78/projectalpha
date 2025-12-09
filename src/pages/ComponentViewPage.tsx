@@ -42,6 +42,15 @@ export function ComponentViewPage() {
         return apiLandscapes?.find((l: any) => l.id === effectiveSelectedLandscape);
     }, [apiLandscapes, effectiveSelectedLandscape]);
 
+    // Calculate if component doesn't exist (central service not in central landscape)
+    const isCentralLandscape = useMemo(() => {
+        return selectedApiLandscape?.isCentral ?? false;
+    }, [selectedApiLandscape]);
+
+    const isExistInLandscape = useMemo(() => {
+        return component?.['central-service'] !== true || isCentralLandscape;
+    }, [component, isCentralLandscape]);
+
     // State for health data
     const [healthData, setHealthData] = useState<HealthResponse | null>(null);
     const [healthLoading, setHealthLoading] = useState(false);
@@ -141,11 +150,11 @@ export function ComponentViewPage() {
                 setHealthLoading(false);
             }
         };
-
-        fetchHealth();
+        if(component && isExistInLandscape)
+            fetchHealth();
     }, [component, selectedApiLandscape]);
 
-
+    // Handle error states after all hooks are called
     if (!component) {
         return (
             <BreadcrumbPage>
@@ -161,6 +170,21 @@ export function ComponentViewPage() {
                         >
                             Go back
                         </button>
+                    </div>
+                </div>
+            </BreadcrumbPage>
+        );
+    }
+
+    if (!isExistInLandscape) {
+        return (
+            <BreadcrumbPage>
+                <div className="flex items-center justify-center min-h-[400px]">
+                    <div className="text-center">
+                        <h2 className="text-xl font-semibold mb-2">Component not available</h2>
+                        <p className="text-muted-foreground mb-4">
+                            Please choose a landscape where this component exists
+                        </p>
                     </div>
                 </div>
             </BreadcrumbPage>

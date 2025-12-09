@@ -99,13 +99,12 @@ export default function ComponentCard({
   // Handle card click - only navigate if not clicking on buttons
   const handleCardClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    const isHealthUp = !componentHealthResult || componentHealthResult.status === 'success';
 
-    if (!target.closest('button') && !target.closest('a') && onClick && isHealthUp && !isDisabled) {
+    if (!target.closest('button') && !target.closest('a') && onClick) {
       onClick();
     }
   };
-  const isClickable = onClick && (!componentHealthResult || componentHealthResult.status === 'success') && !isDisabled;
+  const isClickable = onClick && true; // Always clickable when onClick is provided
   // SonarQube integration
   const { data: sonarMetrics, isLoading: sonarLoading } = useSonarMeasures(
     component.sonar || null,
@@ -176,61 +175,58 @@ export default function ComponentCard({
     <Card style={isClickable ? { cursor: 'pointer' } : undefined}
       onClick={isClickable ? handleCardClick : undefined} className={cn(
         "transition-all duration-200 border-border/60",
-        isDisabled && "opacity-50 cursor-not-allowed bg-muted/50",
-        !isDisabled && healthCheck && healthCheck.status !== 'UP'
-          ? "pointer-events-none"
-          : !isDisabled && "hover:shadow-lg hover:border-border"
+        isDisabled && "border-gray-300 dark:border-gray-600 bg-muted/50",
+        !isDisabled && healthCheck && healthCheck.status !== 'UP',
+        !isDisabled && "hover:shadow-lg hover:border-border"
       )}>
       <CardContent className="p-4">
         {/* Header */}
         <div className={cn(
-          isDisabled && "opacity-50 grayscale pointer-events-none",
+          isDisabled && "opacity-50",
           !isDisabled && healthCheck && healthCheck.status !== 'UP'
             ? "opacity-50 grayscale pointer-events-none"
             : ""
         )}>
-          <div className="space-y-2.5">
+          <div>
             {/* Component Name and Team Badge Row */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <h3 className="font-semibold text-base truncate leading-tight">{component.title || component.name}</h3>
-                {component['central-service'] && (
-                  <Badge variant="secondary" className="text-xs px-2 py-0.5">
-                    Central Service
-                  </Badge>
-                )}
                 {/* Only show health badge if not disabled */}
                 {!isDisabled && getHealthStatusBadge()}
               </div>
               {teamName && (
                 <Badge
                   variant="secondary"
-                  className="text-xs px-2 py-0.5 flex-shrink-0 text-white border-0"
-                  style={{ backgroundColor: teamColor || '#6b7280' }}
+                  className={`text-xs px-2 py-0.5 flex-shrink-0 text-white border-0 ${isDisabled ? 'bg-gray-500' : ''}`}
+                  style={!isDisabled && teamColor ? { backgroundColor: teamColor } : undefined}
                 >
                   {teamName}
                 </Badge>
               )}
             </div>
-            {/* Version Badges and Action Buttons Row */}
-            <div className="flex items-center justify-between gap-2">
+            {/* Version and Central Service Badges Row */}
+            <div className="flex items-center justify-between gap-2 py-3">
               <div className="flex items-center gap-1.5 flex-wrap min-h-[20px]">
-                {isDisabled ? (
-                  <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 font-normal text-muted-foreground">
+                {isDisabled && (
+                  <Badge variant="outline" className="text-xs px-2 py-0.5 text-muted-foreground">
                     Not Available in this Landscape
                   </Badge>
-                ) : selectedLandscape && systemInfo && (() => {
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {!isDisabled && selectedLandscape && systemInfo && (() => {
                   // Check for direct app/sapui5 properties (from /version endpoint)
                   if (systemInfo.app || systemInfo.sapui5) {
                     return (
                       <>
                         {systemInfo.app && (
-                          <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 font-normal text-muted-foreground">
+                          <Badge variant="outline" className="text-xs px-2 py-0.5 text-muted-foreground">
                             App: {systemInfo.app}
                           </Badge>
                         )}
                         {systemInfo.sapui5 && (
-                          <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 font-normal text-muted-foreground">
+                          <Badge variant="outline" className="text-xs px-2 py-0.5 text-muted-foreground">
                             UI5: {systemInfo.sapui5}
                           </Badge>
                         )}
@@ -247,12 +243,12 @@ export default function ComponentCard({
                     return (
                       <>
                         {version.app && (
-                          <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 font-normal text-muted-foreground">
+                          <Badge variant="outline" className="text-xs px-2 py-0.5 text-muted-foreground">
                             App: {version.app}
                           </Badge>
                         )}
                         {version.sapui5 && (
-                          <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 font-normal text-muted-foreground">
+                          <Badge variant="outline" className="text-xs px-2 py-0.5 text-muted-foreground">
                             UI5: {version.sapui5}
                           </Badge>
                         )}
@@ -262,7 +258,7 @@ export default function ComponentCard({
                   // Simple string version
                   if (typeof version === 'string') {
                     return (
-                      <Badge variant="outline" className="text-[11px] px-1.5 py-0 h-4 font-normal text-muted-foreground">
+                      <Badge variant="outline" className="text-xs px-2 py-0.5 text-muted-foreground">
                         {version}
                       </Badge>
                     );
@@ -270,8 +266,13 @@ export default function ComponentCard({
                   
                   return null;
                 })()}
-                {selectedLandscape && loadingSystemInfo && (
-                  <span className="text-[11px] text-muted-foreground">Loading...</span>
+                {!isDisabled && selectedLandscape && loadingSystemInfo && (
+                  <span className="text-xs text-muted-foreground">Loading...</span>
+                )}
+                {component['central-service'] && (
+                  <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                    Central Service
+                  </Badge>
                 )}
               </div>
             </div>
@@ -312,8 +313,8 @@ export default function ComponentCard({
 
         {/* Quality Metrics Grid */}
         <div className={cn(
-
-          healthCheck && healthCheck.status !== 'UP'
+          isDisabled && "opacity-50",
+          !isDisabled && healthCheck && healthCheck.status !== 'UP'
             ? "opacity-50 grayscale pointer-events-none"
             : ""
         )}>

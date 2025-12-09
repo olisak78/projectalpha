@@ -6,6 +6,7 @@ import { ReactNode } from 'react';
 
 vi.mock('../../src/services/authService');
 vi.mock('../../src/utils/developer-portal-helpers');
+vi.mock('../../src/hooks/api/useMembers');
 
 // Mock window.location
 const mockLocation = {
@@ -85,9 +86,16 @@ describe('AuthContext', () => {
     // Setup default mocks
     const authService = await import('../../src/services/authService');
     const helpers = await import('../../src/utils/developer-portal-helpers');
+    const useMembers = await import('../../src/hooks/api/useMembers');
     
     vi.mocked(authService.checkAuthStatus).mockResolvedValue(mockUserData);
-    vi.mocked(helpers.buildUserFromAuthData).mockReturnValue(mockUser);
+    vi.mocked(useMembers.fetchCurrentUser).mockResolvedValue({
+      id: '123',
+      first_name: 'Test',
+      last_name: 'User',
+      email: 'test@example.com',
+    } as any);
+    vi.mocked(helpers.buildUserFromMe).mockReturnValue(mockUser);
     vi.mocked(authService.authService).mockResolvedValue(undefined);
     vi.mocked(authService.logoutUser).mockResolvedValue(undefined);
   });

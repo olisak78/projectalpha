@@ -1,6 +1,6 @@
 /**
  * Authentication Refresh Service
- * 
+ *
  * Handles authentication token refresh and error detection for React Query.
  * This service is called when cached data exists to ensure authentication is still valid.
  */
@@ -38,11 +38,11 @@ export const clearGlobalAuthErrorTrigger = () => {
 // Helper function to check if an error is authentication-related
 export const isAuthError = (error: any): boolean => {
   if (!error) return false;
-  
+
   // Check error message content
   const message = error.message?.toLowerCase() || '';
-  return message.includes('authentication') || 
-         message.includes('unauthorized') || 
+  return message.includes('authentication') ||
+         message.includes('unauthorized') ||
          message.includes('access token') ||
          message.includes('login required') ||
          message.includes('session expired');
@@ -61,28 +61,28 @@ const REFRESH_THROTTLE_MS = 5000; // 5 seconds throttle
 
 /**
  * Throttled authentication refresh service
- * 
+ *
  * This function is called when React Query mounts components with cached data
  * to verify that the user's authentication is still valid.
  */
 export async function throttledAuthRefresh(): Promise<void> {
   const now = Date.now();
-  
+
   // If a refresh is in progress, wait for it
   if (refreshPromise) {
     return refreshPromise;
   }
-  
+
   // If we recently refreshed successfully, skip
   if (now - lastRefreshTime < REFRESH_THROTTLE_MS) {
     return Promise.resolve();
   }
-  
+
   // Create and store the refresh promise to prevent concurrent requests
   refreshPromise = (async () => {
     try {
       const authBaseURL = getAuthBaseURL();
-      const response = await fetch(`${authBaseURL}/githubtools/refresh?env=development`, {
+      const response = await fetch(`${authBaseURL}/refresh`, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -90,30 +90,30 @@ export async function throttledAuthRefresh(): Promise<void> {
           'X-Requested-With': 'XMLHttpRequest',
         },
       });
-      
+
       if (response.ok) {
         lastRefreshTime = now;
       } else {
         // If the refresh endpoint returns a non-OK response, trigger auth error
         triggerSessionExpiredError('Session expired. Please log in again.');
       }
-      
+
     } catch (error) {
-      // When the githubtools/refresh fetch request fails, trigger auth error
+      // When the /refresh fetch request fails, trigger auth error
       triggerSessionExpiredError('Session expired. Please log in again.');
     } finally {
       refreshPromise = null;
     }
   })();
-  
+
   return refreshPromise;
 }
 
 /**
  * Trigger global authentication error - DISABLED
- * 
- * This function is intentionally disabled to prevent other API failures 
- * from triggering the authentication dialog. Only the /githubtools/refresh 
+ *
+ * This function is intentionally disabled to prevent other API failures
+ * from triggering the authentication dialog. Only the /refresh
  * endpoint failure should trigger the auth dialog.
  */
 export const triggerAuthError = (error: any) => {
@@ -128,10 +128,10 @@ export const triggerAuthError = (error: any) => {
 const triggerSessionExpiredError = (message: string) => {
   if (globalAuthErrorTrigger && !authErrorTriggered) {
     globalAuthErrorTrigger(message);
-    
+
     // Set flag to prevent duplicate triggers
     authErrorTriggered = true;
-    
+
     // Reset the flag after 10 seconds to allow new auth errors
     authErrorResetTimer = setTimeout(() => {
       authErrorTriggered = false;

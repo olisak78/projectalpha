@@ -13,7 +13,7 @@ interface ApiClientError extends Error {
 
 /**
  * API Client Configuration
- * 
+ *
  * This client wraps the native fetch API and provides:
  * - Automatic JWT token management from refresh endpoint
  * - Automatic authentication header injection (Bearer token)
@@ -63,37 +63,26 @@ interface FetchOptions extends RequestInit {
  */
 interface AuthRefreshResponse {
   accessToken: string;
-  expiresInSeconds: number;
-  tokenType: string;
-  valid: boolean;
-  profile?: {
-    id?: number;
-    username?: string;
-    email?: string;
-    name?: string;
-    avatarUrl?: string;
-  };
-  scope?: string;
 }
 
 /**
  * API Client class
- * 
+ *
  * Provides a clean interface for making API requests with built-in
  * JWT authentication, error handling, and retry logic.
- * 
+ *
  * IMPORTANT: This client automatically fetches and manages JWT tokens.
  * The token is obtained from the refresh endpoint and sent as Authorization header.
- * 
+ *
  * @example
  * const client = new ApiClient();
- * 
+ *
  * // GET request (token automatically included)
  * const teams = await client.get<Team[]>('/teams/all');
- * 
+ *
  * // POST request
  * const newTeam = await client.post<Team>('/teams', { name: 'New Team' });
- * 
+ *
  * // With query params
  * const filtered = await client.get<Team[]>('/teams/all', {
  *   params: { organization_id: '123', page: 1 }
@@ -115,7 +104,7 @@ export class ApiClient {
 
   /**
    * Build full URL with query parameters
-   * 
+   *
    * @param endpoint - API endpoint (e.g., '/teams')
    * @param params - Query parameters
    * @returns Full URL with query string
@@ -140,7 +129,7 @@ export class ApiClient {
   /**
    * Build headers for request
    * Includes JWT token in Authorization header if available
-   * 
+   *
    * @param customHeaders - Additional headers to include
    * @returns Complete headers object
    */
@@ -163,7 +152,7 @@ export class ApiClient {
   /**
    * Get access token from refresh endpoint
    * This fetches a new JWT token using the httpOnly cookie authentication
-   * 
+   *
    * @returns JWT access token
    */
   private async getAccessToken(): Promise<string> {
@@ -176,7 +165,7 @@ export class ApiClient {
     this.refreshPromise = (async () => {
       try {
         const response = await fetch(
-          `${this.authBaseURL}/githubtools/refresh?env=development`,
+          `${this.authBaseURL}/refresh`,
           {
             method: 'GET',
             credentials: 'include', // Send httpOnly cookies
@@ -193,7 +182,7 @@ export class ApiClient {
 
         const data: AuthRefreshResponse = await response.json();
 
-        if (!data.valid || !data.accessToken) {
+        if (!data.accessToken) {
           throw new Error('Invalid token response from server');
         }
 
@@ -218,7 +207,7 @@ export class ApiClient {
   /**
    * Ensure we have a valid access token
    * Fetches token if we don't have one
-   * 
+   *
    * @returns JWT access token
    */
   private async ensureToken(): Promise<string> {
@@ -231,7 +220,7 @@ export class ApiClient {
 
   /**
    * Make an HTTP request with automatic auth and error handling
-   * 
+   *
    * @param endpoint - API endpoint (e.g., '/teams')
    * @param config - Request configuration
    * @returns Parsed response data
@@ -346,7 +335,7 @@ export class ApiClient {
 
   /**
    * Create a standardized API error
-   * 
+   *
    * @param response - Fetch response
    * @returns ApiError object
    */
@@ -374,19 +363,19 @@ export class ApiClient {
 
   /**
    * GET request
-   * 
+   *
    * @param endpoint - API endpoint
    * @param options - Query params and request options
    * @returns Response data
-   * 
+   *
    * @example
    * // Simple GET
    * const teams = await client.get<Team[]>('/teams/all');
-   * 
+   *
    * @example
    * // With query parameters
    * const filtered = await client.get<TeamListResponse>('/teams/all', {
-   *   params: { 
+   *   params: {
    *     organization_id: '123',
    *     page: 1,
    *     page_size: 20
@@ -411,12 +400,12 @@ export class ApiClient {
 
   /**
    * POST request
-   * 
+   *
    * @param endpoint - API endpoint
    * @param data - Request body
    * @param options - Optional headers
    * @returns Response data
-   * 
+   *
    * @example
    * const newTeam = await client.post<Team>('/teams', {
    *   name: 'new-team',
@@ -443,12 +432,12 @@ export class ApiClient {
 
   /**
    * PUT request
-   * 
+   *
    * @param endpoint - API endpoint
    * @param data - Request body (full update)
    * @param options - Optional headers
    * @returns Response data
-   * 
+   *
    * @example
    * const updatedTeam = await client.put<Team>('/teams/123', {
    *   display_name: 'Updated Name',
@@ -473,12 +462,12 @@ export class ApiClient {
 
   /**
    * PATCH request
-   * 
+   *
    * @param endpoint - API endpoint
    * @param data - Request body (partial update)
    * @param options - Optional headers
    * @returns Response data
-   * 
+   *
    * @example
    * const patchedTeam = await client.patch<Team>('/teams/123', {
    *   status: 'archived'
@@ -502,11 +491,11 @@ export class ApiClient {
 
   /**
    * DELETE request
-   * 
+   *
    * @param endpoint - API endpoint
    * @param options - Optional headers
    * @returns Response data (usually void for 204 responses)
-   * 
+   *
    * @example
    * await client.delete('/teams/123');
    */

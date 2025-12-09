@@ -9,7 +9,7 @@ import {
   safeLocalStorageGet,
   safeLocalStorageSet,
   generateStableLinkId,
-  buildUserFromAuthData,
+  buildUserFromMe,
   getStatusColor,
   getGroupStatus,
   getLogLevelColor,
@@ -355,76 +355,49 @@ describe('developer-portal-helpers', () => {
     });
   });
 
-  describe('buildUserFromAuthData', () => {
-    it('should build user object from complete auth data', () => {
-      const authData = {
-        profile: {
-          sub: 'user-123',
-          id: 'id-123',
-          login: 'username',
-          name: 'John Doe',
-          displayName: 'John Display',
-          email: 'john@example.com',
-          avatar_url: 'https://avatar.url',
-          picture: 'https://picture.url',
-          memberId: 'member-456'
-        }
+  describe('buildUserFromMe', () => {
+    it('should build user object from complete /users/me payload', () => {
+      const me = {
+        id: 'user-123',
+        first_name: 'John',
+        last_name: 'Doe',
+        email: 'john@example.com',
+        team_role: 'developer',
+        portal_admin: true,
       };
 
-      const user = buildUserFromAuthData(authData);
+      const user = buildUserFromMe(me as any);
 
       expect(user).toEqual({
         id: 'user-123',
         name: 'John Doe',
         email: 'john@example.com',
-        picture: 'https://avatar.url',
         provider: 'githubtools',
-        memberId: 'member-456'
+        team_role: 'developer',
+        portal_admin: true,
       });
     });
 
-    it('should fallback to alternative fields when primary fields are missing', () => {
-      const authData = {
-        profile: {
-          id: 'id-123',
-          login: 'username',
-          displayName: 'Display Name',
-          email: 'user@example.com',
-          picture: 'https://picture.url'
-        }
+    it('should fall back to email for name when missing first/last name', () => {
+      const me = {
+        id: 'abc',
+        email: 'no.name@example.com',
       };
 
-      const user = buildUserFromAuthData(authData);
+      const user = buildUserFromMe(me as any);
 
-      expect(user.id).toBe('id-123');
-      expect(user.name).toBe('Display Name');
-      expect(user.picture).toBe('https://picture.url');
+      expect(user.name).toBe('no.name@example.com');
     });
 
-    it('should use login as final fallback for id and name', () => {
-      const authData = {
-        profile: {
-          login: 'username',
-          email: 'user@example.com'
-        }
+    it('should use uuid when id is missing', () => {
+      const me = {
+        uuid: 'uuid-456',
+        email: 'uuid@example.com',
       };
 
-      const user = buildUserFromAuthData(authData);
+      const user = buildUserFromMe(me as any);
 
-      expect(user.id).toBe('username');
-      expect(user.name).toBe('username');
-    });
-
-    it('should always set provider to githubtools', () => {
-      const authData = {
-        profile: {
-          login: 'user',
-          email: 'email@test.com'
-        }
-      };
-
-      const user = buildUserFromAuthData(authData);
-      expect(user.provider).toBe('githubtools');
+      expect(user.id).toBe('uuid-456');
     });
   });
 

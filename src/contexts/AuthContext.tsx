@@ -1,6 +1,7 @@
 import { AuthContextType, User } from '@/types/developer-portal';
-import { buildUserFromAuthData } from "@/utils/developer-portal-helpers";
+import { buildUserFromMe } from "@/utils/developer-portal-helpers";
 import { authService, checkAuthStatus, logoutUser } from '@/services/authService';
+import { fetchCurrentUser } from '@/hooks/api/useMembers';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,11 +31,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const checkAuthStatusAndSetUser = async () => {
     try {
       setIsLoading(true);
-      const userData = await checkAuthStatus();
+      // First, refresh/validate auth to ensure session cookies/tokens are up-to-date
+      const authData = await checkAuthStatus();
 
-      if (userData && userData.profile) {
-        const user = buildUserFromAuthData(userData);
-        setUser(user);
+      if (authData) {
+        // Then, fetch user from /users/me
+        const me = await fetchCurrentUser();
+        if (me) {
+          const user = buildUserFromMe(me);
+          setUser(user);
+        } else {
+          setUser(null);
+        }
       } else {
         // No valid auth, clear user state
         setUser(null);
@@ -85,15 +93,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshAuth = async () => {
     try {
-      const userData = await checkAuthStatus();
-      
-      if (userData && userData.profile) {
-        const updatedUser = buildUserFromAuthData(userData);
-        setUser(updatedUser);
-        try {
-          localStorage.removeItem('quick-links');
-        } catch (error) {
-          console.error('Failed to clear quick-links from localStorage:', error);
+      // Refresh/validate the auth session
+      const authData = await checkAuthStatus();
+
+      if (authData) {
+        // Then fetch current user profile and update UI state
+        const me = await fetchCurrentUser();
+        if (me) {
+          const updatedUser = buildUserFromMe(me);
+          setUser(updatedUser);
+          try {
+            localStorage.removeItem('quick-links');
+          } catch (error) {
+            console.error('Failed to clear quick-links from localStorage:', error);
+          }
+        } else {
+          setUser(null);
+          throw new Error('Failed to fetch current user');
         }
       } else {
         // No valid auth data, clear user

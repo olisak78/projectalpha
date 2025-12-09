@@ -11,10 +11,10 @@ describe('ApiClient', () => {
   beforeEach(() => {
     // Store original fetch
     originalFetch = global.fetch;
-    
+
     // Create new client instance for each test
     client = new ApiClient();
-    
+
     // Mock console methods to avoid noise in test output
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -49,7 +49,7 @@ describe('ApiClient', () => {
   describe('Token Management', () => {
     it('should fetch and store access token on first request', async () => {
       const mockToken = 'test-jwt-token';
-      
+
       global.fetch = vi.fn()
         // First call: token refresh
         .mockResolvedValueOnce({
@@ -75,7 +75,7 @@ describe('ApiClient', () => {
 
     it('should reuse existing token for subsequent requests', async () => {
       const mockToken = 'test-jwt-token';
-      
+
       global.fetch = vi.fn()
         // First call: token refresh
         .mockResolvedValueOnce({
@@ -107,7 +107,7 @@ describe('ApiClient', () => {
 
     it('should clear token when clearToken is called', async () => {
       const mockToken = 'test-jwt-token';
-      
+
       global.fetch = vi.fn()
         .mockResolvedValueOnce({
           ok: true,
@@ -155,12 +155,12 @@ describe('ApiClient', () => {
     it('should prevent multiple simultaneous token refreshes', async () => {
       const mockToken = 'test-jwt-token';
       let tokenRefreshCount = 0;
-      
+
       global.fetch = vi.fn().mockImplementation((url) => {
         // Track token refresh calls
         if (url.toString().includes('/refresh')) {
           tokenRefreshCount++;
-          return new Promise(resolve => 
+          return new Promise(resolve =>
             setTimeout(() => resolve({
               ok: true,
               json: async () => ({
@@ -300,7 +300,7 @@ describe('ApiClient', () => {
 
     it('should support AbortSignal', async () => {
       const controller = new AbortController();
-      
+
       (global.fetch as any).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ data: [] }),
@@ -625,7 +625,7 @@ describe('ApiClient', () => {
       await client.get('/teams');
 
       expect(fetch).toHaveBeenNthCalledWith(1,
-        `${AUTH_BASE_URL}/githubtools/refresh?env=development`,
+        `${AUTH_BASE_URL}/refresh`,
         expect.objectContaining({
           method: 'GET',
           credentials: 'include',

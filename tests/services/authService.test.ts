@@ -55,7 +55,7 @@ describe('authService', () => {
   describe('authService', () => {
     it('should store return URL in sessionStorage by default', () => {
       window.open = vi.fn(() => null);
-      
+
       const options = { returnUrl: 'http://localhost:3000/dashboard' };
       authService(options);
 
@@ -90,13 +90,13 @@ describe('authService', () => {
         closed: false,
         close: vi.fn(),
       };
-      
+
       window.open = vi.fn(() => mockPopup as any);
 
       authService();
 
       expect(window.open).toHaveBeenCalledWith(
-        `${NEW_BACKEND_URL}/api/auth/githubtools/start?env=development`,
+        `${NEW_BACKEND_URL}/api/auth/githubtools/start`,
         'auth-popup',
         'width=500,height=600,scrollbars=yes,resizable=yes,menubar=no,toolbar=no,location=no,status=no'
       );
@@ -104,7 +104,7 @@ describe('authService', () => {
 
     it('should redirect to auth URL when popup is blocked', () => {
       window.open = vi.fn(() => null);
-      
+
       const hrefSetter = vi.fn();
       Object.defineProperty(window.location, 'href', {
         set: hrefSetter,
@@ -115,7 +115,7 @@ describe('authService', () => {
       authService();
 
       expect(hrefSetter).toHaveBeenCalledWith(
-        `${NEW_BACKEND_URL}/api/auth/githubtools/start?env=development`
+        `${NEW_BACKEND_URL}/api/auth/githubtools/start`
       );
     });
 
@@ -124,7 +124,7 @@ describe('authService', () => {
         closed: false,
         close: vi.fn(),
       };
-      
+
       window.open = vi.fn(() => mockPopup as any);
 
       const authPromise = authService({ storeReturnUrl: false });
@@ -146,7 +146,7 @@ describe('authService', () => {
         closed: false,
         close: vi.fn(),
       };
-      
+
       window.open = vi.fn(() => mockPopup as any);
 
       const authPromise = authService({ storeReturnUrl: false });
@@ -168,7 +168,7 @@ describe('authService', () => {
         closed: false,
         close: vi.fn(),
       };
-      
+
       window.open = vi.fn(() => mockPopup as any);
 
       authService({ storeReturnUrl: false }).catch(() => {
@@ -209,7 +209,7 @@ describe('authService', () => {
       const result = await checkAuthStatus();
 
       expect(fetch).toHaveBeenCalledWith(
-        `${NEW_BACKEND_URL}/api/auth/githubtools/refresh?env=development`,
+        `${NEW_BACKEND_URL}/api/auth/refresh`,
         {
           credentials: 'include',
           headers: {
@@ -289,7 +289,7 @@ describe('authService', () => {
       await logoutUser();
 
       expect(fetch).toHaveBeenCalledWith(
-        `${NEW_BACKEND_URL}/api/auth/githubtools/logout?env=development`,
+        `${NEW_BACKEND_URL}/api/auth/logout`,
         {
           method: 'POST',
           credentials: 'include',

@@ -18,7 +18,7 @@ The Authentication Refresh Service handles authentication token refresh and erro
 #### `throttledAuthRefresh()`
 - **Purpose**: Verifies user authentication is still valid when React Query mounts components with cached data
 - **Throttling**: 5-second throttle to prevent excessive requests
-- **Endpoint**: `${authBaseURL}/githubtools/refresh?env=development`
+- **Endpoint**: `${authBaseURL}/refresh`
 - **Triggers Auth Dialog**: Only when this specific endpoint fails (network error or non-200 status)
 
 #### `triggerAuthError(error)` - DISABLED
@@ -38,8 +38,8 @@ The Authentication Refresh Service handles authentication token refresh and erro
 ### What Triggers Authentication Dialog
 
 ✅ **ONLY These Scenarios:**
-- `/githubtools/refresh` endpoint returns non-200 HTTP status
-- `/githubtools/refresh` endpoint throws network/fetch error
+- `/refresh` endpoint returns non-200 HTTP status
+- `/refresh` endpoint throws network/fetch error
 
 ### What Does NOT Trigger Authentication Dialog
 
@@ -142,7 +142,7 @@ const MyComponent = () => {
 
 ### Recent Changes (v2.0)
 - **Disabled Message-Based Detection**: `triggerAuthError()` no longer triggers dialogs
-- **Isolated Refresh Handling**: Only `/githubtools/refresh` failures show auth dialog
+- **Isolated Refresh Handling**: Only `/refresh` failures show auth dialog
 - **Improved Reliability**: No longer dependent on specific error message strings
 
 ### Breaking Changes

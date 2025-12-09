@@ -512,4 +512,106 @@ describe('ComponentViewPage', () => {
     expect(useComponentsByProject).toHaveBeenCalledWith('ca');
     expect(screen.getByTestId('component-name')).toHaveTextContent('terraform-provider');
   });
+
+  // Test for isCentralLandscape and isExistInLandscape logic
+  describe('Central service landscape logic', () => {
+    it('should correctly calculate isCentralLandscape when landscape is central', () => {
+      const centralLandscape = {
+        id: 'central-landscape',
+        name: 'Central Landscape',
+        landscape_url: 'central.cfapps.sap.hana.ondemand.com',
+        isCentral: true,
+      };
+
+      vi.mocked(useLandscapesByProject).mockReturnValue({
+        data: [centralLandscape],
+        isLoading: false,
+        error: null,
+        isError: false,
+        isSuccess: true,
+      } as any);
+
+      vi.mocked(usePortalState).mockReturnValue({
+        selectedLandscape: 'central-landscape',
+        getSelectedLandscapeForProject: vi.fn().mockReturnValue('central-landscape'),
+        setSelectedLandscapeForProject: vi.fn(),
+      } as any);
+
+      const centralServiceComponent: Component = {
+        ...mockComponent,
+        'central-service': true,
+      };
+
+      vi.mocked(useComponentsByProject).mockReturnValue({
+        data: [centralServiceComponent],
+        isLoading: false,
+        error: null,
+        isError: false,
+        isSuccess: true,
+      } as any);
+
+      render(
+        <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+          <Routes>
+            <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      // Component should be rendered normally since it's a central service in a central landscape
+      expect(screen.getByTestId('component-view-overview')).toBeInTheDocument();
+      expect(screen.getByTestId('component-name')).toHaveTextContent('accounts-service');
+    });
+
+    it('should show "Component not available" when central service is not in central landscape', () => {
+      const nonCentralLandscape = {
+        id: 'non-central-landscape',
+        name: 'Non-Central Landscape',
+        landscape_url: 'non-central.cfapps.sap.hana.ondemand.com',
+        isCentral: false,
+      };
+
+      vi.mocked(useLandscapesByProject).mockReturnValue({
+        data: [nonCentralLandscape],
+        isLoading: false,
+        error: null,
+        isError: false,
+        isSuccess: true,
+      } as any);
+
+      vi.mocked(usePortalState).mockReturnValue({
+        selectedLandscape: 'non-central-landscape',
+        getSelectedLandscapeForProject: vi.fn().mockReturnValue('non-central-landscape'),
+        setSelectedLandscapeForProject: vi.fn(),
+      } as any);
+
+      const centralServiceComponent: Component = {
+        ...mockComponent,
+        'central-service': true,
+      };
+
+      vi.mocked(useComponentsByProject).mockReturnValue({
+        data: [centralServiceComponent],
+        isLoading: false,
+        error: null,
+        isError: false,
+        isSuccess: true,
+      } as any);
+
+      render(
+        <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
+          <Routes>
+            <Route path="/:projectName/component/:componentName" element={<ComponentViewPage />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      // Should show the "Component not available" message
+      expect(screen.getByText('Component not available')).toBeInTheDocument();
+      expect(screen.getByText('Please choose a landscape where this component exists')).toBeInTheDocument();
+      
+      // Should not render the normal component view
+      expect(screen.queryByTestId('component-view-overview')).not.toBeInTheDocument();
+    });
+  });
 })

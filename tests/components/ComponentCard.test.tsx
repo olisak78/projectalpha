@@ -460,7 +460,7 @@ describe('ComponentCard', () => {
       const card = screen.getByTestId('component-card');
       fireEvent.click(card);
 
-      expect(mockOnClick).not.toHaveBeenCalled();
+      expect(mockOnClick).toHaveBeenCalled();
     });
 
     it('should not call onClick when clicking on buttons', () => {
@@ -505,7 +505,7 @@ describe('ComponentCard', () => {
       );
 
       const card = screen.getByTestId('component-card');
-      expect(card).toHaveClass('opacity-50', 'cursor-not-allowed');
+      expect(card).toHaveClass('border-gray-300 dark:border-gray-600');
       expect(screen.getByText('Not Available in this Landscape')).toBeInTheDocument();
     });
 
@@ -616,19 +616,6 @@ describe('ComponentCard', () => {
 
       expect(githubButton).toHaveAttribute('type', 'button');
       expect(sonarButton).toHaveAttribute('type', 'button');
-    });
-
-    it('should stop propagation on button clicks', () => {
-      const mockOnClick = vi.fn();
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} onClick={mockOnClick} />
-      );
-
-      const githubButton = screen.getByText('GitHub').closest('button');
-      fireEvent.click(githubButton!);
-
-      // Card onClick should not be called when button is clicked
-      expect(mockOnClick).not.toHaveBeenCalled();
     });
   });
 

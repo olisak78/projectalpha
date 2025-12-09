@@ -12,15 +12,15 @@ export interface AuthServiceOptions {
 
 export const authService = async (options: AuthServiceOptions = {}): Promise<void> => {
   const { returnUrl, storeReturnUrl = true } = options;
-  
+
   // Store return URL if requested
   if (storeReturnUrl) {
     const urlToStore = returnUrl || window.location.href;
     sessionStorage.setItem('authReturnUrl', urlToStore);
   }
-  
-  const authUrl = `${backendUrl}/api/auth/githubtools/start?env=development`;
-  
+
+  const authUrl = `${backendUrl}/api/auth/githubtools/start`;
+
   // Open popup for OAuth flow
   const popup = window.open(
     authUrl,
@@ -40,10 +40,10 @@ export const authService = async (options: AuthServiceOptions = {}): Promise<voi
       if (popup.closed) {
         clearInterval(checkClosed);
         window.removeEventListener('message', messageListener);
-        
+
         // Check if authentication was successful by calling refresh
         try {
-          const response = await fetch(`${backendUrl}/api/auth/githubtools/refresh?env=development`, {
+          const response = await fetch(`${backendUrl}/api/auth/refresh`, {
             credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
@@ -121,7 +121,7 @@ export const checkAuthStatus = async () => {
       return null;
     }
 
-    const response = await fetch(`${backendUrl}/api/auth/githubtools/refresh?env=development`, {
+    const response = await fetch(`${backendUrl}/api/auth/refresh`, {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
@@ -142,7 +142,7 @@ export const checkAuthStatus = async () => {
 
 export const logoutUser = async (): Promise<void> => {
   try {
-    await fetch(`${backendUrl}/api/auth/githubtools/logout?env=development`, {
+    await fetch(`${backendUrl}/api/auth/logout`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -155,7 +155,7 @@ export const logoutUser = async (): Promise<void> => {
     try {
       // Always clear all sessionStorage
       sessionStorage.clear();
-      
+
       // Only clear specific authentication-related localStorage keys
       // This preserves user preferences like theme that should persist across login/logout
       const keysToRemove = [
@@ -164,7 +164,7 @@ export const logoutUser = async (): Promise<void> => {
         'user-data',          // Cached user profile data (if exists)
         'auth-state',         // Any auth state data (if exists)
       ];
-      
+
       keysToRemove.forEach(key => {
         try {
           localStorage.removeItem(key);
@@ -172,11 +172,11 @@ export const logoutUser = async (): Promise<void> => {
           console.error(`Failed to remove localStorage key "${key}":`, err);
         }
       });
-      
+
       // Explicitly preserved localStorage keys:
       // - 'developer-portal-theme': User's theme preference (light/dark/system)
       // - Any other user preferences that should persist across sessions
-      
+
     } catch (error) {
       console.error('Failed to clear storage:', error);
     }

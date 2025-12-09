@@ -41,7 +41,7 @@ async function fetchUsers(params: UsersQueryParams = {}): Promise<UsersListRespo
 /**
  * Fetch current user's data from /users/me endpoint
  */
-async function fetchCurrentUser(): Promise<UserMeResponse> {
+export async function fetchCurrentUser(): Promise<UserMeResponse> {
   return apiClient.get<UserMeResponse>('/users/me');
 }
 
