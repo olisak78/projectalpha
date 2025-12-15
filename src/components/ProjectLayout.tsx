@@ -21,6 +21,7 @@ import { HealthTable } from "./Health/HealthTable";
 import { ViewSwitcher } from "./ViewSwitcher";
 import { Badge } from "./ui/badge";
 import { HealthStatusFilter } from "./HealthStatusFilter";
+import { ComponentDisplayProvider } from "@/contexts/ComponentDisplayContext";
 
 
 export interface ProjectLayoutProps {
@@ -362,9 +363,9 @@ export function ProjectLayout({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <h2 className="text-2xl font-bold">Components</h2>
-                          {selectedLandscape && apiComponents.length > 0 && (
+                          {selectedLandscape && visibleComponents.length > 0 && (
                             <Badge variant="secondary" className="text-sm">
-                              {apiComponents.length}
+                              {visibleComponents.length}
                             </Badge>
                           )}
                         </div>
@@ -377,22 +378,37 @@ export function ProjectLayout({
                         </div>
                       </div>
 
-                      {selectedLandscape && apiComponents.length > 0 ? (
-                        <HealthTable
-                          healthChecks={healthChecks}
-                          isLoading={isLoadingHealth}
-                          landscape={selectedApiLandscape?.name || ''}
-                          teamNamesMap={teamNamesMap}
-                          components={apiComponents}
-                          onComponentClick={handleComponentClick}
-                          hideDownComponents={hideDownComponents}
+                      {selectedLandscape && visibleComponents.length > 0 ? (
+                        <ComponentDisplayProvider
+                          selectedLandscape={selectedLandscape}
+                          selectedLandscapeData={selectedApiLandscape}
                           isCentralLandscape={isCentralLandscape}
-                        />
+                          teamNamesMap={teamNamesMap}
+                          teamColorsMap={teamColorsMap}
+                          componentHealthMap={componentHealthMap}
+                          isLoadingHealth={isLoadingHealth}
+                          expandedComponents={teamComponentsExpanded}
+                          onToggleExpanded={handleToggleComponentExpansion}
+                          system={system}
+                          components={visibleComponents}
+                        >
+                          <HealthTable
+                            healthChecks={healthChecks}
+                            isLoading={isLoadingHealth}
+                            landscape={selectedApiLandscape?.name || ''}
+                            components={visibleComponents}
+                            onComponentClick={handleComponentClick}
+                            hideDownComponents={hideDownComponents}
+                            isCentralLandscape={isCentralLandscape}
+                          />
+                        </ComponentDisplayProvider>
                       ) : (
                         <div className="border-2 border-dashed rounded-lg p-12 text-center">
                           <p className="text-muted-foreground">
                             {!selectedLandscape
                               ? 'Select a landscape to view component health status'
+                              : hideDownComponents
+                              ? 'No healthy components found in this landscape'
                               : 'No components found in this landscape'}
                           </p>
                         </div>
@@ -433,15 +449,29 @@ export function ProjectLayout({
         );
       case "health":
         return (
-          <HealthDashboard
-            projectId={projectId}
-            components={apiComponents}
-            landscapeGroups={landscapeGroupsRecord}
+          <ComponentDisplayProvider
             selectedLandscape={selectedLandscape}
-            onLandscapeChange={(landscapeId) => setSelectedLandscapeForProject(projectId, landscapeId)}
-            onShowLandscapeDetails={() => setShowLandscapeDetails(true)}
-            isLoadingComponents={componentsLoading}
-          />
+            selectedLandscapeData={selectedApiLandscape}
+            isCentralLandscape={isCentralLandscape}
+            teamNamesMap={teamNamesMap}
+            teamColorsMap={teamColorsMap}
+            componentHealthMap={componentHealthMap}
+            isLoadingHealth={isLoadingHealth}
+            expandedComponents={teamComponentsExpanded}
+            onToggleExpanded={handleToggleComponentExpansion}
+            system={system}
+            components={apiComponents}
+          >
+            <HealthDashboard
+              projectId={projectId}
+              components={apiComponents}
+              landscapeGroups={landscapeGroupsRecord}
+              selectedLandscape={selectedLandscape}
+              onLandscapeChange={(landscapeId) => setSelectedLandscapeForProject(projectId, landscapeId)}
+              onShowLandscapeDetails={() => setShowLandscapeDetails(true)}
+              isLoadingComponents={componentsLoading}
+            />
+          </ComponentDisplayProvider>
         );
       case "alerts":
         return (

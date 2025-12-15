@@ -1,4 +1,4 @@
-import { ExternalLink, Activity, Database, AlertCircle, CheckCircle, XCircle, Clock, Shield, Zap, Server, HardDrive, Info, ChevronDown, ChevronRight } from "lucide-react";
+import { ExternalLink, Activity, Database, AlertCircle, CheckCircle, XCircle, Clock, Shield, Zap, Server, HardDrive, Info, ChevronDown, ChevronRight, Heart } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import type { Component } from "@/types/api";
 import type { HealthResponse } from "@/types/health";
 import { CircuitBreakerSection } from "@/components/CircuitBreakerSection";
+import { buildHealthEndpoint, buildHealthEndpointWithSubdomain } from "@/services/healthApi";
 import { useState } from "react";
 
 interface ComponentViewOverviewProps {
@@ -145,6 +146,26 @@ export function ComponentViewOverview({
     sonarData,
     sonarLoading
 }: ComponentViewOverviewProps) {
+    // Extract health URL opening logic to a separate function
+    const handleHealthButtonClick = () => {
+        if (!component || !selectedApiLandscape) return;
+        
+        const subdomain = component.metadata?.subdomain;
+        
+        // Create LandscapeConfig object from selectedApiLandscape
+        const landscapeConfig = {
+            name: selectedApiLandscape.name,
+            route: selectedApiLandscape.domain || selectedApiLandscape.route || 'sap.hana.ondemand.com'
+        };
+        
+        // Use existing functions from healthApi.ts
+        const healthUrl = subdomain && typeof subdomain === 'string'
+            ? buildHealthEndpointWithSubdomain(component, landscapeConfig, subdomain)
+            : buildHealthEndpoint(component, landscapeConfig);
+        
+        window.open(healthUrl, '_blank');
+    };
+    
     if (!component) {
         return (
             <div className="text-center py-12">
@@ -180,6 +201,16 @@ export function ComponentViewOverview({
                         </div>
                     </div>
                     <div className="flex gap-2">
+                        {selectedApiLandscape && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleHealthButtonClick}
+                            >
+                                <Heart className="h-3 w-3 mr-1" />
+                                Health
+                            </Button>
+                        )}
                         {component.github && component.github !== '#' && (
                             <Button
                                 variant="outline"

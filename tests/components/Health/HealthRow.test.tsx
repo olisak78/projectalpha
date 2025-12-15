@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { HealthRow } from '../../../src/components/Health/HealthRow';
+import { ComponentDisplayProvider } from '../../../src/contexts/ComponentDisplayContext';
 import type { ComponentHealthCheck } from '../../../src/types/health';
 import '@testing-library/jest-dom/vitest';
 
@@ -12,8 +13,8 @@ vi.mock('../../../src/components/Health/StatusBadge', () => ({
 }));
 
 vi.mock('../../../src/components/ui/badge', () => ({
-  Badge: ({ children }: { children: React.ReactNode }) => (
-    <span data-testid="badge">{children}</span>
+  Badge: ({ children, variant, className }: { children: React.ReactNode; variant?: string; className?: string }) => (
+    <span data-testid="badge" className={className}>{children}</span>
   ),
 }));
 
@@ -21,6 +22,11 @@ vi.mock('../../../src/components/ui/button', () => ({
   Button: ({ children, onClick }: any) => (
     <button data-testid="button" onClick={onClick}>{children}</button>
   ),
+}));
+
+// Mock the fetchSystemInformation function
+vi.mock('../../../src/services/healthApi', () => ({
+  fetchSystemInformation: vi.fn().mockResolvedValue({ status: 'success', data: null }),
 }));
 
 describe('HealthRow', () => {
@@ -40,18 +46,39 @@ describe('HealthRow', () => {
     onToggle: vi.fn(),
   };
 
+  const mockContextProps = {
+    selectedLandscape: 'test-landscape',
+    selectedLandscapeData: { name: 'Test', route: 'test.example.com' },
+    isCentralLandscape: false,
+    teamNamesMap: {},
+    teamColorsMap: {},
+    componentHealthMap: {},
+    isLoadingHealth: false,
+    componentSystemInfoMap: {},
+    isLoadingSystemInfo: false,
+    expandedComponents: {},
+    onToggleExpanded: vi.fn(),
+    system: 'test-system',
+  };
+
+  const renderWithProvider = (props = {}) => {
+    return render(
+      <ComponentDisplayProvider {...mockContextProps}>
+        <table>
+          <tbody>
+            <HealthRow {...defaultProps} {...props} />
+          </tbody>
+        </table>
+      </ComponentDisplayProvider>
+    );
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('should render component information', () => {
-    render(
-      <table>
-        <tbody>
-          <HealthRow {...defaultProps} />
-        </tbody>
-      </table>
-    );
+    renderWithProvider();
 
     expect(screen.getByText('Accounts Service')).toBeTruthy();
     expect(screen.getByText('accounts-service')).toBeTruthy();
@@ -59,31 +86,22 @@ describe('HealthRow', () => {
   });
 
   it('should format response time correctly', () => {
-    render(
-      <table>
-        <tbody>
-          <HealthRow {...defaultProps} />
-        </tbody>
-      </table>
-    );
+    renderWithProvider();
     expect(screen.getByText('150ms')).toBeTruthy();
   });
 
   it('should display team name when provided', () => {
-    render(<HealthRow {...defaultProps} teamName="Team Alpha" />);
+    renderWithProvider({ teamName: "Team Alpha" });
     expect(screen.getByTestId('badge')).toBeTruthy();
     expect(screen.getByText('Team Alpha')).toBeTruthy();
   });
 
   it('should handle component click when status is UP', () => {
     const mockOnComponentClick = vi.fn();
-    render(
-      <HealthRow
-        {...defaultProps}
-        componentName="accounts-service"
-        onComponentClick={mockOnComponentClick}
-      />
-    );
+    renderWithProvider({
+      componentName: "accounts-service",
+      onComponentClick: mockOnComponentClick
+    });
 
     const row = screen.getByRole('row');
     fireEvent.click(row);
@@ -91,15 +109,56 @@ describe('HealthRow', () => {
   });
 
   it('should render external link buttons', () => {
-    render(
-      <HealthRow
-        {...defaultProps}
-        githubUrl="https://github.com/example/repo"
-        sonarUrl="https://sonar.example.com/project"
-      />
-    );
+    renderWithProvider({
+      githubUrl: "https://github.com/example/repo",
+      sonarUrl: "https://sonar.example.com/project"
+    });
 
     const buttons = screen.getAllByTestId('button');
     expect(buttons.length).toBeGreaterThan(0);
+  });
+
+  it('should render central service badge when component is central service', () => {
+    renderWithProvider({
+      component: { 
+        id: 'accounts-service', 
+        name: 'Accounts Service',
+        'central-service': true
+      }
+    });
+
+    expect(screen.getByText('Central Service')).toBeTruthy();
+  });
+
+  it('should apply disabled styling when component is disabled', () => {
+    renderWithProvider({ isDisabled: true });
+
+    const row = screen.getByRole('row');
+    expect(row.className).toContain('opacity-50');
+  });
+
+  it('should not be clickable when status is DOWN', () => {
+    const mockOnComponentClick = vi.fn();
+    const downHealthCheck = { ...mockHealthCheck, status: 'DOWN' as const };
+    
+    renderWithProvider({
+      healthCheck: downHealthCheck,
+      componentName: "accounts-service",
+      onComponentClick: mockOnComponentClick
+    });
+
+    const row = screen.getByRole('row');
+    expect(row.className).not.toContain('cursor-pointer');
+  });
+
+  it('should not render version badges when no component is provided', () => {
+    renderWithProvider();
+
+    // Should only have status badge, no version badges
+    const badges = screen.queryAllByTestId('badge');
+    const versionBadges = badges.filter(badge => 
+      badge.textContent?.includes('App:') || badge.textContent?.includes('UI5:') || badge.textContent?.includes('Loading')
+    );
+    expect(versionBadges.length).toBe(0);
   });
 });

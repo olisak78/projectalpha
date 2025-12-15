@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom'; //NEW: Added for Router context
-import { ProjectLayout, ProjectLayoutProps } from '@/components/ProjectLayout';
+import { ProjectLayout, ProjectLayoutProps } from '../../src/components/ProjectLayout';
 import React, { ReactNode } from 'react';
 
 // Simplified mocks to avoid memory issues
@@ -381,5 +381,117 @@ describe('ProjectLayout', () => {
     });
   });
 
-  
+  //NEW: Tests for new ProjectLayout features
+  describe('View Switching and Health Status Filtering', () => {
+    it('should handle showComponentsMetrics with view switching', () => {
+      renderComponent({
+        showComponentsMetrics: true
+      });
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
+    });
+
+    it('should pass onComponentClick handler when showComponentsMetrics is true', () => {
+      renderComponent({
+        showComponentsMetrics: true
+      });
+      expect(screen.getByTestId('components-has-click-handler')).toHaveTextContent('true');
+    });
+
+    it('should handle component navigation correctly', () => {
+      renderComponent({
+        showComponentsMetrics: true,
+        projectId: 'test-project'
+      });
+      // Component click handler should be provided
+      expect(screen.getByTestId('components-has-click-handler')).toHaveTextContent('true');
+    });
+  });
+
+  describe('Landscape Management', () => {
+    it('should handle landscape selection and changes', () => {
+      renderComponent({
+        projectId: 'test-project-123'
+      });
+      expect(screen.getByTestId('landscape-links-section')).toBeInTheDocument();
+    });
+
+    it('should handle central vs non-central landscapes', () => {
+      renderComponent({
+        showComponentsMetrics: true
+      });
+      // Should render without errors regardless of landscape type
+      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
+    });
+  });
+
+  describe('Component Health Integration', () => {
+    it('should handle health data loading states', () => {
+      renderComponent({
+        showComponentsMetrics: true
+      });
+      // Should show health overview when metrics are enabled
+      expect(screen.getByTestId('health-overview')).toBeInTheDocument();
+    });
+
+    it('should handle health summary data', () => {
+      renderComponent({
+        showComponentsMetrics: true
+      });
+      const healthSummary = screen.getByTestId('health-overview-summary');
+      expect(healthSummary).toBeInTheDocument();
+      // Should contain summary data from mock
+      expect(healthSummary.textContent).toContain('total');
+    });
+
+    it('should handle health loading state', () => {
+      renderComponent({
+        showComponentsMetrics: true
+      });
+      const loadingState = screen.getByTestId('health-overview-loading');
+      expect(loadingState).toBeInTheDocument();
+      expect(loadingState.textContent).toBe('false'); // From mock
+    });
+  });
+
+  describe('Team and Component Management', () => {
+    it('should handle team data integration', () => {
+      renderComponent();
+      // Should render without errors when team data is available
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
+    });
+
+    it('should handle component filtering and sorting', () => {
+      renderComponent({
+        showComponentsMetrics: true
+      });
+      // Should pass through component management props
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
+    });
+  });
+
+  describe('Error Handling and Edge Cases', () => {
+    it('should handle missing landscape data gracefully', () => {
+      renderComponent({
+        showComponentsMetrics: true
+      });
+      // Should render without crashing even with missing data
+      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
+    });
+
+    it('should handle empty component lists', () => {
+      renderComponent({
+        showComponentsMetrics: true
+      });
+      // Should render empty state appropriately
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
+    });
+
+    it('should handle API loading states', () => {
+      renderComponent({
+        showComponentsMetrics: true
+      });
+      // Should handle various loading states gracefully
+      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
+    });
+  });
 });

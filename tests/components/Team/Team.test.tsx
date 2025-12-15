@@ -143,9 +143,12 @@ vi.mock('../../../src/hooks/api/mutations/useTeamMutations', () => ({
   })),
 }));
 
+const mockToastFn = vi.fn();
 vi.mock('../../../src/hooks/use-toast', () => ({
   useToast: () => ({
-    toast: vi.fn(),
+    toast: mockToastFn,
+    dismiss: vi.fn(),
+    toasts: []
   }),
 }));
 
@@ -158,6 +161,25 @@ vi.mock('../../../src/contexts/AuthContext', () => ({
 vi.mock('../../../src/hooks/api/useMembers', () => ({
   useCurrentUser: vi.fn(() => ({
     data: { id: 'user1', email: 'test@example.com' },
+  })),
+}));
+
+// Mock react-router-dom
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+}));
+
+// Mock ProjectsContext
+vi.mock('../../../src/contexts/ProjectsContext', () => ({
+  useProjectsContext: vi.fn(() => ({
+    projects: [
+      { id: 'project-1', name: 'cis20', title: 'CIS 2.0' },
+      { id: 'project-2', name: 'ca', title: 'Cloud Analytics' },
+    ],
+    isLoading: false,
+    error: null,
+    sidebarItems: [],
   })),
 }));
 
@@ -175,7 +197,16 @@ vi.mock('../../../src/components/Team/MemberList', () => ({
 }));
 
 vi.mock('../../../src/components/Team/TeamComponents', () => ({
-  TeamComponents: vi.fn(() => <div data-testid="team-components">Team Components</div>),
+  TeamComponents: vi.fn(({ onComponentClick }) => (
+    <div data-testid="team-components">
+      <button 
+        data-testid="mock-component-click" 
+        onClick={() => onComponentClick && onComponentClick('test-component')}
+      >
+        Test Component Click
+      </button>
+    </div>
+  )),
 }));
 
 vi.mock('../../../src/components/Team/TeamJiraIssues', () => ({
@@ -345,6 +376,152 @@ describe('Team Component', () => {
       );
 
       expect(screen.getByTestId('team-jira-issues')).toBeInTheDocument();
+    });
+  });
+
+  // ============================================================================
+  // COMPONENT NAVIGATION TESTS
+  // ============================================================================
+
+  describe('Component Navigation', () => {
+    it('should navigate to component view when handleComponentClick is called', async () => {
+      // Override the existing mock for this specific test
+      const mockUseTeamComponents = vi.fn(() => ({
+        componentsData: { 
+          components: [
+            {
+              id: 'comp-1',
+              name: 'test-component',
+              title: 'Test Component',
+              project_id: 'project-1',
+              owner_id: 'team-1',
+            }
+          ]
+        },
+        teamComponentsExpanded: {},
+        toggleComponentExpansion: vi.fn(),
+        isLoading: false,
+        error: null,
+      }));
+
+      // Use vi.mocked to override the existing mock
+      const { useTeamComponents } = await import('../../../src/hooks/team/useTeamComponents');
+      vi.mocked(useTeamComponents).mockImplementation(mockUseTeamComponents);
+
+      renderTeamWithProvider({ ...defaultTeamProps, activeCommonTab: "components" });
+
+      // Click the mock component button to trigger handleComponentClick
+      const componentButton = screen.getByTestId('mock-component-click');
+      componentButton.click();
+
+      // Should navigate to the correct project and component
+      expect(mockNavigate).toHaveBeenCalledWith('/cis20/component/test-component');
+    });
+
+    it('should show toast error when component project is not found', async () => {
+      // Override the existing mock for this specific test
+      const mockUseTeamComponents = vi.fn(() => ({
+        componentsData: { 
+          components: [
+            {
+              id: 'comp-1',
+              name: 'test-component',
+              title: 'Test Component',
+              project_id: 'unknown-project',
+              owner_id: 'team-1',
+            }
+          ]
+        },
+        teamComponentsExpanded: {},
+        toggleComponentExpansion: vi.fn(),
+        isLoading: false,
+        error: null,
+      }));
+
+      // Use vi.mocked to override the existing mock
+      const { useTeamComponents } = await import('../../../src/hooks/team/useTeamComponents');
+      vi.mocked(useTeamComponents).mockImplementation(mockUseTeamComponents);
+
+      renderTeamWithProvider({ ...defaultTeamProps, activeCommonTab: "components" });
+
+      // Click the mock component button to trigger handleComponentClick
+      const componentButton = screen.getByTestId('mock-component-click');
+      componentButton.click();
+
+      // Should show error toast with correct message
+      expect(mockToastFn).toHaveBeenCalledWith({
+        title: "Navigation failed",
+        description: "Project not found for this component.",
+        variant: "destructive",
+      });
+
+      // Should not navigate when project is not found
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it('should not navigate when component is not found', async () => {
+      // Override the existing mock for this specific test
+      const mockUseTeamComponents = vi.fn(() => ({
+        componentsData: { components: [] },
+        teamComponentsExpanded: {},
+        toggleComponentExpansion: vi.fn(),
+        isLoading: false,
+        error: null,
+      }));
+
+      // Use vi.mocked to override the existing mock
+      const { useTeamComponents } = await import('../../../src/hooks/team/useTeamComponents');
+      vi.mocked(useTeamComponents).mockImplementation(mockUseTeamComponents);
+
+      renderTeamWithProvider({ ...defaultTeamProps, activeCommonTab: "components" });
+
+      // Click the mock component button to trigger handleComponentClick
+      const componentButton = screen.getByTestId('mock-component-click');
+      componentButton.click();
+
+      // Should not navigate when component is not found
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it('should show toast error and not navigate when project is not found for component', async () => {
+      // Override the existing mock for this specific test - component exists but project_id doesn't match any project
+      const mockUseTeamComponents = vi.fn(() => ({
+        componentsData: { 
+          components: [
+            {
+              id: 'comp-1',
+              name: 'test-component',
+              title: 'Test Component',
+              project_id: 'non-existent-project-id', // This project_id doesn't exist in the mocked projects
+              owner_id: 'team-1',
+            }
+          ]
+        },
+        teamComponentsExpanded: {},
+        toggleComponentExpansion: vi.fn(),
+        isLoading: false,
+        error: null,
+      }));
+
+      // Use vi.mocked to override the existing mock
+      const { useTeamComponents } = await import('../../../src/hooks/team/useTeamComponents');
+      vi.mocked(useTeamComponents).mockImplementation(mockUseTeamComponents);
+
+      renderTeamWithProvider({ ...defaultTeamProps, activeCommonTab: "components" });
+
+      // Click the mock component button to trigger handleComponentClick
+      const componentButton = screen.getByTestId('mock-component-click');
+      componentButton.click();
+
+      // Should show error toast with correct message
+      expect(mockToastFn).toHaveBeenCalledWith({
+        title: "Navigation failed",
+        description: "Project not found for this component.",
+        variant: "destructive",
+      });
+
+      // Should not navigate when project is not found
+      expect(mockNavigate).not.toHaveBeenCalled();
     });
   });
 });

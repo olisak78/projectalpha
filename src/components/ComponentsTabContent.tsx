@@ -7,6 +7,7 @@ import { TeamComponents } from "@/components/Team/TeamComponents";
 import { HealthOverview } from "@/components/Health/HealthOverview";
 import { Component } from "@/types/api";
 import type { ComponentHealthCheck } from "@/types/health";
+import { ComponentDisplayProvider } from "@/contexts/ComponentDisplayContext";
 import {
   Select,
   SelectContent,
@@ -191,52 +192,45 @@ export function ComponentsTabContent({
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Non-Library Components Section */}
-          {nonLibraryComponents.length > 0 && (
-            <div>
-              <TeamComponents
-                teamName={teamName}
-                components={nonLibraryComponents}
-                teamComponentsExpanded={teamComponentsExpanded}
-                onToggleExpanded={onToggleExpanded}
-                system={system}
-                showProjectGrouping={false}
-                selectedLandscape={selectedLandscape}
-                selectedLandscapeData={selectedLandscapeData}
-                teamNamesMap={teamNamesMap}
-                teamColorsMap={teamColorsMap}
-                componentHealthMap={componentHealthMap}
-                isLoadingHealth={isLoadingHealth}
-                onComponentClick={onComponentClick}
-                isCentralLandscape={isCentralLandscape}
-              />
-            </div>
-          )}
+          <ComponentDisplayProvider
+            selectedLandscape={selectedLandscape}
+            selectedLandscapeData={selectedLandscapeData}
+            isCentralLandscape={isCentralLandscape}
+            teamNamesMap={teamNamesMap}
+            teamColorsMap={teamColorsMap}
+            componentHealthMap={componentHealthMap}
+            isLoadingHealth={isLoadingHealth}
+            expandedComponents={teamComponentsExpanded}
+            onToggleExpanded={onToggleExpanded}
+            system={system}
+          >
+            {/* Non-Library Components Section */}
+            {nonLibraryComponents.length > 0 && (
+              <div>
+                <TeamComponents
+                  teamName={teamName}
+                  components={nonLibraryComponents}
+                  showProjectGrouping={false}
+                  onComponentClick={onComponentClick}
+                />
+              </div>
+            )}
 
-          {/* Library Components Section */}
-          {libraryComponents.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                Library Components
-              </h3>
-              <TeamComponents
-                teamName={teamName}
-                components={libraryComponents}
-                teamComponentsExpanded={teamComponentsExpanded}
-                onToggleExpanded={onToggleExpanded}
-                system={system}
-                showProjectGrouping={false}
-                selectedLandscape={selectedLandscape}
-                selectedLandscapeData={selectedLandscapeData}
-                teamNamesMap={teamNamesMap}
-                teamColorsMap={teamColorsMap}
-                componentHealthMap={componentHealthMap}
-                isLoadingHealth={isLoadingHealth}
-                onComponentClick={onComponentClick}
-                isCentralLandscape={isCentralLandscape}
-              />
-            </div>
-          )}
+            {/* Library Components Section */}
+            {libraryComponents.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+                  Library Components
+                </h3>
+                <TeamComponents
+                  teamName={teamName}
+                  components={libraryComponents}
+                  showProjectGrouping={false}
+                  onComponentClick={onComponentClick}
+                />
+              </div>
+            )}
+          </ComponentDisplayProvider>
         </div>
       )}
     </div>

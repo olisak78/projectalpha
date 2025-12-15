@@ -2,45 +2,28 @@ import ComponentCard from "@/components/ComponentCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Component } from "@/types/api";
-import type { ComponentHealthCheck } from "@/types/health";
 import { GithubIcon } from "../icons/GithubIcon";
+import { ComponentDisplayProvider, useComponentDisplay } from "@/contexts/ComponentDisplayContext";
 
 interface TeamComponentsProps {
   components: Component[];
   teamName: string;
-  teamComponentsExpanded: Record<string, boolean>;
-  onToggleExpanded: (componentId: string) => void;
-  system: string;
   showProjectGrouping?: boolean;
-  selectedLandscape?: string | null;
-  selectedLandscapeData?: any;
   compactView?: boolean;
-  teamNamesMap?: Record<string, string>;
-  teamColorsMap?: Record<string, string>;
-  componentHealthMap?: Record<string, ComponentHealthCheck>;
-  isLoadingHealth?: boolean;
   onComponentClick?: (componentId: string) => void;
-  isCentralLandscape?: boolean;
 }
 
 export function TeamComponents({
   components,
   teamName,
-  teamComponentsExpanded,
-  onToggleExpanded,
-  system,
   showProjectGrouping = false,
-  selectedLandscape,
-  selectedLandscapeData,
   compactView = false,
-  teamNamesMap = {},
-  teamColorsMap = {},
-  componentHealthMap = {},
-  isLoadingHealth = false,
   onComponentClick,
-  isCentralLandscape = false,
-
 }: TeamComponentsProps) {
+  const {
+    teamNamesMap,
+    teamColorsMap,
+  } = useComponentDisplay();
   if (!components || components.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -60,10 +43,19 @@ export function TeamComponents({
     const ownerTeamName = component.owner_id ? teamNamesMap[component.owner_id] : undefined;
     const ownerTeamColor = component.owner_id ? teamColorsMap[component.owner_id] : undefined;
 
+    const handleClick = (e: React.MouseEvent) => {
+      // Don't trigger navigation if clicking on buttons
+      const target = e.target as HTMLElement;
+      if (!target.closest('button') && onComponentClick) {
+        onComponentClick(component.name);
+      }
+    };
+
     return (
       <div
         key={component.id}
-        className="border rounded-lg p-4 hover:bg-accent/50 transition-colors"
+        className="border rounded-lg p-4 hover:bg-accent/50 transition-colors cursor-pointer"
+        onClick={handleClick}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
@@ -73,7 +65,7 @@ export function TeamComponents({
                 <Badge
                   variant="secondary"
                   className="text-xs flex-shrink-0 text-white border-0"
-                  style={{ backgroundColor: ownerTeamColor || '#6b7280' }}
+                  {...(ownerTeamColor ? { style: { backgroundColor: ownerTeamColor } } : { style: { backgroundColor: '#6b7280' } })}
                 >
                   {ownerTeamName}
                 </Badge>
@@ -103,30 +95,13 @@ export function TeamComponents({
 
   // Helper function to render a component card (for project pages)
   const renderComponentCard = (component: Component) => {
-    const ownerTeamName = component.owner_id ? teamNamesMap[component.owner_id] : undefined;
-    const ownerTeamColor = component.owner_id ? teamColorsMap[component.owner_id] : undefined;
-
     return (
       <ComponentCard
         key={component.id}
         component={component}
-        system={system}
-        selectedLandscape={selectedLandscape}
-        selectedLandscapeName={undefined}
-        selectedLandscapeData={selectedLandscapeData}
-        expandedComponents={teamComponentsExpanded}
-        onToggleExpanded={onToggleExpanded}
-        getComponentHealth={() => "N/A"}
-        getComponentAlerts={() => null}
-        teamName={ownerTeamName}
-        teamColor={ownerTeamColor}
-        healthCheck={componentHealthMap[component.id]}
-        isLoadingHealth={isLoadingHealth}
         onClick={onComponentClick ? () => {
           onComponentClick(component.name);
         } : undefined}
-        isCentralLandscape={isCentralLandscape}
-
       />
     );
   };

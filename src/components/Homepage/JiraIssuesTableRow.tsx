@@ -128,7 +128,12 @@ export default function JiraIssuesTableRow({ issue, showAssignee = true, isSubta
   return (
     <>
       {renderIssueRow(issue)}
-      {hasSubtasks && isExpanded && issue.fields.subtasks!.map((subtask) => {
+      {hasSubtasks && isExpanded && issue.fields.subtasks!.filter((subtask) => {
+     
+        const closedStatuses = ['resolved', 'closed', 'done', 'completed', 'cancelled', 'rejected'];
+        const subtaskStatusLower = subtask.fields?.status?.name?.toLowerCase() || '';
+        return !closedStatuses.some(closed => subtaskStatusLower.includes(closed));
+      }).map((subtask) => {
         // Convert subtask to JiraIssue format for rendering
         const subtaskIssue: JiraIssue = {
           id: subtask.id,

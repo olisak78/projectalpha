@@ -1,5 +1,7 @@
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTeamContext } from "@/contexts/TeamContext";
+import { useProjectsContext } from "@/contexts/ProjectsContext";
 import { TeamMemberDialog } from "@/components/dialogs/TeamMemberDialog";
 import { AddLinkDialog } from "@/components/dialogs/AddLinkDialog";
 import { ScoreBoards } from "./ScoreBoards";
@@ -16,6 +18,7 @@ import { useTeams } from "@/hooks/api/useTeams";
 import { useToast } from "@/hooks/use-toast";
 import type { CreateUserRequest, UserMeResponse } from "@/types/api";
 import { Card } from "@/components/ui/card";
+import { ComponentDisplayProvider } from "@/contexts/ComponentDisplayContext";
 
 interface TeamProps {
   activeCommonTab: string;
@@ -24,6 +27,8 @@ interface TeamProps {
 export default function Team({
   activeCommonTab,
 }: TeamProps) {
+  const navigate = useNavigate();
+  const { projects } = useProjectsContext();
   const { data: currentUser } = useCurrentUser();
   const { data: allTeamsData } = useTeams();
   const { toast } = useToast();
@@ -190,6 +195,29 @@ export default function Team({
     }
   };
 
+  const handleComponentClick = (componentName: string) => {
+    // Navigate to component view page - find the correct project name
+    const component = teamComponents.componentsData?.components.find(c => c.name === componentName);
+    
+    if (!component) {
+      return;
+    }
+
+    // Look up the project by project_id to get the correct project.name
+    const project = projects.find(p => p.id === component.project_id);
+    
+    if (!project) {
+      toast({
+        title: "Navigation failed",
+        description: "Project not found for this component.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    navigate(`/${project.name}/component/${componentName}`);
+  };
+
 
   return (
     <main className="space-y-6 px-6 pt-4">
@@ -264,15 +292,26 @@ export default function Team({
         )}
 
         {activeCommonTab === "components" && (
-          <TeamComponents
-            components={teamComponents.componentsData?.components || []}
-            teamName={teamName}
-            teamComponentsExpanded={teamComponents.teamComponentsExpanded}
+          <ComponentDisplayProvider
+            selectedLandscape={null}
+            selectedLandscapeData={null}
+            isCentralLandscape={false}
+            teamNamesMap={{}}
+            teamColorsMap={{}}
+            componentHealthMap={{}}
+            isLoadingHealth={false}
+            expandedComponents={teamComponents.teamComponentsExpanded}
             onToggleExpanded={teamComponents.toggleComponentExpansion}
             system="services"
-            showProjectGrouping={true}
-            compactView={true}
-          />
+          >
+            <TeamComponents
+              components={teamComponents.componentsData?.components || []}
+              teamName={teamName}
+              showProjectGrouping={true}
+              compactView={true}
+              onComponentClick={handleComponentClick}
+            />
+          </ComponentDisplayProvider>
         )}
 
         {activeCommonTab === "jira" && <TeamJiraIssues />}

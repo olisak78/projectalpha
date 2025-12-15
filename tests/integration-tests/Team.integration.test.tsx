@@ -2,6 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import '@testing-library/jest-dom/vitest';
 import Team from '../../src/components/Team/Team';
 import { useCurrentUser } from '../../src/hooks/api/useMembers';
@@ -31,6 +32,19 @@ vi.mock('../../src/hooks/api/useMembers');
 vi.mock('../../src/hooks/api/useTeams');
 vi.mock('../../src/hooks/api/mutations/useTeamMutations');
 vi.mock('../../src/hooks/use-toast');
+
+// Mock ProjectsContext
+vi.mock('../../src/contexts/ProjectsContext', () => ({
+  useProjectsContext: () => ({
+    projects: [
+      { id: 'project-1', name: 'cis20', title: 'CIS 2.0' },
+      { id: 'project-2', name: 'ca', title: 'Cloud Analytics' },
+    ],
+    isLoading: false,
+    error: null,
+    sidebarItems: [],
+  }),
+}));
 
 // Mock TeamContext to avoid complex dependencies
 vi.mock('../../src/contexts/TeamContext', () => ({
@@ -384,9 +398,11 @@ describe('Team Component Integration Tests', () => {
 
   const renderTeamComponent = (activeTab = 'overview') => {
     return render(
-      <QueryClientProvider client={queryClient}>
-        <Team activeCommonTab={activeTab} />
-      </QueryClientProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <Team activeCommonTab={activeTab} />
+        </QueryClientProvider>
+      </MemoryRouter>
     );
   };
 
@@ -576,9 +592,11 @@ describe('Team Component Integration Tests', () => {
 
       // Rerender with same props
       rerender(
-        <QueryClientProvider client={queryClient}>
-          <Team activeCommonTab="overview" />
-        </QueryClientProvider>
+        <MemoryRouter>
+          <QueryClientProvider client={queryClient}>
+            <Team activeCommonTab="overview" />
+          </QueryClientProvider>
+        </MemoryRouter>
       );
 
       // Component should still render correctly
@@ -658,9 +676,11 @@ describe('Team Component Integration Tests', () => {
 
       // Switch to components tab
       rerender(
-        <QueryClientProvider client={queryClient}>
-          <Team activeCommonTab="components" />
-        </QueryClientProvider>
+        <MemoryRouter>
+          <QueryClientProvider client={queryClient}>
+            <Team activeCommonTab="components" />
+          </QueryClientProvider>
+        </MemoryRouter>
       );
 
       expect(screen.queryByTestId('member-list')).not.toBeInTheDocument();
@@ -676,9 +696,11 @@ describe('Team Component Integration Tests', () => {
 
       // Rerender
       rerender(
-        <QueryClientProvider client={queryClient}>
-          <Team activeCommonTab="overview" />
-        </QueryClientProvider>
+        <MemoryRouter>
+          <QueryClientProvider client={queryClient}>
+            <Team activeCommonTab="overview" />
+          </QueryClientProvider>
+        </MemoryRouter>
       );
 
       // State should be maintained

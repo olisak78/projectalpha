@@ -34,7 +34,6 @@ export default function JiraIssuesTab() {
 
   // Fetch issue from API
   const { data: apiData, isLoading, error } = useMyJiraIssues({
-    status: getOpenStatusFilter(),
     limit: 100, // Get a large number to get all user's issues
   });
 
@@ -43,6 +42,13 @@ export default function JiraIssuesTab() {
   // Client-side filtering, searching, and sorting
   const filteredIssues = useMemo(() => {
     let filtered = allIssues;
+
+    // First, filter out closed statuses
+    const closedStatuses = ['resolved', 'closed', 'done', 'completed', 'cancelled', 'rejected'];
+    filtered = filtered.filter((issue: JiraIssue) => {
+      const statusName = issue.fields?.status?.name?.toLowerCase() || '';
+      return !closedStatuses.some(closed => statusName.includes(closed));
+    });
 
     // Apply subtask filtering based on subtaskFilter state
     if (subtaskFilter === "parents") {
@@ -53,16 +59,23 @@ export default function JiraIssuesTab() {
     } else if (subtaskFilter === "all") {
       // Show both parents and extract their subtasks as separate items
       const parentsAndSubtasks: JiraIssue[] = [];
-      
+
       allIssues.forEach((issue: JiraIssue) => {
         // Add the parent/regular issue
         if (!issue.fields?.parent) {
           parentsAndSubtasks.push(issue);
         }
-        
+
         // If it has subtasks, extract and add them as separate issues
         if (issue.fields?.subtasks && issue.fields.subtasks.length > 0) {
           issue.fields.subtasks.forEach((subtask) => {
+            const closedStatuses = ['resolved', 'closed', 'done', 'completed', 'cancelled', 'rejected'];
+            const subtaskStatusLower = subtask.fields?.status?.name?.toLowerCase() || '';
+            const isClosedSubtask = closedStatuses.some(closed => subtaskStatusLower.includes(closed));
+
+            if (isClosedSubtask) {
+              return; // Skip this subtask
+            }
             // Convert subtask to JiraIssue format
             const subtaskIssue: JiraIssue = {
               id: subtask.id,
@@ -92,16 +105,23 @@ export default function JiraIssuesTab() {
           });
         }
       });
-      
+
       filtered = parentsAndSubtasks;
 
     } else if (subtaskFilter === "subtasks") {
       // Extract only subtasks from parent issues
       const subtasksOnly: JiraIssue[] = [];
-      
+
       allIssues.forEach((issue: JiraIssue) => {
         if (issue.fields?.subtasks && issue.fields.subtasks.length > 0) {
           issue.fields.subtasks.forEach((subtask) => {
+            const closedStatuses = ['resolved', 'closed', 'done', 'completed', 'cancelled', 'rejected'];
+            const subtaskStatusLower = subtask.fields?.status?.name?.toLowerCase() || '';
+            const isClosedSubtask = closedStatuses.some(closed => subtaskStatusLower.includes(closed));
+
+            if (isClosedSubtask) {
+              return; // Skip this subtask
+            }
             // Convert subtask to JiraIssue format
             const subtaskIssue: JiraIssue = {
               id: subtask.id,
@@ -131,7 +151,7 @@ export default function JiraIssuesTab() {
           });
         }
       });
-      
+
       filtered = subtasksOnly;
 
     }
@@ -144,11 +164,11 @@ export default function JiraIssuesTab() {
           return issueType.includes('bug');
         } else if (quickFilter === "tasks") {
           return issueType.includes('task') ||
-                 issueType.includes('story') ||
-                 issueType.includes('backlog') ||
-                 issueType.includes('epic') ||
-                 issueType.includes('subtask') ||
-                 issueType.includes('sub-task');
+            issueType.includes('story') ||
+            issueType.includes('backlog') ||
+            issueType.includes('epic') ||
+            issueType.includes('subtask') ||
+            issueType.includes('sub-task');
         }
         return true;
       });

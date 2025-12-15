@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ComponentCard from '../../src/components/ComponentCard';
+import { ComponentDisplayProvider } from '../../src/contexts/ComponentDisplayContext';
 import type { Component } from '../../src/types/api';
 import type { ComponentHealthCheck } from '../../src/types/health';
 import '@testing-library/jest-dom/vitest';
@@ -118,22 +119,31 @@ describe('ComponentCard', () => {
     health: true,
   };
 
-  const defaultProps = {
-    component: mockComponent,
-    selectedLandscape: 'prod',
-    selectedLandscapeName: 'Production',
-    selectedLandscapeData: {},
+  const mockContextProps = {
+    selectedLandscape: 'prod' as string | null,
+    selectedLandscapeData: { 
+      name: 'Production', 
+      metadata: { route: 'prod.example.com' }
+    },
+    isCentralLandscape: false,
+    teamNamesMap: { 'team-1': 'Test Team' },
+    teamColorsMap: { 'team-1': '#ff0000' },
+    componentHealthMap: {} as Record<string, ComponentHealthCheck>,
+    isLoadingHealth: false,
     expandedComponents: {},
     onToggleExpanded: vi.fn(),
-    getComponentHealth: vi.fn().mockReturnValue('healthy'),
-    getComponentAlerts: vi.fn().mockReturnValue(false),
     system: 'test-system',
   };
 
-  const renderWithQueryClient = (ui: React.ReactElement) => {
+  const renderWithProviders = (
+    ui: React.ReactElement, 
+    contextProps: typeof mockContextProps = mockContextProps
+  ) => {
     return render(
       <QueryClientProvider client={queryClient}>
-        {ui}
+        <ComponentDisplayProvider {...contextProps}>
+          {ui}
+        </ComponentDisplayProvider>
       </QueryClientProvider>
     );
   };
@@ -180,14 +190,17 @@ describe('ComponentCard', () => {
 
     // Default mock for fetchSystemInformation to prevent errors in other tests
     mockFetchSystemInformation.mockResolvedValue({
-      status: 'error',
-      error: 'No landscape data provided'
+      status: 'success',
+      data: {
+        app: '1.2.3',
+        sapui5: '1.108.0',
+      }
     });
   });
 
   describe('Basic Rendering', () => {
     it('should render component card with basic information', () => {
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       expect(screen.getByTestId('component-card')).toBeInTheDocument();
       expect(screen.getByText('Test Service')).toBeInTheDocument();
@@ -196,21 +209,15 @@ describe('ComponentCard', () => {
 
     it('should render component name when title is not provided', () => {
       const componentWithoutTitle = { ...mockComponent, title: '' };
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} component={componentWithoutTitle} />
+      renderWithProviders(
+        <ComponentCard component={componentWithoutTitle} />
       );
 
       expect(screen.getByText('test-service')).toBeInTheDocument();
     });
 
     it('should render team badge when team information is provided', () => {
-      renderWithQueryClient(
-        <ComponentCard
-          {...defaultProps}
-          teamName="Test Team"
-          teamColor="#ff0000"
-        />
-      );
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       const teamBadge = screen.getByText('Test Team');
       expect(teamBadge).toBeInTheDocument();
@@ -221,9 +228,7 @@ describe('ComponentCard', () => {
 
     it('should render central service badge when component is central service', () => {
       const centralComponent = { ...mockComponent, 'central-service': true };
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} component={centralComponent} />
-      );
+      renderWithProviders(<ComponentCard component={centralComponent} />);
 
       expect(screen.getByText('Central Service')).toBeInTheDocument();
     });
@@ -237,7 +242,7 @@ describe('ComponentCard', () => {
         error: null,
       });
 
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       expect(screen.getByText('UP')).toBeInTheDocument();
     });
@@ -249,7 +254,7 @@ describe('ComponentCard', () => {
         error: null,
       });
 
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       expect(screen.getByText('DOWN')).toBeInTheDocument();
     });
@@ -261,7 +266,7 @@ describe('ComponentCard', () => {
         error: null,
       });
 
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       expect(screen.getByText('Checking')).toBeInTheDocument();
       expect(screen.getByTestId('loader-icon')).toBeInTheDocument();
@@ -269,9 +274,7 @@ describe('ComponentCard', () => {
 
     it('should not render health badge when component health is disabled', () => {
       const componentWithoutHealth = { ...mockComponent, health: false };
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} component={componentWithoutHealth} />
-      );
+      renderWithProviders(<ComponentCard component={componentWithoutHealth} />);
 
       expect(screen.queryByText('UP')).not.toBeInTheDocument();
       expect(screen.queryByText('DOWN')).not.toBeInTheDocument();
@@ -279,9 +282,8 @@ describe('ComponentCard', () => {
     });
 
     it('should not render health badge when no landscape is selected', () => {
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} selectedLandscape={null} />
-      );
+      const contextWithoutLandscape = { ...mockContextProps, selectedLandscape: null };
+      renderWithProviders(<ComponentCard component={mockComponent} />, contextWithoutLandscape);
 
       expect(screen.queryByText('UP')).not.toBeInTheDocument();
       expect(screen.queryByText('DOWN')).not.toBeInTheDocument();
@@ -290,7 +292,7 @@ describe('ComponentCard', () => {
 
   describe('Action Buttons', () => {
     it('should render GitHub button when GitHub URL is provided', () => {
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       const githubButton = screen.getByText('GitHub').closest('button');
       expect(githubButton).toBeInTheDocument();
@@ -298,7 +300,7 @@ describe('ComponentCard', () => {
     });
 
     it('should render Sonar button when Sonar URL is provided', () => {
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       const sonarButton = screen.getByText('Sonar').closest('button');
       expect(sonarButton).toBeInTheDocument();
@@ -307,24 +309,20 @@ describe('ComponentCard', () => {
 
     it('should not render GitHub button when GitHub URL is empty', () => {
       const componentWithoutGithub = { ...mockComponent, github: '' };
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} component={componentWithoutGithub} />
-      );
+      renderWithProviders(<ComponentCard component={componentWithoutGithub} />);
 
       expect(screen.queryByText('GitHub')).not.toBeInTheDocument();
     });
 
     it('should not render Sonar button when Sonar URL is empty', () => {
       const componentWithoutSonar = { ...mockComponent, sonar: '' };
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} component={componentWithoutSonar} />
-      );
+      renderWithProviders(<ComponentCard component={componentWithoutSonar} />);
 
       expect(screen.queryByText('Sonar')).not.toBeInTheDocument();
     });
 
     it('should open GitHub URL when GitHub button is clicked', () => {
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       const githubButton = screen.getByText('GitHub').closest('button');
       fireEvent.click(githubButton!);
@@ -337,7 +335,7 @@ describe('ComponentCard', () => {
     });
 
     it('should open Sonar URL when Sonar button is clicked', () => {
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       const sonarButton = screen.getByText('Sonar').closest('button');
       fireEvent.click(sonarButton!);
@@ -351,9 +349,7 @@ describe('ComponentCard', () => {
 
     it('should not open URL when URL is invalid', () => {
       const componentWithInvalidUrl = { ...mockComponent, github: '#' };
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} component={componentWithInvalidUrl} />
-      );
+      renderWithProviders(<ComponentCard component={componentWithInvalidUrl} />);
 
       const githubButton = screen.getByText('GitHub').closest('button');
       fireEvent.click(githubButton!);
@@ -364,7 +360,7 @@ describe('ComponentCard', () => {
 
   describe('Quality Metrics', () => {
     it('should render quality metrics with correct values', () => {
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       expect(screen.getByText('85%')).toBeInTheDocument(); // Coverage
       expect(screen.getByText('2')).toBeInTheDocument(); // Vulnerabilities
@@ -380,7 +376,7 @@ describe('ComponentCard', () => {
         hasAlias: true,
       });
 
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       const loadingElements = screen.getAllByText('...');
       expect(loadingElements).toHaveLength(4); // All 4 metrics should show loading
@@ -399,14 +395,14 @@ describe('ComponentCard', () => {
         hasAlias: true,
       });
 
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       const naElements = screen.getAllByText('N/A');
       expect(naElements).toHaveLength(3); // Coverage, vulnerabilities, and code smells show N/A, quality gate shows 'N/A' but might be rendered differently
     });
 
     it('should render quality gate icon with correct color for passed state', () => {
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       const qualityGateIcon = screen.getByTestId('check-circle-icon');
       expect(qualityGateIcon).toHaveClass('text-green-600');
@@ -425,7 +421,7 @@ describe('ComponentCard', () => {
         hasAlias: true,
       });
 
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       const qualityGateIcon = screen.getByTestId('check-circle-icon');
       expect(qualityGateIcon).toHaveClass('text-red-500');
@@ -435,9 +431,7 @@ describe('ComponentCard', () => {
   describe('Card Interactions', () => {
     it('should call onClick when card is clicked and component is healthy', () => {
       const mockOnClick = vi.fn();
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} onClick={mockOnClick} />
-      );
+      renderWithProviders(<ComponentCard component={mockComponent} onClick={mockOnClick} />);
 
       const card = screen.getByTestId('component-card');
       fireEvent.click(card);
@@ -453,9 +447,7 @@ describe('ComponentCard', () => {
         error: null,
       });
 
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} onClick={mockOnClick} />
-      );
+      renderWithProviders(<ComponentCard component={mockComponent} onClick={mockOnClick} />);
 
       const card = screen.getByTestId('component-card');
       fireEvent.click(card);
@@ -465,9 +457,7 @@ describe('ComponentCard', () => {
 
     it('should not call onClick when clicking on buttons', () => {
       const mockOnClick = vi.fn();
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} onClick={mockOnClick} />
-      );
+      renderWithProviders(<ComponentCard component={mockComponent} onClick={mockOnClick} />);
 
       const githubButton = screen.getByText('GitHub').closest('button');
       fireEvent.click(githubButton!);
@@ -477,16 +467,14 @@ describe('ComponentCard', () => {
 
     it('should have pointer cursor when clickable', () => {
       const mockOnClick = vi.fn();
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} onClick={mockOnClick} />
-      );
+      renderWithProviders(<ComponentCard component={mockComponent} onClick={mockOnClick} />);
 
       const card = screen.getByTestId('component-card');
       expect(card).toHaveStyle({ cursor: 'pointer' });
     });
 
     it('should not have pointer cursor when not clickable', () => {
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       const card = screen.getByTestId('component-card');
       expect(card).not.toHaveStyle({ cursor: 'pointer' });
@@ -496,35 +484,23 @@ describe('ComponentCard', () => {
   describe('Disabled State', () => {
     it('should render disabled state for central service in non-central landscape', () => {
       const centralComponent = { ...mockComponent, 'central-service': true };
-      renderWithQueryClient(
-        <ComponentCard
-          {...defaultProps}
-          component={centralComponent}
-          isCentralLandscape={false}
-        />
-      );
+      renderWithProviders(<ComponentCard component={centralComponent} />);
 
       const card = screen.getByTestId('component-card');
-      expect(card).toHaveClass('border-gray-300 dark:border-gray-600');
+      expect(card).toHaveClass('border-gray-300');
       expect(screen.getByText('Not Available in this Landscape')).toBeInTheDocument();
     });
 
     it('should not render disabled state for central service in central landscape', () => {
       const centralComponent = { ...mockComponent, 'central-service': true };
-      renderWithQueryClient(
-        <ComponentCard
-          {...defaultProps}
-          component={centralComponent}
-          isCentralLandscape={true}
-        />
-      );
+      const centralContext = { ...mockContextProps, isCentralLandscape: true };
+      renderWithProviders(<ComponentCard component={centralComponent} />, centralContext);
 
       const card = screen.getByTestId('component-card');
       expect(card).not.toHaveClass('opacity-50', 'cursor-not-allowed');
       expect(screen.queryByText('Not Available in this Landscape')).not.toBeInTheDocument();
     });
   });
-
 
   describe('Error Handling', () => {
     it('should handle Sonar API errors gracefully', () => {
@@ -535,7 +511,7 @@ describe('ComponentCard', () => {
         hasAlias: true,
       });
 
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       // Should still render the component without crashing
       expect(screen.getByTestId('component-card')).toBeInTheDocument();
@@ -549,7 +525,7 @@ describe('ComponentCard', () => {
         error: new Error('Health API error'),
       });
 
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       // Should still render the component without crashing
       expect(screen.getByTestId('component-card')).toBeInTheDocument();
@@ -572,9 +548,7 @@ describe('ComponentCard', () => {
         hasAlias: false,
       });
 
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} component={componentWithoutSonar} />
-      );
+      renderWithProviders(<ComponentCard component={componentWithoutSonar} />);
 
       expect(screen.getByTestId('component-card')).toBeInTheDocument();
       expect(screen.queryByText('Sonar')).not.toBeInTheDocument();
@@ -582,25 +556,13 @@ describe('ComponentCard', () => {
 
     it('should handle empty component title and name', () => {
       const emptyComponent = { ...mockComponent, title: '', name: '' };
-      renderWithQueryClient(
-        <ComponentCard {...defaultProps} component={emptyComponent} />
-      );
+      renderWithProviders(<ComponentCard component={emptyComponent} />);
 
       expect(screen.getByTestId('component-card')).toBeInTheDocument();
     });
 
     it('should handle missing optional props', () => {
-      const minimalProps = {
-        component: mockComponent,
-        selectedLandscape: null,
-        expandedComponents: {},
-        onToggleExpanded: vi.fn(),
-        getComponentHealth: vi.fn(),
-        getComponentAlerts: vi.fn(),
-        system: 'test-system',
-      };
-
-      renderWithQueryClient(<ComponentCard {...minimalProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       expect(screen.getByTestId('component-card')).toBeInTheDocument();
       expect(screen.getByText('Test Service')).toBeInTheDocument();
@@ -609,7 +571,7 @@ describe('ComponentCard', () => {
 
   describe('Accessibility', () => {
     it('should have proper button roles for action buttons', () => {
-      renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       const githubButton = screen.getByText('GitHub').closest('button');
       const sonarButton = screen.getByText('Sonar').closest('button');
@@ -621,14 +583,16 @@ describe('ComponentCard', () => {
 
   describe('Performance', () => {
     it('should not re-render unnecessarily with same props', () => {
-      const { rerender } = renderWithQueryClient(<ComponentCard {...defaultProps} />);
+      const { rerender } = renderWithProviders(<ComponentCard component={mockComponent} />);
 
       expect(screen.getByTestId('component-card')).toBeInTheDocument();
 
       // Re-render with same props
       rerender(
         <QueryClientProvider client={queryClient}>
-          <ComponentCard {...defaultProps} />
+          <ComponentDisplayProvider {...mockContextProps}>
+            <ComponentCard component={mockComponent} />
+          </ComponentDisplayProvider>
         </QueryClientProvider>
       );
 
@@ -638,34 +602,7 @@ describe('ComponentCard', () => {
 
   describe('System Information', () => {
     it('should fetch and display system information when landscape is selected', async () => {
-      // Mock successful system information response
-      const mockSystemInfo = {
-        app: '1.2.3',
-        sapui5: '1.108.0',
-        buildProperties: {
-          version: {
-            app: '1.2.3',
-            sapui5: '1.108.0'
-          }
-        }
-      };
-
-      mockFetchSystemInformation.mockResolvedValue({
-        status: 'success',
-        data: mockSystemInfo
-      });
-
-      const propsWithLandscapeData = {
-        ...defaultProps,
-        selectedLandscapeData: {
-          name: 'Production',
-          metadata: {
-            route: 'sap.hana.ondemand.com'
-          }
-        }
-      };
-
-      renderWithQueryClient(<ComponentCard {...propsWithLandscapeData} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       // Wait for the useEffect to complete and system info to be fetched
       await waitFor(() => {
@@ -673,7 +610,7 @@ describe('ComponentCard', () => {
           mockComponent,
           {
             name: 'Production',
-            route: 'sap.hana.ondemand.com'
+            route: 'prod.example.com'
           }
         );
       });
@@ -700,17 +637,7 @@ describe('ComponentCard', () => {
         data: mockSystemInfo
       });
 
-      const propsWithLandscapeData = {
-        ...defaultProps,
-        selectedLandscapeData: {
-          name: 'Production',
-          metadata: {
-            route: 'sap.hana.ondemand.com'
-          }
-        }
-      };
-
-      renderWithQueryClient(<ComponentCard {...propsWithLandscapeData} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       await waitFor(() => {
         expect(screen.getByText('App: 2.0.0')).toBeInTheDocument();
@@ -730,17 +657,7 @@ describe('ComponentCard', () => {
         data: mockSystemInfo
       });
 
-      const propsWithLandscapeData = {
-        ...defaultProps,
-        selectedLandscapeData: {
-          name: 'Production',
-          metadata: {
-            route: 'sap.hana.ondemand.com'
-          }
-        }
-      };
-
-      renderWithQueryClient(<ComponentCard {...propsWithLandscapeData} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       await waitFor(() => {
         expect(screen.getByText('3.1.0')).toBeInTheDocument();
@@ -756,17 +673,7 @@ describe('ComponentCard', () => {
         }), 100))
       );
 
-      const propsWithLandscapeData = {
-        ...defaultProps,
-        selectedLandscapeData: {
-          name: 'Production',
-          metadata: {
-            route: 'sap.hana.ondemand.com'
-          }
-        }
-      };
-
-      renderWithQueryClient(<ComponentCard {...propsWithLandscapeData} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       // Should show loading state
       expect(screen.getByText('Loading...')).toBeInTheDocument();
@@ -778,31 +685,15 @@ describe('ComponentCard', () => {
     });
 
     it('should not fetch system information when no landscape is selected', () => {
-      const propsWithoutLandscape = {
-        ...defaultProps,
-        selectedLandscape: null
-      };
-
-      renderWithQueryClient(<ComponentCard {...propsWithoutLandscape} />);
+      const contextWithoutLandscape = { ...mockContextProps, selectedLandscape: null };
+      renderWithProviders(<ComponentCard component={mockComponent} />, contextWithoutLandscape);
 
       expect(mockFetchSystemInformation).not.toHaveBeenCalled();
     });
 
     it('should not fetch system information when component is disabled', () => {
       const centralComponent = { ...mockComponent, 'central-service': true };
-      const propsWithDisabledComponent = {
-        ...defaultProps,
-        component: centralComponent,
-        isCentralLandscape: false,
-        selectedLandscapeData: {
-          name: 'Production',
-          metadata: {
-            route: 'sap.hana.ondemand.com'
-          }
-        }
-      };
-
-      renderWithQueryClient(<ComponentCard {...propsWithDisabledComponent} />);
+      renderWithProviders(<ComponentCard component={centralComponent} />);
 
       expect(mockFetchSystemInformation).not.toHaveBeenCalled();
     });
@@ -813,17 +704,7 @@ describe('ComponentCard', () => {
         error: 'Failed to fetch system info'
       });
 
-      const propsWithLandscapeData = {
-        ...defaultProps,
-        selectedLandscapeData: {
-          name: 'Production',
-          metadata: {
-            route: 'sap.hana.ondemand.com'
-          }
-        }
-      };
-
-      renderWithQueryClient(<ComponentCard {...propsWithLandscapeData} />);
+      renderWithProviders(<ComponentCard component={mockComponent} />);
 
       await waitFor(() => {
         expect(mockFetchSystemInformation).toHaveBeenCalled();

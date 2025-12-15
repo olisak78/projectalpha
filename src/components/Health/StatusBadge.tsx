@@ -28,6 +28,10 @@ export function StatusBadge({ status, error }: StatusBadgeProps) {
           className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800',
         };
       case 'UNKNOWN':
+        return {
+          icon: HelpCircle,
+          label: 'Not Available',
+        };
       case 'OUT_OF_SERVICE':
         return {
           icon: HelpCircle,

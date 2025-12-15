@@ -21,6 +21,7 @@ vi.mock('lucide-react', () => ({
   Info: ({ className }: { className?: string }) => <div data-testid="info-icon" className={className} />,
   ChevronDown: ({ className }: { className?: string }) => <div data-testid="chevron-down-icon" className={className} />,
   ChevronRight: ({ className }: { className?: string }) => <div data-testid="chevron-right-icon" className={className} />,
+  Heart: ({ className }: { className?: string }) => <div data-testid="heart-icon" className={className} />,
 }));
 
 // Mock UI components
@@ -90,6 +91,12 @@ vi.mock('../../src/components/CircuitBreakerSection', () => ({
       Circuit Breaker Section - Status: {circuitBreakers?.status}
     </div>
   ),
+}));
+
+// Mock healthApi functions
+vi.mock('../../src/services/healthApi', () => ({
+  buildHealthEndpoint: vi.fn(),
+  buildHealthEndpointWithSubdomain: vi.fn(),
 }));
 
 // Mock window.open
@@ -401,7 +408,12 @@ describe('ComponentViewOverview', () => {
       />
     );
 
-    expect(screen.getByText('Health')).toBeInTheDocument();
+    // Look for all Health text elements and find the one inside a badge
+    const healthElements = screen.getAllByText('Health');
+    const healthBadge = healthElements.find(element => 
+      element.closest('[data-testid="badge"]')
+    );
+    expect(healthBadge).toBeInTheDocument();
   });
 
   it('should display loading badge when health is loading', () => {
@@ -608,5 +620,158 @@ describe('ComponentViewOverview', () => {
 
     expect(screen.getByText('Jobs Scheduler')).toBeInTheDocument();
     expect(screen.getByText('Startup')).toBeInTheDocument();
+  });
+
+  describe('Health Button', () => {
+    it('should render Health button when selectedApiLandscape is available', () => {
+      render(
+        <ComponentViewOverview
+          component={mockComponent}
+          selectedLandscape={mockSelectedLandscape}
+          selectedApiLandscape={mockSelectedApiLandscape}
+          healthData={mockHealthData}
+          healthLoading={false}
+          healthError={null}
+          responseTime={null}
+          statusCode={null}
+          sonarData={null}
+          sonarLoading={false}
+        />
+      );
+
+      // Look for the Health button specifically (contains heart icon)
+      const healthButton = screen.getByRole('button', { name: /health/i });
+      expect(healthButton).toBeInTheDocument();
+      expect(screen.getByTestId('heart-icon')).toBeInTheDocument();
+    });
+
+    it('should open health URL when Health button is clicked', async () => {
+      const { buildHealthEndpoint } = await import('../../src/services/healthApi');
+      const mockHealthUrl = 'https://test-service.cfapps.production/health';
+      vi.mocked(buildHealthEndpoint).mockReturnValue(mockHealthUrl);
+
+      render(
+        <ComponentViewOverview
+          component={mockComponent}
+          selectedLandscape={mockSelectedLandscape}
+          selectedApiLandscape={mockSelectedApiLandscape}
+          healthData={mockHealthData}
+          healthLoading={false}
+          healthError={null}
+          responseTime={null}
+          statusCode={null}
+          sonarData={null}
+          sonarLoading={false}
+        />
+      );
+
+      const healthButton = screen.getByRole('button', { name: /health/i });
+      fireEvent.click(healthButton);
+
+      expect(buildHealthEndpoint).toHaveBeenCalledWith(
+        mockComponent,
+        {
+          name: 'Production Environment',
+          route: 'production'
+        }
+      );
+      expect(mockWindowOpen).toHaveBeenCalledWith(mockHealthUrl, '_blank');
+    });
+
+    it('should use subdomain when component has subdomain metadata', async () => {
+      const { buildHealthEndpointWithSubdomain } = await import('../../src/services/healthApi');
+      const componentWithSubdomain = {
+        ...mockComponent,
+        metadata: { subdomain: 'sap-provisioning' }
+      };
+      const mockHealthUrl = 'https://sap-provisioning.test-service.cfapps.production/health';
+      vi.mocked(buildHealthEndpointWithSubdomain).mockReturnValue(mockHealthUrl);
+
+      render(
+        <ComponentViewOverview
+          component={componentWithSubdomain}
+          selectedLandscape={mockSelectedLandscape}
+          selectedApiLandscape={mockSelectedApiLandscape}
+          healthData={mockHealthData}
+          healthLoading={false}
+          healthError={null}
+          responseTime={null}
+          statusCode={null}
+          sonarData={null}
+          sonarLoading={false}
+        />
+      );
+
+      const healthButton = screen.getByRole('button', { name: /health/i });
+      fireEvent.click(healthButton);
+
+      expect(buildHealthEndpointWithSubdomain).toHaveBeenCalledWith(
+        componentWithSubdomain,
+        {
+          name: 'Production Environment',
+          route: 'production'
+        },
+        'sap-provisioning'
+      );
+      expect(mockWindowOpen).toHaveBeenCalledWith(mockHealthUrl, '_blank');
+    });
+
+    it('should use domain property when route is not available in landscape', async () => {
+      const { buildHealthEndpoint } = await import('../../src/services/healthApi');
+      const landscapeWithDomain = {
+        name: 'Production Environment',
+        domain: 'sap.hana.ondemand.com'
+      };
+      const mockHealthUrl = 'https://test-service.cfapps.sap.hana.ondemand.com/health';
+      vi.mocked(buildHealthEndpoint).mockReturnValue(mockHealthUrl);
+
+      render(
+        <ComponentViewOverview
+          component={mockComponent}
+          selectedLandscape={mockSelectedLandscape}
+          selectedApiLandscape={landscapeWithDomain}
+          healthData={mockHealthData}
+          healthLoading={false}
+          healthError={null}
+          responseTime={null}
+          statusCode={null}
+          sonarData={null}
+          sonarLoading={false}
+        />
+      );
+
+      const healthButton = screen.getByRole('button', { name: /health/i });
+      fireEvent.click(healthButton);
+
+      expect(buildHealthEndpoint).toHaveBeenCalledWith(
+        mockComponent,
+        {
+          name: 'Production Environment',
+          route: 'sap.hana.ondemand.com'
+        }
+      );
+      expect(mockWindowOpen).toHaveBeenCalledWith(mockHealthUrl, '_blank');
+    });
+
+    it('should not render Health button when selectedApiLandscape is not available', () => {
+      render(
+        <ComponentViewOverview
+          component={mockComponent}
+          selectedLandscape={mockSelectedLandscape}
+          selectedApiLandscape={null}
+          healthData={mockHealthData}
+          healthLoading={false}
+          healthError={null}
+          responseTime={null}
+          statusCode={null}
+          sonarData={null}
+          sonarLoading={false}
+        />
+      );
+
+      // Should not find a Health button (with heart icon)
+      expect(screen.queryByRole('button', { name: /health/i })).not.toBeInTheDocument();
+      expect(screen.queryByTestId('heart-icon')).not.toBeInTheDocument();
+    });
   });
 });

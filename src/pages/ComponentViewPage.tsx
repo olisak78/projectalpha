@@ -13,6 +13,7 @@ import type { HealthResponse } from "@/types/health";
 import { useSwaggerUI } from "@/hooks/api/useSwaggerUI";
 import { ComponentViewApi } from "@/components/ComponentViewApi";
 import { ComponentViewOverview } from "@/components/ComponentViewOverview";
+import { LandscapeFilter } from "@/components/LandscapeFilter";
 
 export function ComponentViewPage() {
     const params = useParams<{ projectName?: string; componentName?: string; componentId?: string; tabId?: string }>();
@@ -28,6 +29,33 @@ export function ComponentViewPage() {
     const { data: landscapesData, isLoading: isLoadingLandscapes } = useLandscapesByProject(projectName);
     const { data: components } = useComponentsByProject(projectName);
     const { data: apiLandscapes } = useLandscapesByProject(projectName);
+
+    const landscapeGroupsRecord = useMemo(() => {
+    if (!apiLandscapes) return {};
+    
+    // Group landscapes by their group property
+    const grouped = apiLandscapes.reduce((acc: Record<string, any[]>, landscape: any) => {
+        // You may need to adjust this based on your landscape data structure
+        const groupName = landscape.group || 'Default';
+        
+        if (!acc[groupName]) {
+            acc[groupName] = [];
+        }
+        
+        acc[groupName].push({
+            id: landscape.id,
+            name: landscape.name,
+            technical_name: landscape.technical_name,
+            status: landscape.status || 'active',
+            isCentral: landscape.isCentral || false,
+            landscape_url: landscape.landscape_url
+        });
+        
+        return acc;
+    }, {});
+    
+    return grouped;
+}, [apiLandscapes]);
     
     // Get project-specific selected landscape (reactive to changes)
     const effectiveSelectedLandscape = useMemo(() => {
@@ -193,6 +221,30 @@ export function ComponentViewPage() {
 
     return (
         <BreadcrumbPage>
+        {/* Landscape Filter Section */}
+        <div className="mb-6">
+            <div className="flex items-center justify-between gap-4">
+                <h2 className="text-2xl font-semibold text-foreground">
+                    {component?.title || component?.name || 'Component'}
+                </h2>
+                <div className="flex items-center gap-2">
+                    <LandscapeFilter
+                        selectedLandscape={effectiveSelectedLandscape}
+                        landscapeGroups={landscapeGroupsRecord}
+                        onLandscapeChange={(landscapeId) => 
+                            setSelectedLandscapeForProject(projectName, landscapeId)
+                        }
+                        onShowLandscapeDetails={() => {
+                            // Optional: You can add a modal/dialog to show landscape details
+                            // For now, this can be a no-op or navigate somewhere
+                        }}
+                        showClearButton={false}
+                        showViewAllButton={false}
+                        projectId={projectName}
+                    />
+                </div>
+            </div>
+        </div>
             <div className="space-y-6">
                 {activeTab === 'overview' && (
                     <ComponentViewOverview
