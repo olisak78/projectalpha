@@ -5,7 +5,7 @@
  * Loads the plugin bundle either from a direct URL or via the API.
  */
 
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/hooks/use-toast';
@@ -19,19 +19,19 @@ import { BaseBody } from '@/plugins/components/PluginBody';
 import { BaseContainer } from '@/plugins/components/PluginContainer';
 import { BaseHeader } from '@/plugins/components/PluginHeader';
 import { PluginApiClient } from '@/plugins/utils/PluginApiClient';
-import { 
-  PluginContext, 
-  PluginManifest, 
-  PluginMetadata, 
-  PluginState, 
-  PluginTheme 
+import {
+  PluginContext,
+  PluginManifest,
+  PluginMetadata,
+  PluginState,
+  PluginTheme
 } from '@/plugins/types/plugin.types';
 
-import { 
-  usePlugins, 
-  fetchPluginUI, 
-  isGitHubUrl, 
-  PluginApiData 
+import {
+  usePlugins,
+  fetchPluginUI,
+  isGitHubUrl,
+  PluginApiData
 } from '@/hooks/api/usePlugins';
 
 // ============================================================================
@@ -216,28 +216,28 @@ export default function PluginViewPage() {
 
   // Find the plugin by matching the slug against the sanitized name
   const plugin = useMemo(() => {
-  console.log('[PluginViewPage] Finding plugin - pluginSlug:', pluginSlug);
-  console.log('[PluginViewPage] Available plugins:', pluginsData?.plugins?.map(p => ({
-    name: p.name,
-    sanitized: p.name.toLowerCase().replace(/\s+/g, '-'),
-    id: p.id
-  })));
-  
-  if (!pluginsData?.plugins || !pluginSlug) {
-    console.log('[PluginViewPage] No plugins data or no slug');
-    return null;
-  }
-  
-  const found = pluginsData.plugins.find(p => {
-    const sanitizedName = p.name.toLowerCase().replace(/\s+/g, '-');
-    const matches = sanitizedName === pluginSlug;
-    console.log('[PluginViewPage] Comparing:', { sanitizedName, pluginSlug, matches });
-    return matches;
-  });
-  
-  console.log('[PluginViewPage] Found plugin:', found);
-  return found;
-}, [pluginsData, pluginSlug]);
+    console.log('[PluginViewPage] Finding plugin - pluginSlug:', pluginSlug);
+    console.log('[PluginViewPage] Available plugins:', pluginsData?.plugins?.map(p => ({
+      name: p.name,
+      sanitized: p.name.toLowerCase().replace(/\s+/g, '-'),
+      id: p.id
+    })));
+
+    if (!pluginsData?.plugins || !pluginSlug) {
+      console.log('[PluginViewPage] No plugins data or no slug');
+      return null;
+    }
+
+    const found = pluginsData.plugins.find(p => {
+      const sanitizedName = p.name.toLowerCase().replace(/\s+/g, '-');
+      const matches = sanitizedName === pluginSlug;
+      console.log('[PluginViewPage] Comparing:', { sanitizedName, pluginSlug, matches });
+      return matches;
+    });
+
+    console.log('[PluginViewPage] Found plugin:', found);
+    return found;
+  }, [pluginsData, pluginSlug]);
 
   // Plugin loading state
   const [pluginState, setPluginState] = useState<PluginState>({ loadState: 'idle' });
@@ -268,7 +268,7 @@ export default function PluginViewPage() {
   // /plugins/<pluginId>/proxy?path=<endpoint>
   // The PluginApiClient will automatically use portalRequest() when no
   // backend proxy is set in sessionStorage.
-  
+
   // Clear any existing backend proxy from PluginsPage testing
   useEffect(() => {
     sessionStorage.removeItem('plugin-backend-proxy');
@@ -327,7 +327,7 @@ export default function PluginViewPage() {
 
       try {
         const manifest = await loadPluginBundle(plugin);
-        
+
         if (cancelled) return;
 
         manifestRef = manifest;
@@ -371,10 +371,10 @@ export default function PluginViewPage() {
         }
       }
     };
-  }, [plugin]);
+  }, [plugin, pluginSlug]);
 
   // Reset plugin state when plugin changes
-  useEffect(() => {
+  useLayoutEffect(() => {
     setPluginState({ loadState: 'idle' });
   }, [pluginSlug]);
 

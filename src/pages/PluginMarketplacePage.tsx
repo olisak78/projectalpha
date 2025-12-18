@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Store, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, Puzzle, Pin } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { usePlugins, PluginApiData } from '@/hooks/api/usePlugins';
+import { useSubscribeToPlugin, useUnsubscribeFromPlugin } from '@/hooks/api/usePluginSubscriptions';
 
 // Default items per page
 const DEFAULT_PAGE_SIZE = 12;
@@ -47,19 +48,40 @@ function getCategoryColor(category?: string): string {
  * Plugin card component for the marketplace grid
  */
 function PluginCard({ plugin, onOpen }: { plugin: PluginApiData; onOpen: (plugin: PluginApiData) => void }) {
+  const subscribeToPlugin = useSubscribeToPlugin();
+  const unsubscribeFromPlugin = useUnsubscribeFromPlugin();
+  
   // Extract category and version from plugin data (with fallbacks)
   const category = plugin.category || 'Development';
   const version = plugin.version || 'v1.0.0';
+  const isSubscribed = plugin.subscribed || false;
+
+  const handlePinClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (isSubscribed) {
+      unsubscribeFromPlugin.mutate(plugin.id);
+    } else {
+      subscribeToPlugin.mutate(plugin.id);
+    }
+  };
 
   return (
     <Card className="h-full flex flex-col hover:shadow-md transition-shadow relative">
       <CardContent className="p-5 flex flex-col h-full">
         {/* Pin icon in top right */}
         <button 
-          className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Pin plugin"
+          onClick={handlePinClick}
+          disabled={subscribeToPlugin.isPending || unsubscribeFromPlugin.isPending}
+          className={`absolute top-4 right-4 transition-colors ${
+            isSubscribed 
+              ? 'text-primary' 
+              : 'text-muted-foreground hover:text-foreground'
+          } disabled:opacity-50 disabled:cursor-not-allowed`}
+          aria-label={isSubscribed ? "Unpin plugin" : "Pin plugin"}
+          title={isSubscribed ? "Unpin from sidebar" : "Pin to sidebar"}
         >
-          <Pin className="h-4 w-4" />
+          <Pin className={`h-4 w-4 ${isSubscribed ? 'fill-current' : ''}`} />
         </button>
 
         {/* Header with icon and title */}
@@ -213,10 +235,10 @@ export default function PluginMarketplacePage() {
     // Create a URL-friendly slug from the plugin name
     const slug = plugin.name.toLowerCase().replace(/\s+/g, '-');
     console.log('[Marketplace] Opening plugin:', {
-    originalName: plugin.name,
-    generatedSlug: slug,
-    pluginId: plugin.id
-  });
+      originalName: plugin.name,
+      generatedSlug: slug,
+      pluginId: plugin.id
+    });
     navigate(`/plugins/${slug}`);
   };
 

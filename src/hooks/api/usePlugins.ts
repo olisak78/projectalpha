@@ -20,6 +20,7 @@ export interface PluginApiData {
   react_component_path?: string;
   backend_server_url?: string;
   owner: string;
+  subscribed?: boolean; // Whether the current user is subscribed to this plugin
 }
 
 /**
@@ -122,15 +123,6 @@ export function usePlugin(
     ...options,
   });
 }
-
-/**
- * Plugin UI content response from API
- */
-export interface PluginUIResponse {
-  content: string;
-  content_type: string;
-}
-
 
 /**
  * Hook to fetch plugin UI content

@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from "react";
-import { ChevronRight, ChevronLeft, Users, Wrench, Home, Link, Network, Brain, MessageSquare, Puzzle, Store } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from "react";
+import { ChevronRight, ChevronLeft, ChevronDown, Users, Wrench, Home, Link, Network, Brain, MessageSquare, Puzzle, Store } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
 import { useSidebarState } from '@/contexts/SidebarContext';
 import { useProjectVisibility } from '@/hooks/useProjectVisibility';
 import { CloudAutomationIcon } from '../icons/CloudAutomationIcon';
 import { UnifiedServicesIcon } from '../icons/UnifiedServiceIcon';
 import { buildJiraFeedbackUrl } from '@/lib/utils';
 import { useProjectsContext } from '@/contexts/ProjectsContext';
+import { usePlugins } from '@/hooks/api/usePlugins';
 
 interface SideBarProps {
     activeProject: string;
@@ -16,8 +18,7 @@ interface SideBarProps {
 const isProduction = import.meta.env.PROD;
 
 // Map project name to icon
-const getProjectIcon = (project: string, projectsData) => {
-
+const getProjectIcon = (project: string, projectsData: any[]) => {
     switch (project) {
         case 'Home': return <Home size={16} />;
         case 'Teams': return <Users size={16} />;
@@ -29,7 +30,7 @@ const getProjectIcon = (project: string, projectsData) => {
         default: break;
     }
 
-    const dynamicProject = projectsData.find(p => p.name === project || p.title === project);
+    const dynamicProject = projectsData.find((p: any) => p.name === project || p.title === project);
     if (!dynamicProject) return <Home size={16} />;
 
     switch (dynamicProject.name) {
@@ -42,12 +43,43 @@ const getProjectIcon = (project: string, projectsData) => {
     }
 };
 
-export const SideBar: React.FC<SideBarProps> = ({ activeProject, onProjectChange, projects }) => {
+// Get plugin icon dynamically
+const getPluginIcon = (iconName?: string) => {
+    if (!iconName) return <Puzzle size={14} />;
     
+    const IconComponent = (LucideIcons as any)[iconName];
+    if (!IconComponent) return <Puzzle size={14} />;
+    
+    return <IconComponent size={14} />;
+};
+
+export const SideBar: React.FC<SideBarProps> = ({ activeProject, onProjectChange, projects }) => {
     const { isExpanded, setIsExpanded } = useSidebarState();
     const { projects: projectsData, isLoading, sidebarItems } = useProjectsContext();
     const { isProjectVisible } = useProjectVisibility();
     const [visibilityKey, setVisibilityKey] = useState(0);
+    const [isMarketplaceExpanded, setIsMarketplaceExpanded] = useState(true);
+
+    // Fetch all plugins to get subscribed ones
+    const { data: pluginsData } = usePlugins({
+        limit: 100, // Fetch all plugins
+        offset: 0,
+    });
+
+    // Extract subscribed plugins from the API response
+    const subscribedPlugins = useMemo(() => {
+        if (!pluginsData?.plugins) return [];
+        
+        return pluginsData.plugins
+            .filter(plugin => plugin.subscribed === true)
+            .map(plugin => ({
+                id: plugin.id,
+                name: plugin.name,
+                title: plugin.title,
+                slug: plugin.name.toLowerCase().replace(/\s+/g, '-'),
+                icon: plugin.icon,
+            }));
+    }, [pluginsData]);
 
     // Listen for visibility changes
     useEffect(() => {
@@ -63,7 +95,7 @@ export const SideBar: React.FC<SideBarProps> = ({ activeProject, onProjectChange
 
     // Function to determine if a project should be visible in the sidebar based on visibility rules
     const isProjectVisibleInSidebar = (project: string, projectsData: any[]) => {
-        if (project==='Plugins' && isProduction) {
+        if (project === 'Plugins' && isProduction) {
             return false;
         }
         // Static projects (always show)
@@ -73,12 +105,28 @@ export const SideBar: React.FC<SideBarProps> = ({ activeProject, onProjectChange
         }
 
         // For dynamic projects, use the visibility hook
-        const dynamicProject = projectsData.find(p => p.name === project || p.title === project);
+        const dynamicProject = projectsData.find((p: any) => p.name === project || p.title === project);
         if (dynamicProject) {
             return isProjectVisible(dynamicProject);
         }
 
         return false;
+    };
+
+    const handlePluginClick = (plugin: { id: string; name: string; title: string; slug: string; icon?: string }) => {
+        console.log('[SideBar] Plugin clicked:', plugin.slug);
+        // Navigate to the plugin view page
+        onProjectChange(`plugins/${plugin.slug}`);
+    };
+
+    const handleMarketplaceClick = () => {
+        // Toggle expansion if there are subscribed plugins
+        if (subscribedPlugins.length > 0) {
+            setIsMarketplaceExpanded(!isMarketplaceExpanded);
+        } else {
+            // If no subscribed plugins, just navigate to marketplace
+            onProjectChange('Plugin Marketplace');
+        }
     };
 
     if (isLoading || !projectsData) {
@@ -113,24 +161,99 @@ export const SideBar: React.FC<SideBarProps> = ({ activeProject, onProjectChange
                 </button>
 
                 <nav className="flex flex-col justify-between h-full py-3">
-                    <div className="flex flex-col gap-1 px-2">
-                        {sidebarItems?.filter((project) => isProjectVisibleInSidebar(project, projectsData)).map((project) => (
-                            <button
-                                key={project}
-                                onClick={() => onProjectChange(project)}
-                                className={`group relative flex items-center transition-all duration-200 w-full rounded-md px-2 py-1.5 ${activeProject === project ? 'font-medium' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
-                                title={!isExpanded ? project : undefined}
-                            >
-                                <div className={`flex items-center justify-center flex-shrink-0 h-7 w-7 rounded-full transition-colors duration-200 ${activeProject === project ? 'bg-blue-500 text-white dark:bg-blue-600' : 'bg-muted text-muted-foreground group-hover:bg-accent group-hover:text-accent-foreground'}`}>
-                                    <div className="flex items-center justify-center [&>svg]:h-4 [&>svg]:w-4">
-                                        {getProjectIcon(project, projectsData)}
+                    <div className="flex flex-col gap-1 px-2 overflow-y-auto">
+                        {sidebarItems?.filter((project) => isProjectVisibleInSidebar(project, projectsData)).map((project) => {
+                            // Special handling for Plugin Marketplace
+                            if (project === 'Plugin Marketplace') {
+                                return (
+                                    <div key={project}>
+                                        <button
+                                            onClick={handleMarketplaceClick}
+                                            className={`group relative flex items-center transition-all duration-200 w-full rounded-md px-2 py-1.5 ${
+                                                activeProject === project ? 'font-medium' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
+                                            }`}
+                                            title={!isExpanded ? project : undefined}
+                                        >
+                                            <div className={`flex items-center justify-center flex-shrink-0 h-7 w-7 rounded-full transition-colors duration-200 ${
+                                                activeProject === project 
+                                                    ? 'bg-blue-500 text-white dark:bg-blue-600' 
+                                                    : 'bg-muted text-muted-foreground group-hover:bg-accent group-hover:text-accent-foreground'
+                                            }`}>
+                                                <div className="flex items-center justify-center [&>svg]:h-4 [&>svg]:w-4">
+                                                    {getProjectIcon(project, projectsData)}
+                                                </div>
+                                            </div>
+                                            <span className={`ml-3 text-sm font-medium truncate transition-all duration-300 ${
+                                                isExpanded ? 'opacity-100 max-w-[150px]' : 'opacity-0 max-w-0 overflow-hidden'
+                                            }`}>
+                                                {project}
+                                            </span>
+                                            {/* Chevron for expansion */}
+                                            {isExpanded && subscribedPlugins.length > 0 && (
+                                                <ChevronDown 
+                                                    size={14} 
+                                                    className={`ml-auto transition-transform duration-200 ${
+                                                        isMarketplaceExpanded ? 'rotate-180' : ''
+                                                    }`}
+                                                />
+                                            )}
+                                        </button>
+                                        
+                                        {/* Subscribed plugins as children */}
+                                        {isExpanded && isMarketplaceExpanded && subscribedPlugins.length > 0 && (
+                                            <div className="ml-6 mt-1 space-y-1 border-l border-border pl-3">
+                                                {subscribedPlugins.map((plugin) => (
+                                                    <button
+                                                        key={plugin.id}
+                                                        onClick={() => handlePluginClick(plugin)}
+                                                        className={`group relative flex items-center transition-all duration-200 w-full rounded-md px-2 py-1 text-xs ${
+                                                            activeProject === `/plugins/${plugin.slug}` 
+                                                                ? 'bg-accent/70 text-accent-foreground font-medium' 
+                                                                : 'text-muted-foreground hover:bg-accent/30 hover:text-accent-foreground'
+                                                        }`}
+                                                        title={plugin.title}
+                                                    >
+                                                        <div className="flex-shrink-0 mr-2">
+                                                            {getPluginIcon(plugin.icon)}
+                                                        </div>
+                                                        <span className="truncate">
+                                                            {plugin.title}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                                <span className={`ml-3 text-sm font-medium truncate transition-all duration-300 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'opacity-0 max-w-0 overflow-hidden'}`}>
-                                    {project}
-                                </span>
-                            </button>
-                        ))}
+                                );
+                            }
+
+                            // Regular sidebar items
+                            return (
+                                <button
+                                    key={project}
+                                    onClick={() => onProjectChange(project)}
+                                    className={`group relative flex items-center transition-all duration-200 w-full rounded-md px-2 py-1.5 ${
+                                        activeProject === project ? 'font-medium' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
+                                    }`}
+                                    title={!isExpanded ? project : undefined}
+                                >
+                                    <div className={`flex items-center justify-center flex-shrink-0 h-7 w-7 rounded-full transition-colors duration-200 ${
+                                        activeProject === project 
+                                            ? 'bg-blue-500 text-white dark:bg-blue-600' 
+                                            : 'bg-muted text-muted-foreground group-hover:bg-accent group-hover:text-accent-foreground'
+                                    }`}>
+                                        <div className="flex items-center justify-center [&>svg]:h-4 [&>svg]:w-4">
+                                            {getProjectIcon(project, projectsData)}
+                                        </div>
+                                    </div>
+                                    <span className={`ml-3 text-sm font-medium truncate transition-all duration-300 ${
+                                        isExpanded ? 'opacity-100 max-w-[200px]' : 'opacity-0 max-w-0 overflow-hidden'
+                                    }`}>
+                                        {project}
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
 
                     <div className="px-2 pb-2">
@@ -142,7 +265,9 @@ export const SideBar: React.FC<SideBarProps> = ({ activeProject, onProjectChange
                             <div className="flex items-center justify-center flex-shrink-0 h-6 w-6 rounded-full transition-colors duration-200 bg-muted text-muted-foreground group-hover:bg-accent group-hover:text-accent-foreground">
                                 <MessageSquare size={14} />
                             </div>
-                            <span className={`ml-2.5 text-xs font-medium truncate transition-all duration-300 ${isExpanded ? 'opacity-100 max-w-[200px]' : 'opacity-0 max-w-0 overflow-hidden'}`}>
+                            <span className={`ml-2.5 text-xs font-medium truncate transition-all duration-300 ${
+                                isExpanded ? 'opacity-100 max-w-[200px]' : 'opacity-0 max-w-0 overflow-hidden'
+                            }`}>
                                 Send Feedback
                             </span>
                         </button>
