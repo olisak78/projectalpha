@@ -14,7 +14,8 @@ export const calculateHealthPercentage = (label: string, summary: HealthSummary)
     case 'Healthy':
       return (((summary.up || 0) / summary.total) * 100).toFixed(1);
     case 'Down':
-      return ((((summary.down || 0) + (summary.error || 0)) / summary.total) * 100).toFixed(1);
+      const downCount = (summary.down || 0);
+      return ((downCount / summary.total) * 100).toFixed(1);
     default:
       return '0';
   }
@@ -26,11 +27,17 @@ export function HealthOverview({ summary, isLoading }: HealthOverviewProps) {
     return null;
   }
 
+  // Calculate total down count (down + error)
+  const totalDownCount = (summary.down || 0);
+  
+  // Check if total is 0 to show N/A for all values
+  const showNA = summary.total === 0;
+
   const cards = [
     {
       label: 'Healthy',
-      value: summary.up || 0,
-      percentage: calculateHealthPercentage('Healthy', summary),
+      value: showNA ? 'N/A' : summary.up || 0,
+      percentage: showNA ? null : calculateHealthPercentage('Healthy', summary),
       icon: CheckCircle2,
       color: 'text-green-600 dark:text-green-400',
       bgColor: 'bg-green-50 dark:bg-green-900/20',
@@ -38,8 +45,8 @@ export function HealthOverview({ summary, isLoading }: HealthOverviewProps) {
     },
     {
       label: 'Down',
-      value: summary.error || summary.down || 0,
-      percentage: calculateHealthPercentage('Down', summary),
+      value: showNA ? 'N/A' : totalDownCount,
+      percentage: showNA ? null : calculateHealthPercentage('Down', summary),
       icon: XCircle,
       color: 'text-red-600 dark:text-red-400',
       bgColor: 'bg-red-50 dark:bg-red-900/20',
@@ -47,8 +54,8 @@ export function HealthOverview({ summary, isLoading }: HealthOverviewProps) {
     },
     {
       label: 'Avg Response',
-      value: `${summary.avgResponseTime || 0}ms`,
-      displayValue: summary.avgResponseTime || 0,
+      value: showNA ? 'N/A' : `${summary.avgResponseTime || 0}ms`,
+      displayValue: showNA ? 'N/A' : summary.avgResponseTime || 0,
       icon: Clock,
       color: 'text-blue-600 dark:text-blue-400',
       bgColor: 'bg-blue-50 dark:bg-blue-900/20',

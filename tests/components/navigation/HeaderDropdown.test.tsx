@@ -5,6 +5,7 @@ import { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { HeaderDropdown } from '../../../src/components/DeveloperPortalHeader/HeaderDropdown';
 import { HeaderTab } from '../../../src/contexts/HeaderNavigationContext';
+import { SidebarProvider } from '../../../src/contexts/SidebarContext';
 
 /**
  * HeaderDropdown Component Tests
@@ -36,7 +37,9 @@ beforeAll(() => {
 function TestWrapper({ children }: { children: ReactNode }) {
   return (
     <MemoryRouter>
+      <SidebarProvider>
         {children}
+      </SidebarProvider>
     </MemoryRouter>
   );
 }

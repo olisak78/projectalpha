@@ -39,8 +39,8 @@ export function HealthTable({
   hideDownComponents = false,
   isCentralLandscape = false,
 }: HealthTableProps) {
-  // Get team data from context
-  const { teamNamesMap, teamColorsMap } = useComponentDisplay();
+  // Get team data from context for sorting
+  const { teamNamesMap } = useComponentDisplay();
   const componentOwnerMap = useMemo(() => {
     const map: Record<string, string | null> = {};
     components.forEach(comp => {
@@ -49,40 +49,25 @@ export function HealthTable({
     return map;
   }, [components]);
 
-  const componentNameMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    components.forEach(comp => {
-      map[comp.id] = comp.name;
-    });
-    return map;
-  }, [components]);
-
-  // Create maps for GitHub and Sonar URLs
-  const componentGithubMap = useMemo(() => {
-    const map: Record<string, string | undefined> = {};
-    components.forEach(comp => {
-      map[comp.id] = comp.github;
-    });
-    return map;
-  }, [components]);
-
-  const componentSonarMap = useMemo(() => {
-    const map: Record<string, string | undefined> = {};
-    components.forEach(comp => {
-      map[comp.id] = comp.sonar;
-    });
-    return map;
-  }, [components]);
-
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'alphabetic' | 'team'>('alphabetic');
 
   const { libraryComponents, nonLibraryComponents } = useMemo(() => {
+    // Apply the same filtering logic as ProjectLayout: 
+    // If hideDownComponents is false OR landscape is central, show all components
+    // If hideDownComponents is true AND landscape is not central, hide central components
+    let filteredComponents = components;
+    if (hideDownComponents && !isCentralLandscape) {
+      filteredComponents = components.filter(component => {
+        return component['central-service'] !== true;
+      });
+    }
+
     // Create a map of health checks by component ID for quick lookup
     const healthCheckMap = new Map(healthChecks.map(check => [check.componentId, check]));
 
-    // Start with all components and create display objects
-    let allComponentsWithHealth = components.map(component => {
+    // Start with filtered components and create display objects
+    let allComponentsWithHealth = filteredComponents.map(component => {
       const healthCheck = healthCheckMap.get(component.id);
       
       // If no health check exists, create a placeholder with "Not Available" status (unkwnown)
@@ -107,13 +92,6 @@ export function HealthTable({
       };
     });
 
-    // Apply hideDownComponents filter
-    if (hideDownComponents) {
-      allComponentsWithHealth = allComponentsWithHealth.filter(item => 
-        item.status === 'UP' || item.isUnsupported
-      );
-    }
-
     // Apply search filter
     if (searchQuery) {
       allComponentsWithHealth = allComponentsWithHealth.filter((item) =>
@@ -126,7 +104,7 @@ export function HealthTable({
     const nonLibraries: typeof allComponentsWithHealth = [];
 
     allComponentsWithHealth.forEach((item) => {
-      const component = components.find(comp => comp.id === item.componentId);
+      const component = filteredComponents.find(comp => comp.id === item.componentId);
       if (component?.['is-library']) {
         libraries.push(item);
       } else {
@@ -153,7 +131,7 @@ export function HealthTable({
       libraryComponents: sortComponents(libraries),
       nonLibraryComponents: sortComponents(nonLibraries),
     };
-  }, [components, healthChecks, searchQuery, sortOrder, componentOwnerMap, teamNamesMap, hideDownComponents, landscape]);
+  }, [components, healthChecks, searchQuery, sortOrder, componentOwnerMap, teamNamesMap, hideDownComponents, isCentralLandscape, landscape]);
 
   const toggleRow = (componentId: string) => {
     // No longer toggle expansion in table view
@@ -242,17 +220,7 @@ export function HealthTable({
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                     {nonLibraryComponents.map((item) => {
-                      const ownerId = componentOwnerMap[item.componentId];
-                      const teamName = ownerId ? teamNamesMap[ownerId] : undefined;
-                      const teamColor = ownerId ? teamColorsMap[ownerId] : undefined;
-                      const componentName = componentNameMap[item.componentId];
-                      const githubUrl = componentGithubMap[item.componentId];
-                      const sonarUrl = componentSonarMap[item.componentId];
-
                       const component = components.find(comp => comp.id === item.componentId);
-                      
-                      // Use same disabled logic as grid view: only disable central services in non-central landscapes
-                      const isDisabled = component?.['central-service'] === true && !isCentralLandscape;
                       
                       return (
                         <HealthRow
@@ -260,15 +228,15 @@ export function HealthTable({
                           healthCheck={item}
                           isExpanded={false}
                           onToggle={() => toggleRow(item.componentId)}
-                          teamName={teamName}
-                          teamColor={teamColor}
-                          componentName={componentName}
                           onComponentClick={onComponentClick}
-                          githubUrl={githubUrl}
-                          sonarUrl={sonarUrl}
                           isUnsupported={item.isUnsupported}
-                          isDisabled={isDisabled}
-                          component={component}
+                          component={{
+                            ...component,
+                            title: component?.name || '',
+                            description: '',
+                            project_id: '',
+                            owner_id: component?.owner_id || ''
+                          }}
                         />
                       );
                     })}
@@ -314,34 +282,24 @@ export function HealthTable({
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                       {libraryComponents.map((item) => {
-                        const ownerId = componentOwnerMap[item.componentId];
-                        const teamName = ownerId ? teamNamesMap[ownerId] : undefined;
-                        const teamColor = ownerId ? teamColorsMap[ownerId] : undefined;
-                        const componentName = componentNameMap[item.componentId];
-                        const githubUrl = componentGithubMap[item.componentId];
-                        const sonarUrl = componentSonarMap[item.componentId];
-
                         const component = components.find(comp => comp.id === item.componentId);
                         
-                        // Use same disabled logic as grid view: only disable central services in non-central landscapes
-                        const isDisabled = component?.['central-service'] === true && !isCentralLandscape;
-                        
                         return (
-                          <HealthRow
-                            key={item.componentId}
-                            healthCheck={item}
-                            isExpanded={false}
-                            onToggle={() => toggleRow(item.componentId)}
-                            teamName={teamName}
-                            teamColor={teamColor}
-                            componentName={componentName}
-                            onComponentClick={onComponentClick}
-                            githubUrl={githubUrl}
-                            sonarUrl={sonarUrl}
-                            isUnsupported={item.isUnsupported}
-                            isDisabled={isDisabled}
-                            component={component}
-                          />
+                        <HealthRow
+                          key={item.componentId}
+                          healthCheck={item}
+                          isExpanded={false}
+                          onToggle={() => toggleRow(item.componentId)}
+                          onComponentClick={onComponentClick}
+                          isUnsupported={item.isUnsupported}
+                          component={{
+                            ...component,
+                            title: component?.name || '',
+                            description: '',
+                            project_id: '',
+                            owner_id: component?.owner_id || ''
+                          }}
+                        />
                         );
                       })}
                     </tbody>

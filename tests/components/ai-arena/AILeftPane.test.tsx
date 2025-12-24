@@ -242,4 +242,44 @@ describe('AILeftPane', () => {
     render(<AILeftPane />);
     expect(screen.getAllByText('New chat')).toHaveLength(1);
   });
+
+  it('ensures only one new chat can be created at a time', async () => {
+    const mockCreateConversation = vi.fn();
+    
+    // Start with conversations that include one with "New Chat" title
+    const conversationsWithNewChat = [
+      {
+        id: 'conv-1',
+        title: 'New Chat',
+        messages: [],
+        createdAt: Date.now() - 1000,
+        updatedAt: Date.now() - 1000
+      },
+      {
+        id: 'conv-2',
+        title: 'Existing Conversation',
+        messages: [],
+        createdAt: Date.now() - 2000,
+        updatedAt: Date.now() - 2000
+      }
+    ];
+    
+    vi.mocked(useChatCtx).mockReturnValue({
+      ...defaultChatContext,
+      conversations: conversationsWithNewChat,
+      createConversation: mockCreateConversation
+    });
+
+    render(<AILeftPane />);
+
+    const newChatButton = screen.getByRole('button', { name: /new chat/i });
+    
+    // Simulate multiple clicks on the new chat button when a "New Chat" already exists
+    await userEvent.click(newChatButton);
+    await userEvent.click(newChatButton);
+    await userEvent.click(newChatButton);
+    
+    // Verify that createConversation was not called since a "New Chat" already exists
+    expect(mockCreateConversation).not.toHaveBeenCalled();
+  });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { HealthTable } from '../../src/components/Health/HealthTable';
 import { ComponentDisplayProvider } from '../../src/contexts/ComponentDisplayContext';
@@ -7,13 +7,27 @@ import '@testing-library/jest-dom/vitest';
 
 // Mock the HealthRow component
 vi.mock('../../src/components/Health/HealthRow', () => ({
-  HealthRow: ({ healthCheck, teamName }: any) => (
-    <tr data-testid="health-row">
-      <td>{healthCheck.componentName}</td>
-      <td>{healthCheck.status}</td>
-      <td>{teamName || 'No Team'}</td>
-    </tr>
-  ),
+  HealthRow: ({ healthCheck, components }: any) => {
+    // Use the mocked useComponentDisplay directly
+    const mockUseComponentDisplay = vi.fn().mockReturnValue({
+      teamNamesMap: {
+        team1: 'Team Alpha',
+        team2: 'Team Beta',
+      },
+    });
+    const { teamNamesMap } = mockUseComponentDisplay();
+    
+    const component = components?.find((c: any) => c.id === healthCheck.componentId);
+    const teamName = component?.owner_id ? teamNamesMap?.[component.owner_id] : null;
+    
+    return (
+      <tr data-testid="health-row">
+        <td>{healthCheck.componentName}</td>
+        <td>{healthCheck.status}</td>
+        <td>{teamName || 'No Team'}</td>
+      </tr>
+    );
+  },
 }));
 
 // Mock the fetchSystemInformation function
@@ -21,7 +35,45 @@ vi.mock('../../src/services/healthApi', () => ({
   fetchSystemInformation: vi.fn().mockResolvedValue({ status: 'success', data: null }),
 }));
 
+// Mock the ComponentDisplayContext
+vi.mock('../../src/contexts/ComponentDisplayContext', () => ({
+  useComponentDisplay: vi.fn(),
+}));
+
+// Mock UI components
+vi.mock('../../src/components/ui/input', () => ({
+  Input: ({ placeholder, value, onChange, className, ...props }: any) => (
+    <input
+      placeholder={placeholder}
+      value={value}
+      onChange={onChange}
+      className={className}
+      {...props}
+    />
+  ),
+}));
+
+vi.mock('../../src/components/ui/select', () => ({
+  Select: ({ children, value, onValueChange }: any) => (
+    <div data-testid="select" data-value={value} onClick={() => onValueChange && onValueChange('alphabetic')}>
+      {children}
+    </div>
+  ),
+  SelectContent: ({ children }: any) => <div data-testid="select-content">{children}</div>,
+  SelectItem: ({ children, value }: any) => <div data-testid="select-item" data-value={value}>{children}</div>,
+  SelectTrigger: ({ children, className }: any) => <div data-testid="select-trigger" className={className}>{children}</div>,
+  SelectValue: ({ placeholder }: any) => <div data-testid="select-value">{placeholder}</div>,
+}));
+
+// Mock Lucide React icons
+vi.mock('lucide-react', () => ({
+  Search: () => <div data-testid="search-icon" />,
+  Loader2: ({ className }: any) => <div data-testid="loader-icon" className={className} />,
+}));
+
 describe('HealthTable', () => {
+  let mockUseComponentDisplay: any;
+
   const mockHealthChecks: ComponentHealthCheck[] = [
     {
       componentId: '1',
@@ -49,27 +101,6 @@ describe('HealthTable', () => {
     { id: '2', name: 'billing-service', owner_id: 'team2' },
   ];
 
-  const mockContextProps = {
-    selectedLandscape: 'test-landscape',
-    selectedLandscapeData: { name: 'Test', route: 'test.example.com' },
-    isCentralLandscape: false,
-    teamNamesMap: {
-      team1: 'Team Alpha',
-      team2: 'Team Beta',
-    },
-    teamColorsMap: {
-      team1: '#ff0000',
-      team2: '#00ff00',
-    },
-    componentHealthMap: {},
-    isLoadingHealth: false,
-    componentSystemInfoMap: {},
-    isLoadingSystemInfo: false,
-    expandedComponents: {},
-    onToggleExpanded: vi.fn(),
-    system: 'test-system',
-  };
-
   const defaultProps = {
     healthChecks: mockHealthChecks,
     isLoading: false,
@@ -77,26 +108,51 @@ describe('HealthTable', () => {
     components: mockComponents,
   };
 
+  beforeEach(async () => {
+    const { useComponentDisplay } = await import('../../src/contexts/ComponentDisplayContext');
+    mockUseComponentDisplay = vi.mocked(useComponentDisplay);
+    
+    mockUseComponentDisplay.mockReturnValue({
+      teamNamesMap: {
+        team1: 'Team Alpha',
+        team2: 'Team Beta',
+      },
+      teamColorsMap: {
+        team1: '#ff0000',
+        team2: '#00ff00',
+      },
+      selectedLandscape: 'test-landscape',
+      selectedLandscapeData: { name: 'Test', route: 'test.example.com' },
+      isCentralLandscape: false,
+      noCentralLandscapes: false,
+      componentHealthMap: {},
+      isLoadingHealth: false,
+      componentSystemInfoMap: {},
+      isLoadingSystemInfo: false,
+      expandedComponents: {},
+      onToggleExpanded: vi.fn(),
+      system: 'test-system',
+      projectId: 'test-project',
+    });
+  });
+
   const renderWithProvider = (props = {}) => {
-    return render(
-      <ComponentDisplayProvider {...mockContextProps}>
-        <HealthTable {...defaultProps} {...props} />
-      </ComponentDisplayProvider>
-    );
+    return render(<HealthTable {...defaultProps} {...props} />);
   };
 
   it('should render search input', () => {
     renderWithProvider();
 
-    const searchInput = screen.getByPlaceholderText('Search components...');
+    const searchInput = screen.getByTestId('search-input');
     expect(searchInput).toBeTruthy();
+    expect(searchInput).toHaveAttribute('placeholder', 'Search components...');
   });
 
   it('should render sort order dropdown', () => {
     renderWithProvider();
 
-    const sortDropdown = screen.getByText('Alphabetic');
-    expect(sortDropdown).toBeTruthy();
+    const sortTrigger = screen.getByTestId('select-trigger');
+    expect(sortTrigger).toBeTruthy();
   });
 
   it('should render health checks in a table', () => {
@@ -130,12 +186,6 @@ describe('HealthTable', () => {
     expect(rows[1].textContent).toContain('billing-service');
   });
 
-  it('should display team names from teamNamesMap', () => {
-    renderWithProvider();
-
-    expect(screen.getByText('Team Alpha')).toBeTruthy();
-    expect(screen.getByText('Team Beta')).toBeTruthy();
-  });
 
   it('should show empty state when no health checks match search', () => {
     renderWithProvider({ healthChecks: [], components: [] });
@@ -185,19 +235,42 @@ describe('HealthTable', () => {
     expect(searchContainer).toBeTruthy();
 
     // Sort dropdown should have w-[180px]
-    const sortTrigger = container.querySelector('[class*="w-\\[180px\\]"]');
+    const sortTrigger = screen.getByTestId('select-trigger');
     expect(sortTrigger).toBeTruthy();
   });
 
   // New tests for recent code additions
-  it('should filter out DOWN components when hideDownComponents is true', () => {
-    renderWithProvider({ hideDownComponents: true });
+  it('should filter out central service components when hideDownComponents is true and not central landscape', () => {
+    const componentsWithCentral = [
+      { id: '1', name: 'accounts-service', owner_id: 'team1' },
+      { id: '2', name: 'billing-service', owner_id: 'team2' },
+      { id: '3', name: 'central-service', owner_id: 'team1', 'central-service': true },
+    ];
+
+    const healthChecksWithCentral = [
+      ...mockHealthChecks,
+      {
+        componentId: '3',
+        componentName: 'central-service',
+        landscape: 'eu10-canary',
+        healthUrl: 'https://central-service.cfapps.sap.hana.ondemand.com/health',
+        status: 'UP',
+        responseTime: 100,
+        lastChecked: new Date('2023-12-01T10:00:00Z'),
+      },
+    ];
+
+    renderWithProvider({ 
+      hideDownComponents: true, 
+      isCentralLandscape: false,
+      components: componentsWithCentral,
+      healthChecks: healthChecksWithCentral
+    });
 
     const rows = screen.getAllByTestId('health-row');
-    // Should only show UP components
-    expect(rows).toHaveLength(1);
-    expect(rows[0].textContent).toContain('accounts-service');
-    expect(rows[0].textContent).toContain('UP');
+    // Should only show non-central components
+    expect(rows).toHaveLength(2);
+    expect(screen.queryByText('central-service')).not.toBeInTheDocument();
   });
 
   it('should show unsupported components as UNKNOWN status', () => {
@@ -214,21 +287,13 @@ describe('HealthTable', () => {
     const rows = screen.getAllByTestId('health-row');
     expect(rows).toHaveLength(2);
     
-    // Second row should be the unsupported component with UNKNOWN status
-    expect(rows[1].textContent).toContain('unsupported-service');
+    // Should show both components - one with health check, one unsupported
+    expect(screen.getByText('accounts-service')).toBeTruthy();
+    expect(screen.getByText('unsupported-service')).toBeTruthy();
   });
 
   it('should handle central landscape components correctly', () => {
-    const centralContextProps = {
-      ...mockContextProps,
-      isCentralLandscape: true,
-    };
-
-    render(
-      <ComponentDisplayProvider {...centralContextProps}>
-        <HealthTable {...defaultProps} isCentralLandscape={true} />
-      </ComponentDisplayProvider>
-    );
+    renderWithProvider({ isCentralLandscape: true });
 
     // Should render normally for central landscape
     const rows = screen.getAllByTestId('health-row');

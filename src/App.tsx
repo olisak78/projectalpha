@@ -1,7 +1,9 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
+
+import { SidebarProvider } from "@/contexts/SidebarContext";
 import { ProjectsProvider, useProjectsContext } from "@/contexts/ProjectsContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 
@@ -19,6 +21,8 @@ import { DynamicProjectPage } from "./pages/DynamicProjectPage";
 import { QueryProvider } from './providers/QueryProvider';
 import ComponentViewPage from "./pages/ComponentViewPage";
 import PluginsPage from "./pages/PluginsPage";
+import PluginMarketplacePage from '@/pages/PluginMarketplacePage';
+import PluginViewPage from '@/pages/PluginViewPage';
 
 // --- Wrapper components for dynamic projects ---
 const DynamicProjectPageWrapper = () => {
@@ -47,6 +51,11 @@ const ComponentViewPageWrapper = () => {
   return <ComponentViewPage />;
 };
 
+function PluginViewPageWrapper() {
+  const location = useLocation();
+  return <PluginViewPage key={location.pathname} />
+}
+
 // --- Main App ---
 const App = () => {
   return (
@@ -57,41 +66,45 @@ const App = () => {
             <Toaster />
             <Sonner />
             <AuthProvider>
-              <Routes>
-                {/* Public */}
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/me" element={<Navigate to="/" replace />} />
+              <SidebarProvider>
+                <Routes>
+                  {/* Public */}
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/me" element={<Navigate to="/" replace />} />
 
-                {/* Protected */}
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute>
-                      <PortalContainer />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route index element={<HomePage />} />
-                  <Route path="teams" element={<TeamsPage />} />
-                  <Route path="teams/:teamName/:tabId" element={<TeamsPage />} />
-                  <Route path="self-service" element={<SelfServicePage />} />
-                  <Route path="links" element={<LinksPage />} />
-                  <Route path="ai-arena" element={<AIArenaPage />} />
-                  <Route path="ai-arena/:tabId" element={<AIArenaPage />} />
-                  <Route path="plugins" element={<PluginsPage />} />
+                  {/* Protected */}
+                  <Route
+                    path="/"
+                    element={
+                      <ProtectedRoute>
+                        <PortalContainer />
+                      </ProtectedRoute>
+                    }
+                  >
+                    <Route index element={<HomePage />} />
+                    <Route path="teams" element={<TeamsPage />} />
+                    <Route path="teams/:teamName/:tabId" element={<TeamsPage />} />
+                    <Route path="self-service" element={<SelfServicePage />} />
+                    <Route path="links" element={<LinksPage />} />
+                    <Route path="ai-arena" element={<AIArenaPage />} />
+                    <Route path="ai-arena/:tabId" element={<AIArenaPage />} />
+                    <Route path="plugins/:pluginSlug" element={<PluginViewPageWrapper />} />
+                    <Route path="plugins" element={<PluginsPage />} />
+                    <Route path="plugin-marketplace" element={<PluginMarketplacePage />} />
 
-                  {/* Dynamic projects */}
-                  <Route path=":projectName">
-                    <Route index element={<DynamicProjectPageWrapper />} />
-                    <Route path="component/:componentName" element={<ComponentViewPageWrapper />} />
-                    <Route path="component/:componentName/:tabId" element={<ComponentViewPageWrapper />} />
-                    <Route path=":tabId" element={<DynamicProjectPageWrapper />} />
+                    {/* Dynamic projects */}
+                    <Route path=":projectName">
+                      <Route index element={<DynamicProjectPageWrapper />} />
+                      <Route path="component/:componentName" element={<ComponentViewPageWrapper />} />
+                      <Route path="component/:componentName/:tabId" element={<ComponentViewPageWrapper />} />
+                      <Route path=":tabId" element={<DynamicProjectPageWrapper />} />
+                    </Route>
+
+                    {/* 404 */}
+                    <Route path="*" element={<NotFound />} />
                   </Route>
-
-                  {/* 404 */}
-                  <Route path="*" element={<NotFound />} />
-                </Route>
-              </Routes>
+                </Routes>
+              </SidebarProvider>
             </AuthProvider>
           </TooltipProvider>
         </ProjectsProvider>

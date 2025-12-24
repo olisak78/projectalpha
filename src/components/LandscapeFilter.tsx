@@ -114,6 +114,11 @@ export function LandscapeFilter({
     return sortLandscapeGroups(groupedLandscapes);
   }, [groupedLandscapes]);
 
+  // Check if there are any landscapes available
+  const hasLandscapes = useMemo(() => {
+    return Object.values(landscapeGroups).some(landscapes => landscapes.length > 0);
+  }, [landscapeGroups]);
+
   const handleLandscapeChange = (value: string) => {
     if (value) {
       addToLandscapeHistory(value);
@@ -148,7 +153,7 @@ export function LandscapeFilter({
               aria-expanded={open}
               className={cn(
                 "w-[288px] justify-between",
-                !selectedLandscape && "border-red-500 border-2"
+                !selectedLandscape && hasLandscapes && "border-red-500 border-2"
               )}
             >
               {selectedLandscapeObject ? (
@@ -164,60 +169,68 @@ export function LandscapeFilter({
                   )}
                 </div>
               ) : (
-                <span className="text-muted-foreground">{placeholder}</span>
+                <span className="text-muted-foreground">
+                  {!hasLandscapes ? "No available landscapes" : placeholder}
+                </span>
               )}
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[288px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search landscapes..." />
-              <CommandList className="max-h-[400px]">
-                <CommandEmpty>No landscapes found</CommandEmpty>
-                {sortedLandscapeGroups.map(([groupName, landscapes]) => (
-                  <CommandGroup 
-                    key={groupName} 
-                    heading={
-                      <div className="flex items-center gap-1.5">
-                        {groupName === 'Frequently Visited' && <Clock className="h-3 w-3" />}
-                        <span className="uppercase">{groupName}</span>
-                      </div>
-                    }
-                  >
-                    {landscapes.map((landscape) => {
-                      const isCentral = isCentralLandscape(landscape);
-                      const isDisabled = isLandscapeDisabled(landscape);
-                      const landscapeName = (landscape as any).technical_name || landscape.name;
-                      
-                      return (
-                        <CommandItem
-                          key={landscape.id}
-                          value={`${landscape.id}-${landscapeName}`}
-                          onSelect={() => handleLandscapeChange(landscape.id)}
-                          disabled={isDisabled}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              selectedLandscape === landscape.id ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${getStatusColor(landscape.status)}`} />
-                            <span>{landscapeName}</span>
-                            {isCentral && (
-                              <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0 bg-blue-500 text-white hover:bg-blue-600">
-                                central
-                              </Badge>
-                            )}
-                          </div>
-                        </CommandItem>
-                      );
-                    })}
-                  </CommandGroup>
-                ))}
-              </CommandList>
-            </Command>
+            {!hasLandscapes ? (
+              <div className="p-4 text-center text-muted-foreground">
+                No available landscapes
+              </div>
+            ) : (
+              <Command>
+                <CommandInput placeholder="Search landscapes..." />
+                <CommandList className="max-h-[400px]">
+                  <CommandEmpty>No landscapes found</CommandEmpty>
+                  {sortedLandscapeGroups.map(([groupName, landscapes]) => (
+                    <CommandGroup 
+                      key={groupName} 
+                      heading={
+                        <div className="flex items-center gap-1.5">
+                          {groupName === 'Frequently Visited' && <Clock className="h-3 w-3" />}
+                          <span className="uppercase">{groupName}</span>
+                        </div>
+                      }
+                    >
+                      {landscapes.map((landscape) => {
+                        const isCentral = isCentralLandscape(landscape);
+                        const isDisabled = isLandscapeDisabled(landscape);
+                        const landscapeName = (landscape as any).technical_name || landscape.name;
+                        
+                        return (
+                          <CommandItem
+                            key={landscape.id}
+                            value={`${landscape.id}-${landscapeName}`}
+                            onSelect={() => handleLandscapeChange(landscape.id)}
+                            disabled={isDisabled}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedLandscape === landscape.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${getStatusColor(landscape.status)}`} />
+                              <span>{landscapeName}</span>
+                              {isCentral && (
+                                <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0 bg-blue-500 text-white hover:bg-blue-600">
+                                  central
+                                </Badge>
+                              )}
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  ))}
+                </CommandList>
+              </Command>
+            )}
           </PopoverContent>
         </Popover>
       </div>

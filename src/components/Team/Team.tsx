@@ -296,6 +296,7 @@ export default function Team({
             selectedLandscape={null}
             selectedLandscapeData={null}
             isCentralLandscape={false}
+            noCentralLandscapes={true}
             teamNamesMap={{}}
             teamColorsMap={{}}
             componentHealthMap={{}}
@@ -303,6 +304,7 @@ export default function Team({
             expandedComponents={teamComponents.teamComponentsExpanded}
             onToggleExpanded={teamComponents.toggleComponentExpansion}
             system="services"
+            components={teamComponents.componentsData?.components || []}
           >
             <ComponentsList
               components={teamComponents.componentsData?.components || []}

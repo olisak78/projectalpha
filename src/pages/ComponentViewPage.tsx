@@ -5,7 +5,7 @@ import { useComponentsByProject } from "@/hooks/api/useComponents";
 import { useLandscapesByProject } from "@/hooks/api/useLandscapes";
 import { usePortalState } from "@/contexts/hooks";
 import { useHeaderNavigation } from "@/contexts/HeaderNavigationContext";
-import { fetchHealthStatus, buildHealthEndpoint } from "@/services/healthApi";
+import { fetchComponentHealth } from "@/services/healthApi";
 import { useSonarMeasures } from "@/hooks/api/useSonarMeasures";
 import { getDefaultLandscapeId } from "@/services/LandscapesApi";
 import type { Component } from "@/types/api";
@@ -74,6 +74,12 @@ export function ComponentViewPage() {
     const isCentralLandscape = useMemo(() => {
         return selectedApiLandscape?.isCentral ?? false;
     }, [selectedApiLandscape]);
+
+    // Check if there are no central landscapes available
+    const noCentralLandscapes = useMemo(() => {
+        if (!apiLandscapes || apiLandscapes.length === 0) return true;
+        return !apiLandscapes.some((landscape: any) => landscape.isCentral === true);
+    }, [apiLandscapes]);
 
     const isExistInLandscape = useMemo(() => {
         return component?.['central-service'] !== true || isCentralLandscape;
@@ -145,7 +151,7 @@ export function ComponentViewPage() {
         }
     }, [apiLandscapes, effectiveSelectedLandscape, setSelectedLandscapeForProject, projectName]);
 
-    // Fetch health data when component or landscape changes
+    // Fetch health data when component or landscape changes using new endpoint
     useEffect(() => {
         if (!component || !selectedApiLandscape) {
             setHealthData(null);
@@ -157,12 +163,7 @@ export function ComponentViewPage() {
             setHealthError(null);
 
             try {
-                const healthUrl = buildHealthEndpoint(component, {
-                    name: selectedApiLandscape.name,
-                    route: selectedApiLandscape.landscape_url || selectedApiLandscape.domain || 'sap.hana.ondemand.com',
-                });
-
-                const result = await fetchHealthStatus(healthUrl);
+                const result = await fetchComponentHealth(component.id, selectedApiLandscape.id);
 
                 if (result.status === 'success' && result.data) {
                     setHealthData(result.data);
@@ -173,7 +174,7 @@ export function ComponentViewPage() {
                     setStatusCode(result.error ? 500 : 404);
                 }
             } catch (error) {
-                 setHealthError(error.message || 'Unknown error');
+                 setHealthError(error instanceof Error ? error.message : 'Unknown error');
             } finally {
                 setHealthLoading(false);
             }
@@ -266,6 +267,8 @@ export function ComponentViewPage() {
                         statusCode={statusCode}
                         sonarData={sonarData}
                         sonarLoading={sonarLoading}
+                        noCentralLandscapes={noCentralLandscapes}
+                        projectName={projectName}
                     />
                 )}
 

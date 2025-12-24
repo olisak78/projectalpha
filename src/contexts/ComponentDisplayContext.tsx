@@ -1,12 +1,16 @@
 import { createContext, useContext, ReactNode, useState, useEffect, useMemo } from 'react';
-import type { ComponentHealthCheck } from '@/types/health';
-import { fetchSystemInformation, type SystemInformation } from '@/services/healthApi';
+import type { ComponentHealthCheck, Component, LandscapeConfig } from '@/types/health';
+import { type SystemInformation, fetchSystemInformation } from '@/services/healthApi';
 
 interface ComponentDisplayContextType {
+  // Project data
+  projectId: string;
+  
   // Landscape data
   selectedLandscape: string | null;
   selectedLandscapeData: any;
   isCentralLandscape: boolean;
+  noCentralLandscapes: boolean;
   
   // Team mappings
   teamNamesMap: Record<string, string>;
@@ -32,9 +36,11 @@ const ComponentDisplayContext = createContext<ComponentDisplayContextType | unde
 
 interface ComponentDisplayProviderProps {
   children: ReactNode;
+  projectId: string;
   selectedLandscape: string | null;
   selectedLandscapeData: any;
   isCentralLandscape: boolean;
+  noCentralLandscapes: boolean;
   teamNamesMap: Record<string, string>;
   teamColorsMap: Record<string, string>;
   componentHealthMap: Record<string, ComponentHealthCheck>;
@@ -47,7 +53,6 @@ interface ComponentDisplayProviderProps {
     name: string;
     title?: string;
     description?: string;
-    project_id?: string;
     owner_id?: string | null;
     'central-service'?: boolean;
     [key: string]: any;
@@ -56,9 +61,11 @@ interface ComponentDisplayProviderProps {
 
 export function ComponentDisplayProvider({
   children,
+  projectId,
   selectedLandscape,
   selectedLandscapeData,
   isCentralLandscape,
+  noCentralLandscapes,
   teamNamesMap,
   teamColorsMap,
   componentHealthMap,
@@ -80,6 +87,7 @@ export function ComponentDisplayProvider({
   const landscapeConfig = useMemo(() => {
     if (!selectedLandscapeData) return null;
     return {
+      id: selectedLandscapeData.id || 'default',
       name: selectedLandscapeData.name || 'default',
       route: selectedLandscapeData.metadata?.route ||
         selectedLandscapeData.landscape_url ||
@@ -87,42 +95,64 @@ export function ComponentDisplayProvider({
     };
   }, [selectedLandscapeData]);
 
-  // Fetch system information for all components
+  // Fetch system information for components when landscape or components change
   useEffect(() => {
-    let isCancelled = false;
+    if (!landscapeConfig || !components.length) {
+      setComponentSystemInfoMap({});
+      setIsLoadingSystemInfo(false);
+      return;
+    }
+
+    const abortController = new AbortController();
+    setIsLoadingSystemInfo(true);
 
     const fetchSystemInfoForComponents = async () => {
-      if (!landscapeConfig || !components.length) {
-        if (!isCancelled) {
-          setComponentSystemInfoMap({});
-        }
-        return;
-      }
-
-      if (!isCancelled) {
-        setIsLoadingSystemInfo(true);
-      }
-
       const systemInfoMap: Record<string, SystemInformation> = {};
-
-      // Fetch system info for each component
-      await Promise.allSettled(
-        components.map(async (component) => {
-          try {
-            const result = await fetchSystemInformation(component as any, landscapeConfig);
-            if (result.status === 'success' && result.data && !isCancelled) {
-              systemInfoMap[component.id] = result.data;
-            }
-          } catch (error) {
-            if (!isCancelled) {
-              console.error(`Failed to fetch system info for ${component.name}:`, error);
-            }
+      
+      // Fetch system info for each component in parallel
+      const promises = components.map(async (component) => {
+        try {
+          const isDisabled = component['central-service'] === true && !isCentralLandscape && !noCentralLandscapes;
+          // Only fetch system info if component health is true, project is 'cis' and not disabled
+          if (component.health !== true || projectId !== 'cis20' || isDisabled) {
+            return;
           }
-        })
-      );
 
-      // Only update state if this effect hasn't been cancelled
-      if (!isCancelled) {
+          // Create a proper Component object with required fields
+          const componentForApi: Component = {
+            id: component.id,
+            name: component.name,
+            title: component.title || component.name, // Use name as fallback for title
+            description: component.description || '',
+            owner_id: component.owner_id || '',
+            github: component.github,
+            qos: component.qos,
+            sonar: component.sonar,
+            metadata: component.metadata,
+            'is-library': component['is-library'],
+            health: component.health,
+            'central-service': component['central-service']
+          };
+
+          
+          const result = await fetchSystemInformation(
+            componentForApi,
+            landscapeConfig,
+            abortController.signal
+          );
+          
+          if (result.status === 'success' && result.data) {
+            systemInfoMap[component.id] = result.data;
+          }
+        } catch (error) {
+          // Silently handle individual component failures
+          console.warn(`Failed to fetch system info for ${component.name}:`, error);
+        }
+      });
+
+      await Promise.allSettled(promises);
+      
+      if (!abortController.signal.aborted) {
         setComponentSystemInfoMap(systemInfoMap);
         setIsLoadingSystemInfo(false);
       }
@@ -130,16 +160,17 @@ export function ComponentDisplayProvider({
 
     fetchSystemInfoForComponents();
 
-    // Cleanup function to cancel the effect when dependencies change
     return () => {
-      isCancelled = true;
+      abortController.abort();
     };
-  }, [landscapeConfig, componentIds]);
+  }, [landscapeConfig, componentIds, isCentralLandscape]);
 
   const value: ComponentDisplayContextType = {
+    projectId,
     selectedLandscape,
     selectedLandscapeData,
     isCentralLandscape,
+    noCentralLandscapes,
     teamNamesMap,
     teamColorsMap,
     componentHealthMap,

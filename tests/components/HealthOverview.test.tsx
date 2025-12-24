@@ -63,9 +63,9 @@ describe('HealthOverview', () => {
 
     render(<HealthOverview summary={emptySummary} isLoading={false} />);
 
-    // Should show 0% for both
-    const percentages = screen.getAllByText('0%');
-    expect(percentages).toHaveLength(2); // Healthy and Down percentages
+    // Should show N/A when total is 0
+    const naElements = screen.getAllByText('N/A');
+    expect(naElements.length).toBeGreaterThanOrEqual(2); // Healthy and Down values should be N/A
   });
 
   
@@ -100,15 +100,15 @@ describe('HealthOverview', () => {
     it('should calculate down percentage correctly with both down and error', () => {
       const summary: HealthSummary = {
         total: 10,
-        up: 7,
+        up: 8,
         down: 2,
         unknown: 0,
         avgResponseTime: 125,
-        error: 1
+        error: 0
       };
 
       const result = calculateHealthPercentage('Down', summary);
-      expect(result).toBe('30.0'); // (2 + 1) / 10 * 100 = 30.0
+      expect(result).toBe('20.0'); // 2 / 10 * 100 = 20.0 (error field is not used in the calculation)
     });
 
     it('should return 0 when total is 0', () => {

@@ -5,7 +5,7 @@
 
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import type { Component, ComponentHealthCheck, HealthSummary, LandscapeConfig } from '@/types/health';
-import { fetchAllHealthStatuses } from '@/services/healthApi';
+import { fetchComponentHealth } from '@/services/healthApi';
 
 interface UseHealthOptions {
   components: Component[];
@@ -38,9 +38,9 @@ function calculateSummary(healthChecks: ComponentHealthCheck[]): HealthSummary {
 
   return {
     total: healthChecks.length,
-    up: healthChecks.filter(h => h.status === 'UP').length,
-    down: healthChecks.filter(h => h.status === 'DOWN').length,
-    unknown: healthChecks.filter(h => h.status === 'UNKNOWN' || h.status === 'OUT_OF_SERVICE').length,
+    up: healthChecks.filter(h => h.response?.healthy === true).length,
+    down: healthChecks.filter(h => !h.response?.healthy).length,
+    unknown: healthChecks.filter(h => h.response?.details?.status === 'UNKNOWN' || h.response?.details?.status === 'OUT_OF_SERVICE').length,
     error: healthChecks.filter(h => h.status === 'ERROR').length,
     avgResponseTime: Math.round(avgResponseTime),
   };
@@ -70,14 +70,50 @@ export function useHealth({
   });
 
   const queryResult = useQuery<ComponentHealthCheck[], Error>({
-    queryKey: ['health', landscape.name, landscape.route, componentsToCheck.length],
+    queryKey: ['health', landscape.id, landscape.name, landscape.route, componentsToCheck.length],
     queryFn: async ({ signal }) => {
-      // Only fetch health for filtered components
-      const healthChecks = await fetchAllHealthStatuses(
-        componentsToCheck,
-        landscape,
-        signal
-      );
+      // Fetch health for each component using the new endpoint
+      const healthChecks: ComponentHealthCheck[] = [];
+      
+      const promises = componentsToCheck.map(async (component) => {
+        const healthCheck: ComponentHealthCheck = {
+          componentId: component.id,
+          componentName: component.name,
+          landscape: landscape.name,
+          healthUrl: '', // Not applicable for new endpoint
+          status: 'LOADING',
+        };
+        if(!component.health) return null;
+        try {
+          const result = await fetchComponentHealth(component.id, landscape.id, signal);
+
+          if (result.status === 'success' && result.data) {
+            healthCheck.status = result.data.status;
+            healthCheck.response = result.data;
+            healthCheck.responseTime = result.responseTime;
+            healthCheck.lastChecked = new Date();
+          } else {
+            healthCheck.status = 'ERROR';
+            healthCheck.error = result.error;
+            healthCheck.responseTime = result.responseTime;
+            healthCheck.lastChecked = new Date();
+          }
+        } catch (error) {
+          healthCheck.status = 'ERROR';
+          healthCheck.error = error instanceof Error ? error.message : 'Unknown error';
+          healthCheck.lastChecked = new Date();
+        }
+
+        return healthCheck;
+      });
+
+      const results = await Promise.allSettled(promises);
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          healthChecks.push(result.value);
+        }
+      });
+
       return healthChecks;
     },
     enabled: enabled && componentsToCheck.length > 0,
@@ -114,20 +150,42 @@ export function useComponentHealth(
 
   return useQuery<ComponentHealthCheck, Error>({
     queryKey: component && landscape
-      ? ['health', 'component', component.id, landscape.name]
+      ? ['health', 'component', component.id, landscape.id, landscape.name]
       : ['health', 'component', 'disabled'],
     queryFn: async ({ signal }) => {
       if (!component || !landscape) {
         throw new Error('Component and landscape are required');
       }
 
-      const healthChecks = await fetchAllHealthStatuses(
-        [component],
-        landscape,
-        signal
-      );
+      const healthCheck: ComponentHealthCheck = {
+        componentId: component.id,
+        componentName: component.name,
+        landscape: landscape.name,
+        healthUrl: '', // Not applicable for new endpoint
+        status: 'LOADING',
+      };
 
-      return healthChecks[0];
+      try {
+        const result = await fetchComponentHealth(component.id, landscape.id, signal);
+
+        if (result.status === 'success' && result.data) {
+          healthCheck.status = result.data.details?.status || result.data.status;
+          healthCheck.response = result.data;
+          healthCheck.responseTime = result.responseTime;
+          healthCheck.lastChecked = new Date();
+        } else {
+          healthCheck.status = 'ERROR';
+          healthCheck.error = result.error;
+          healthCheck.responseTime = result.responseTime;
+          healthCheck.lastChecked = new Date();
+        }
+      } catch (error) {
+        healthCheck.status = 'ERROR';
+        healthCheck.error = error instanceof Error ? error.message : 'Unknown error';
+        healthCheck.lastChecked = new Date();
+      }
+
+      return healthCheck;
     },
     enabled: !!component && !!landscape,
     staleTime: 60 * 1000, // 1 minute cache

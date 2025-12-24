@@ -304,9 +304,7 @@ export interface Component {
   github?: string; // Direct GitHub URL
   qos?: string; // Quality of Service info
   sonar?: string; // Sonar dashboard URL
-  project_id: string; // UUID
   owner_id: string; // UUID
-  project_title?: string;
   metadata?:ComponentMetadata;
   'is-library'?: boolean; // Indicates if component is a library
   health?: boolean;

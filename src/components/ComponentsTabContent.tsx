@@ -43,8 +43,10 @@ interface ComponentsTabContentProps {
   viewSwitcher?: ReactNode;
   onComponentClick?: (componentId: string) => void;
   isCentralLandscape?: boolean;
+  noCentralLandscapes?: boolean;
   summary?: any;
   isLoadingHealthSummary?: boolean;
+  projectId: string;
 }
 
 export function ComponentsTabContent({
@@ -73,8 +75,10 @@ export function ComponentsTabContent({
   viewSwitcher,
   onComponentClick,
   isCentralLandscape = false,
+  noCentralLandscapes = false,
   summary,
   isLoadingHealthSummary = false,
+  projectId,
 }: ComponentsTabContentProps) {
   const { libraryComponents, nonLibraryComponents } = useMemo(() => {
     let filtered = components;
@@ -177,9 +181,7 @@ export function ComponentsTabContent({
               <RefreshCw className="h-4 w-4" />
             </Button>
           )}
-          {showComponentMetrics && (
-            <HealthOverview summary={summary} isLoading={isLoadingHealthSummary} />
-          )}
+          <HealthOverview summary={summary} isLoading={isLoadingHealthSummary} />
         </div>
       )}
 
@@ -193,9 +195,11 @@ export function ComponentsTabContent({
       ) : (
         <div className="space-y-6">
           <ComponentDisplayProvider
+            projectId={projectId}
             selectedLandscape={selectedLandscape}
             selectedLandscapeData={selectedLandscapeData}
             isCentralLandscape={isCentralLandscape}
+            noCentralLandscapes={noCentralLandscapes}
             teamNamesMap={teamNamesMap}
             teamColorsMap={teamColorsMap}
             componentHealthMap={componentHealthMap}
@@ -203,6 +207,7 @@ export function ComponentsTabContent({
             expandedComponents={teamComponentsExpanded}
             onToggleExpanded={onToggleExpanded}
             system={system}
+            components={[...nonLibraryComponents, ...libraryComponents]}
           >
             {/* Non-Library Components Section */}
             {nonLibraryComponents.length > 0 && (

@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
 import { HeaderTab, useHeaderNavigation } from "@/contexts/HeaderNavigationContext";
+import { useSidebarState } from "@/contexts/SidebarContext";
 import { useLocation, useNavigate } from "react-router-dom";
+import { VALID_COMMON_TABS } from "@/constants/developer-portal";
 
 interface HeaderTabsListProps {
   tabs: HeaderTab[];
@@ -9,6 +11,7 @@ interface HeaderTabsListProps {
 }
 
 export function HeaderTabsList({ tabs, activeTab, onTabClick }: HeaderTabsListProps) {
+  const { isExpanded } = useSidebarState();
   const { setActiveTab } = useHeaderNavigation();
   const location = useLocation();
   const navigate = useNavigate();

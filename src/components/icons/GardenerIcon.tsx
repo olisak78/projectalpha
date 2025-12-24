@@ -19,7 +19,7 @@ export const GardenerIcon: React.FC<GardenerIconProps> = ({ className = "h-4 w-4
         d="M156.664 9.95179C158.625 9.00403 160.908 9.00402 162.869 9.95179L281.534 67.3215C283.495 68.2693 284.919 70.0616 285.403 72.1912L314.711 201.099C315.195 203.229 314.687 205.464 313.33 207.172L231.211 310.548C229.854 312.256 227.797 313.251 225.621 313.251H93.9122C91.7361 313.251 89.6787 312.256 88.3221 310.548L6.20299 207.172C4.84638 205.464 4.33821 203.229 4.8224 201.099L34.1304 72.1912C34.6146 70.0616 36.0384 68.2693 37.9986 67.3215L156.664 9.95179Z"
         fill="#009F76"
       />
-      <mask id="gardener-mask0" maskType="alpha" maskUnits="userSpaceOnUse" x="4" y="9" width="311" height="305">
+      <mask id="gardener-mask0" maskUnits="userSpaceOnUse" x="4" y="9" width="311" height="305">
         <path
           fillRule="evenodd"
           clipRule="evenodd"

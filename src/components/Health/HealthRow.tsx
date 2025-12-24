@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { ComponentHealthCheck } from '@/types/health';
-import { StatusBadge } from './StatusBadge';
+import type { Component } from '@/types/api';
+import { HealthStatusBadge } from '../ComponentCard/HealthStatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Activity } from 'lucide-react';
@@ -12,41 +13,38 @@ interface HealthRowProps {
   healthCheck: ComponentHealthCheck;
   isExpanded: boolean;
   onToggle: () => void;
-  teamName?: string;
-  teamColor?: string;
-  componentName?: string;
   onComponentClick?: (componentName: string) => void;
-  githubUrl?: string;
-  sonarUrl?: string;
   isUnsupported?: boolean;
-  isDisabled?: boolean;
-  component?: {
-    id: string;
-    name: string;
-    title?: string;
-    description?: string;
-    project_id?: string;
-    owner_id?: string | null;
-    'central-service'?: boolean;
-    [key: string]: any;
-  };
+  component: Component;
 }
 
 export function HealthRow({
   healthCheck,
   isExpanded,
   onToggle,
-  teamName,
-  teamColor,
-  componentName,
   onComponentClick,
-  githubUrl,
-  sonarUrl,
   isUnsupported = false,
-  isDisabled = false,
   component,
 }: HealthRowProps) {
-  const { isCentralLandscape, componentSystemInfoMap, isLoadingSystemInfo } = useComponentDisplay();
+  const { 
+    isCentralLandscape, 
+    noCentralLandscapes,
+    componentSystemInfoMap, 
+    isLoadingSystemInfo,
+    teamNamesMap,
+    teamColorsMap
+  } = useComponentDisplay();
+  
+  // Get team info from context - same as ComponentCard
+  const teamName = component.owner_id ? teamNamesMap[component.owner_id] : undefined;
+  const teamColor = component.owner_id ? teamColorsMap[component.owner_id] : undefined;
+  
+  // Get URLs from component data - same as ComponentCard
+  const githubUrl = component.github;
+  const sonarUrl = component.sonar;
+  
+  // Calculate disabled state - same logic as ComponentCard
+  const isDisabled = component['central-service'] === true && !isCentralLandscape && !noCentralLandscapes;
   
   // Memoized version badges to avoid IIFE overhead on every render
   const versionBadges = useMemo(() => {
@@ -119,12 +117,10 @@ export function HealthRow({
     return new Date(date).toLocaleTimeString();
   };
 
-  const hasDetails = healthCheck.response && healthCheck.response.components;
-
   const handleRowClick = () => {
-    // Allow clicking on components that are UP, UNKNOWN, or unsupported (not DOWN/ERROR)
-    if (onComponentClick && componentName && (isUnsupported || healthCheck.status === 'UP' || healthCheck.status === 'UNKNOWN')) {
-      onComponentClick(componentName);
+    // Make all components clickable when health is enabled - same as ComponentCard
+    if (onComponentClick && component.name) {
+      onComponentClick(component.name);
     }
   };
 
@@ -135,7 +131,7 @@ export function HealthRow({
     }
   };
 
-  const isClickable = onComponentClick && componentName && (isUnsupported || healthCheck.status === 'UP' || healthCheck.status === 'UNKNOWN');
+  const isClickable = onComponentClick && component.health === true; // Same logic as ComponentCard
 
   return (
     <>
@@ -143,8 +139,7 @@ export function HealthRow({
         className={cn(
           "transition-colors",
           isDisabled && "opacity-50 bg-muted/50",
-          !isDisabled && (healthCheck.status === 'UP' || healthCheck.status === 'UNKNOWN') && "hover:bg-gray-50 dark:hover:bg-gray-900/50",
-          !isDisabled && (healthCheck.status === 'DOWN' || healthCheck.status === 'ERROR') && "opacity-50 grayscale",
+          !isDisabled && "hover:bg-gray-50 dark:hover:bg-gray-900/50",
           isClickable ? 'cursor-pointer' : ''
         )}
         onClick={isClickable ? handleRowClick : undefined}
@@ -188,9 +183,9 @@ export function HealthRow({
           "px-6 py-4 whitespace-nowrap",
           isClickable ? 'cursor-pointer' : ''
         )}>
-          <StatusBadge
-            status={healthCheck.status}
-            error={healthCheck.error}
+          <HealthStatusBadge
+            component={component}
+            isDisabled={isDisabled}
           />
         </td>
         <td className={cn(

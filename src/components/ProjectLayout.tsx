@@ -31,7 +31,6 @@ export interface ProjectLayoutProps {
   emptyStateMessage?: string;
   system?: string;
   showLandscapeFilter?: boolean;
-  showComponentsMetrics?: boolean;
   alertsUrl?: string;
   children?: ReactNode;
 }
@@ -41,11 +40,9 @@ export function ProjectLayout({
   projectId,
   defaultTab = "components",
   tabs,
-  componentsTitle,
   emptyStateMessage,
   system = "services",
   showLandscapeFilter = false,
-  showComponentsMetrics = false,
   alertsUrl,
   children
 }: ProjectLayoutProps) {
@@ -131,9 +128,10 @@ export function ProjectLayout({
 
   // Build landscape config for health checks
   const landscapeConfig = useMemo(() => {
-    if (!selectedApiLandscape) return { name: '', route: '' };
+    if (!selectedApiLandscape) return { id: '', name: '', route: '' };
 
     return {
+      id: selectedApiLandscape.id,
       name: selectedApiLandscape.name,
       route: selectedApiLandscape.metadata?.route ||
         selectedApiLandscape.landscape_url ||
@@ -141,11 +139,22 @@ export function ProjectLayout({
     };
   }, [selectedApiLandscape]);
 
+  // Check if there are any landscapes available
+  const hasLandscapes = useMemo(() => {
+    return apiLandscapes && apiLandscapes.length > 0;
+  }, [apiLandscapes]);
+
   const isCentralLandscape = useMemo(() => {
     return selectedApiLandscape?.isCentral ?? false;
   }, [selectedApiLandscape]);
 
-  // Health data hook - only fetch if showComponentsMetrics is true
+  // Check if there are no central landscapes available
+  const noCentralLandscapes = useMemo(() => {
+    if (!apiLandscapes || apiLandscapes.length === 0) return true;
+    return !apiLandscapes.some((landscape: any) => landscape.isCentral === true);
+  }, [apiLandscapes]);
+
+  // Health data hook - only enabled when landscapes are available
   const {
     healthChecks,
     summary,
@@ -153,7 +162,7 @@ export function ProjectLayout({
   } = useHealth({
     components: apiComponents,
     landscape: landscapeConfig,
-    enabled: showComponentsMetrics && !!selectedLandscape && !componentsLoading,
+    enabled: hasLandscapes && !!selectedLandscape && !componentsLoading,
     isCentralLandscape
   });
 
@@ -250,23 +259,16 @@ export function ProjectLayout({
   };
 
   const visibleComponents = useMemo(() => {
-    if (!hideDownComponents || !showComponentsMetrics) {
+    // If hideDownComponents is false OR landscape is central, show all components
+    if (!hideDownComponents || isCentralLandscape) {
       return apiComponents;
     }
 
-    // Filter out components with non-UP status
+    // If hideDownComponents is true AND landscape is not central, hide central components
     return apiComponents.filter(component => {
-      const isDisabledCentralComponent = component['central-service'] === true && !isCentralLandscape;
-
-      // If it's a disabled central component, hide it when hideDownComponents is true
-      if (isDisabledCentralComponent) {
-        return false;
-      }
-      const healthCheck = componentHealthMap[component.id];
-      // Keep component if no health check or if status is UP
-      return !healthCheck || healthCheck.status === 'UP';
+      return component['central-service'] !== true;
     });
-  }, [apiComponents, hideDownComponents, showComponentsMetrics, componentHealthMap, isCentralLandscape]);
+  }, [apiComponents, hideDownComponents, isCentralLandscape]);
 
   const handleComponentClick = (componentName: string) => {
     navigate(`/${projectId}/component/${componentName}`);
@@ -295,169 +297,141 @@ export function ProjectLayout({
               projectId={projectId}
             />
 
-            {/* Conditional rendering based on showComponentsMetrics and view */}
-            {showComponentsMetrics ? (
-              // When showComponentsMetrics is true, show view switcher with grid/table views
+            {/* All projects now support both grid and table views */}
+            {componentView === 'grid' ? (
               <>
-                {componentView === 'grid' ? (
-                  <>
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-2xl font-bold">Components</h2>
-                          {selectedLandscape && visibleComponents.length > 0 && (
-                            <Badge variant="secondary" className="text-sm">
-                              {visibleComponents.length}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-
-                          <HealthStatusFilter
-                            hideDownComponents={hideDownComponents}
-                            onToggle={setHideDownComponents}
-                          />
-                          <ViewSwitcher view={componentView} onViewChange={setComponentView} />
-                        </div>
-                      </div>
-
-                      {selectedLandscape && visibleComponents.length > 0 ? (
-                        <ComponentsTabContent
-                          title=""
-                          components={visibleComponents}
-                          teamName={projectName}
-                          isLoading={componentsLoading}
-                          error={componentsError}
-                          teamComponentsExpanded={teamComponentsExpanded}
-                          onToggleExpanded={handleToggleComponentExpansion}
-                          onRefresh={refetchComponents}
-                          showRefreshButton={false}
-                          emptyStateMessage={emptyStateMessage || `No ${projectName} components found for this organization.`}
-                          searchTerm={componentSearchTerm}
-                          onSearchTermChange={setComponentSearchTerm}
-                          system={system}
-                          showLandscapeFilter={showLandscapeFilter}
-                          showComponentMetrics={showComponentsMetrics}
-                          selectedLandscape={selectedLandscape}
-                          selectedLandscapeData={selectedApiLandscape}
-                          teamNamesMap={teamNamesMap}
-                          teamColorsMap={teamColorsMap}
-                          sortOrder={componentSortOrder}
-                          onSortOrderChange={setComponentSortOrder}
-                          componentHealthMap={componentHealthMap}
-                          isLoadingHealth={isLoadingHealth}
-                          onComponentClick={handleComponentClick}
-                          isCentralLandscape={isCentralLandscape}
-                          summary={summary}
-                          isLoadingHealthSummary={isLoadingHealth}
-                        />
-                      ) : (
-                        <div className="border-2 border-dashed rounded-lg p-12 text-center">
-                          <p className="text-muted-foreground">
-                            {!selectedLandscape
-                              ? 'Select a landscape to view components'
-                              : 'No components found in this landscape'}
-                          </p>
-                        </div>
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-2xl font-bold">Components</h2>
+                      {selectedLandscape && visibleComponents.length > 0 && (
+                        <Badge variant="secondary" className="text-sm">
+                          {visibleComponents.length}
+                        </Badge>
                       )}
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-2xl font-bold">Components</h2>
-                          {selectedLandscape && visibleComponents.length > 0 && (
-                            <Badge variant="secondary" className="text-sm">
-                              {visibleComponents.length}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <HealthStatusFilter
-                            hideDownComponents={hideDownComponents}
-                            onToggle={setHideDownComponents}
-                          />
-                          <ViewSwitcher view={componentView} onViewChange={setComponentView} />
-                        </div>
-                      </div>
-
-                      {selectedLandscape && visibleComponents.length > 0 ? (
-                        <ComponentDisplayProvider
-                          selectedLandscape={selectedLandscape}
-                          selectedLandscapeData={selectedApiLandscape}
-                          isCentralLandscape={isCentralLandscape}
-                          teamNamesMap={teamNamesMap}
-                          teamColorsMap={teamColorsMap}
-                          componentHealthMap={componentHealthMap}
-                          isLoadingHealth={isLoadingHealth}
-                          expandedComponents={teamComponentsExpanded}
-                          onToggleExpanded={handleToggleComponentExpansion}
-                          system={system}
-                          components={visibleComponents}
-                        >
-                          <HealthTable
-                            healthChecks={healthChecks}
-                            isLoading={isLoadingHealth}
-                            landscape={selectedApiLandscape?.name || ''}
-                            components={visibleComponents}
-                            onComponentClick={handleComponentClick}
-                            hideDownComponents={hideDownComponents}
-                            isCentralLandscape={isCentralLandscape}
-                          />
-                        </ComponentDisplayProvider>
-                      ) : (
-                        <div className="border-2 border-dashed rounded-lg p-12 text-center">
-                          <p className="text-muted-foreground">
-                            {!selectedLandscape
-                              ? 'Select a landscape to view component health status'
-                              : hideDownComponents
-                                ? 'No healthy components found in this landscape'
-                                : 'No components found in this landscape'}
-                          </p>
-                        </div>
-                      )}
+                    <div className="flex items-center gap-2">
+                      {!noCentralLandscapes && (<HealthStatusFilter
+                        hideDownComponents={hideDownComponents}
+                        onToggle={setHideDownComponents}
+                      />)}
+                      <ViewSwitcher view={componentView} onViewChange={setComponentView} />
                     </div>
-                  </>
-                )}
+                  </div>
+
+                  {selectedLandscape && visibleComponents.length > 0 ? (
+                    <ComponentsTabContent
+                      title=""
+                      components={visibleComponents}
+                      teamName={projectName}
+                      isLoading={componentsLoading}
+                      error={componentsError}
+                      teamComponentsExpanded={teamComponentsExpanded}
+                      onToggleExpanded={handleToggleComponentExpansion}
+                      onRefresh={refetchComponents}
+                      showRefreshButton={false}
+                      emptyStateMessage={emptyStateMessage || `No ${projectName} components found for this organization.`}
+                      searchTerm={componentSearchTerm}
+                      onSearchTermChange={setComponentSearchTerm}
+                      system={system}
+                      showLandscapeFilter={showLandscapeFilter}
+                      selectedLandscape={selectedLandscape}
+                      selectedLandscapeData={selectedApiLandscape}
+                      teamNamesMap={teamNamesMap}
+                      teamColorsMap={teamColorsMap}
+                      sortOrder={componentSortOrder}
+                      onSortOrderChange={setComponentSortOrder}
+                      componentHealthMap={componentHealthMap}
+                      isLoadingHealth={isLoadingHealth}
+                      onComponentClick={handleComponentClick}
+                      isCentralLandscape={isCentralLandscape}
+                      noCentralLandscapes={noCentralLandscapes}
+                      summary={summary}
+                      isLoadingHealthSummary={isLoadingHealth}
+                      projectId={projectId}
+                    />
+                  ) : (
+                    <div className="border-2 border-dashed rounded-lg p-12 text-center">
+                      <p className="text-muted-foreground">
+                        {!selectedLandscape
+                          ? 'Select a landscape to view components'
+                          : 'No components found in this landscape'}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
-              // When showComponentsMetrics is false, show traditional components view without switcher
-              <ComponentsTabContent
-                title={componentsTitle || `${projectName} Components`}
-                components={apiComponents}
-                teamName={projectName}
-                isLoading={componentsLoading}
-                error={componentsError}
-                teamComponentsExpanded={teamComponentsExpanded}
-                onToggleExpanded={handleToggleComponentExpansion}
-                onRefresh={refetchComponents}
-                showRefreshButton={false}
-                emptyStateMessage={emptyStateMessage || `No ${projectName} components found for this organization.`}
-                searchTerm={componentSearchTerm}
-                onSearchTermChange={setComponentSearchTerm}
-                system={system}
-                showLandscapeFilter={showLandscapeFilter}
-                selectedLandscape={selectedLandscape}
-                selectedLandscapeData={selectedApiLandscape}
-                teamNamesMap={teamNamesMap}
-                teamColorsMap={teamColorsMap}
-                sortOrder={componentSortOrder}
-                onSortOrderChange={setComponentSortOrder}
-                isCentralLandscape={isCentralLandscape}
-                summary={summary}
-                isLoadingHealthSummary={isLoadingHealth}
-              />
+              <>
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-2xl font-bold">Components</h2>
+                      {selectedLandscape && visibleComponents.length > 0 && (
+                        <Badge variant="secondary" className="text-sm">
+                          {visibleComponents.length}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!noCentralLandscapes && (<HealthStatusFilter
+                        hideDownComponents={hideDownComponents}
+                        onToggle={setHideDownComponents}
+                      />)}
+                      <ViewSwitcher view={componentView} onViewChange={setComponentView} />
+                    </div>
+                  </div>
+
+                  {selectedLandscape && visibleComponents.length > 0 ? (
+                    <ComponentDisplayProvider
+                      projectId={projectId}
+                      selectedLandscape={selectedLandscape}
+                      selectedLandscapeData={selectedApiLandscape}
+                      isCentralLandscape={isCentralLandscape}
+                      noCentralLandscapes={noCentralLandscapes}
+                      teamNamesMap={teamNamesMap}
+                      teamColorsMap={teamColorsMap}
+                      componentHealthMap={componentHealthMap}
+                      isLoadingHealth={isLoadingHealth}
+                      expandedComponents={teamComponentsExpanded}
+                      onToggleExpanded={handleToggleComponentExpansion}
+                      system={system}
+                      components={visibleComponents}
+                    >
+                      <HealthTable
+                        healthChecks={healthChecks}
+                        isLoading={isLoadingHealth}
+                        landscape={selectedApiLandscape?.name || ''}
+                        components={visibleComponents}
+                        onComponentClick={handleComponentClick}
+                        hideDownComponents={hideDownComponents}
+                        isCentralLandscape={isCentralLandscape}
+                      />
+                    </ComponentDisplayProvider>
+                  ) : (
+                    <div className="border-2 border-dashed rounded-lg p-12 text-center">
+                      <p className="text-muted-foreground">
+                        {!selectedLandscape
+                          ? 'Select a landscape to view component health status'
+                          : hideDownComponents
+                            ? 'No healthy components found in this landscape'
+                            : 'No components found in this landscape'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </>
         );
       case "health":
         return (
           <ComponentDisplayProvider
+            projectId={projectId}
             selectedLandscape={selectedLandscape}
             selectedLandscapeData={selectedApiLandscape}
             isCentralLandscape={isCentralLandscape}
+            noCentralLandscapes={noCentralLandscapes}
             teamNamesMap={teamNamesMap}
             teamColorsMap={teamColorsMap}
             componentHealthMap={componentHealthMap}

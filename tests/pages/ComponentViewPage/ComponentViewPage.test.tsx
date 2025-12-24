@@ -1,29 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { ComponentViewPage } from '@/pages/ComponentViewPage';
-import { useComponentsByProject } from '@/hooks/api/useComponents';
-import { useLandscapesByProject } from '@/hooks/api/useLandscapes';
-import { usePortalState } from '@/contexts/hooks';
-import { fetchHealthStatus, buildHealthEndpoint } from '@/services/healthApi';
-import { useSonarMeasures } from '@/hooks/api/useSonarMeasures';
-import { useSwaggerUI } from '@/hooks/api/useSwaggerUI';
-import type { Component } from '@/types/api';
-import type { HealthResponse } from '@/types/health';
+import { ComponentViewPage } from '../../../src/pages/ComponentViewPage';
+import { useComponentsByProject } from '../../../src/hooks/api/useComponents';
+import { useLandscapesByProject } from '../../../src/hooks/api/useLandscapes';
+import { usePortalState } from '../../../src/contexts/hooks';
+import { fetchComponentHealth } from '../../../src/services/healthApi';
+import { useSonarMeasures } from '../../../src/hooks/api/useSonarMeasures';
+import { useSwaggerUI } from '../../../src/hooks/api/useSwaggerUI';
+import type { Component } from '../../../src/types/api';
+import type { HealthResponse } from '../../../src/types/health';
 import '@testing-library/jest-dom/vitest';
 
 
 // Mock all hooks
-vi.mock('@/hooks/api/useComponents');
-vi.mock('@/hooks/api/useLandscapes');
-vi.mock('@/contexts/hooks');
-vi.mock('@/contexts/HeaderNavigationContext');
-vi.mock('@/services/healthApi');
-vi.mock('@/hooks/api/useSonarMeasures');
-vi.mock('@/hooks/api/useSwaggerUI');
+vi.mock('../../../src/hooks/api/useComponents');
+vi.mock('../../../src/hooks/api/useLandscapes');
+vi.mock('../../../src/contexts/hooks');
+vi.mock('../../../src/contexts/HeaderNavigationContext');
+vi.mock('../../../src/services/healthApi');
+vi.mock('../../../src/services/LandscapesApi', () => ({
+  getDefaultLandscapeId: vi.fn(),
+}));
+vi.mock('../../../src/hooks/api/useSonarMeasures');
+vi.mock('../../../src/hooks/api/useSwaggerUI');
 
 // Mock child components
-vi.mock('@/components/ComponentViewApi', () => ({
+vi.mock('../../../src/components/ComponentViewApi', () => ({
   ComponentViewApi: (props: any) => (
     <div data-testid="component-view-api">
       <div data-testid="api-loading">{props.isLoading ? 'loading' : 'loaded'}</div>
@@ -33,7 +36,7 @@ vi.mock('@/components/ComponentViewApi', () => ({
   ),
 }));
 
-vi.mock('@/components/ComponentViewOverview', () => ({
+vi.mock('../../../src/components/ComponentViewOverview', () => ({
   ComponentViewOverview: (props: any) => (
     <div data-testid="component-view-overview">
       <div data-testid="component-name">{props.component?.name || 'no-component'}</div>
@@ -48,7 +51,7 @@ vi.mock('@/components/ComponentViewOverview', () => ({
   ),
 }));
 
-vi.mock('@/components/BreadcrumbPage', () => ({
+vi.mock('../../../src/components/BreadcrumbPage', () => ({
   BreadcrumbPage: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="breadcrumb-page">{children}</div>
   ),
@@ -60,8 +63,6 @@ const mockComponent: Component = {
   title: 'Accounts Service',
   description: 'Service for managing accounts',
   owner_id: 'team-1',
-  project_id: 'cis20',
-  type: 'service',
   sonar: 'accounts-service-sonar',
 };
 
@@ -80,10 +81,13 @@ const mockLandscapes = [
 
 const mockHealthResponse: HealthResponse = {
   status: 'UP',
-  components: {
-    db: {
-      status: 'UP',
-      details: { database: 'postgresql' },
+  healthy: true,
+  details: {
+    components: {
+      db: {
+        status: 'UP',
+        details: { database: 'postgresql' },
+      },
     },
   },
 };
@@ -116,7 +120,7 @@ describe('ComponentViewPage', () => {
     vi.clearAllMocks();
 
     // Mock useHeaderNavigation hook
-    const { useHeaderNavigation } = await import('@/contexts/HeaderNavigationContext');
+    const { useHeaderNavigation } = await import('../../../src/contexts/HeaderNavigationContext');
     vi.mocked(useHeaderNavigation).mockReturnValue({
       tabs: [
         { id: 'overview', label: 'Overview' },
@@ -151,9 +155,7 @@ describe('ComponentViewPage', () => {
       setSelectedLandscapeForProject: vi.fn(),
     } as any);
 
-    vi.mocked(buildHealthEndpoint).mockReturnValue('https://accounts-service.cfapps.sap.hana.ondemand.com/health');
-
-    vi.mocked(fetchHealthStatus).mockResolvedValue({
+    vi.mocked(fetchComponentHealth).mockResolvedValue({
       status: 'success',
       data: mockHealthResponse,
       responseTime: 150,
@@ -201,7 +203,6 @@ describe('ComponentViewPage', () => {
     expect(screen.getByTestId('component-view-overview')).toBeInTheDocument();
   });
 
-  //NEW: Updated to expect the component to be found and rendered
   it('should fetch component data by name from URL params', () => {
     render(
       <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
@@ -211,7 +212,8 @@ describe('ComponentViewPage', () => {
       </MemoryRouter>
     );
 
-    //NEW: Component should be found because it matches the URL param
+    // Component should be found and rendered in the overview
+    expect(screen.getByTestId('component-view-overview')).toBeInTheDocument();
     expect(screen.getByTestId('component-name')).toHaveTextContent('accounts-service');
   });
 
@@ -227,7 +229,6 @@ describe('ComponentViewPage', () => {
     expect(screen.getByTestId('selected-landscape')).toHaveTextContent('eu10-canary');
   });
 
-  //NEW: Updated to expect health data to be fetched and displayed
   it('should display health response time', async () => {
     render(
       <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
@@ -238,14 +239,12 @@ describe('ComponentViewPage', () => {
     );
 
     await waitFor(() => {
-      //NEW: Response time should be displayed after health fetch completes
       expect(screen.getByTestId('response-time')).toHaveTextContent('150');
     });
   });
 
-  //NEW: Updated to expect status code to be displayed
   it('should display status code', async () => {
-    vi.mocked(fetchHealthStatus).mockResolvedValue({
+    vi.mocked(fetchComponentHealth).mockResolvedValue({
       status: 'success',
       data: mockHealthResponse,
       responseTime: 150,
@@ -260,14 +259,12 @@ describe('ComponentViewPage', () => {
     );
 
     await waitFor(() => {
-      //NEW: Status code should be 200 when health fetch succeeds
       expect(screen.getByTestId('status-code')).toHaveTextContent('200');
     });
   });
 
-  //NEW: Updated to expect error to be displayed
   it('should handle health fetch error', async () => {
-    vi.mocked(fetchHealthStatus).mockResolvedValue({
+    vi.mocked(fetchComponentHealth).mockResolvedValue({
       status: 'error',
       error: 'Failed to fetch health data',
     } as any);
@@ -281,7 +278,6 @@ describe('ComponentViewPage', () => {
     );
 
     await waitFor(() => {
-      //NEW: Error message should be displayed when fetch fails
       expect(screen.getByTestId('health-error')).toHaveTextContent('Failed to fetch health data');
     });
   });
@@ -300,7 +296,6 @@ describe('ComponentViewPage', () => {
   });
 
 
-  //NEW: Updated to expect no health data when landscape is missing
   it('should handle missing selected landscape', () => {
     vi.mocked(usePortalState).mockReturnValue({
       selectedLandscape: null,
@@ -316,9 +311,7 @@ describe('ComponentViewPage', () => {
       </MemoryRouter>
     );
 
-    //NEW: Component should still be found, but landscape will be missing
     expect(screen.getByTestId('component-name')).toHaveTextContent('accounts-service');
-    //NEW: Selected landscape should show null/empty
     expect(screen.getByTestId('selected-landscape')).toHaveTextContent('no-landscape');
   });
 
@@ -340,7 +333,7 @@ describe('ComponentViewPage', () => {
     );
 
     await waitFor(() => {
-      expect(fetchHealthStatus).not.toHaveBeenCalled();
+      expect(fetchComponentHealth).not.toHaveBeenCalled();
     });
   });
 
@@ -360,11 +353,10 @@ describe('ComponentViewPage', () => {
     );
 
     await waitFor(() => {
-      expect(fetchHealthStatus).not.toHaveBeenCalled();
+      expect(fetchComponentHealth).not.toHaveBeenCalled();
     });
   });
 
-  //NEW: Updated to use projectName from URL params directly
   it('should determine project name from URL params', () => {
     render(
       <MemoryRouter initialEntries={['/unified-services/component/test-service']}>
@@ -374,11 +366,9 @@ describe('ComponentViewPage', () => {
       </MemoryRouter>
     );
 
-    //NEW: Should use projectName directly from URL params
     expect(useComponentsByProject).toHaveBeenCalledWith('unified-services');
   });
 
-  //NEW: Updated to use projectName from URL params directly
   it('should use project name from URL for cis20', () => {
     render(
       <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
@@ -388,11 +378,9 @@ describe('ComponentViewPage', () => {
       </MemoryRouter>
     );
 
-    //NEW: Should use projectName directly from URL params
     expect(useComponentsByProject).toHaveBeenCalledWith('cis20');
   });
 
-  //NEW: Test for CIS special route (for backward compatibility)
   it('should handle CIS special route /cis/component/:componentId', () => {
     render(
       <MemoryRouter initialEntries={['/cis/component/accounts-service']}>
@@ -402,7 +390,6 @@ describe('ComponentViewPage', () => {
       </MemoryRouter>
     );
 
-    //NEW: Should default to cis20 when no projectName in URL
     expect(useComponentsByProject).toHaveBeenCalledWith('cis20');
   });
 
@@ -421,7 +408,6 @@ describe('ComponentViewPage', () => {
   });
 
 
-  //NEW: Test that health is fetched when both component and landscape are present
   it('should fetch health when component and landscape are both present', async () => {
     render(
       <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
@@ -432,21 +418,16 @@ describe('ComponentViewPage', () => {
     );
 
     await waitFor(() => {
-      expect(fetchHealthStatus).toHaveBeenCalled();
-      expect(buildHealthEndpoint).toHaveBeenCalledWith(
-        mockComponent,
-        expect.objectContaining({
-          name: 'EU10 Canary',
-          route: 'cfapps.sap.hana.ondemand.com'
-        })
+      expect(fetchComponentHealth).toHaveBeenCalledWith(
+        mockComponent.id,
+        'eu10-canary'
       );
     });
   });
 
-  //NEW: Test Swagger data is loaded for API tab
   it('should load Swagger data when API tab is active', async () => {
     // Mock the header navigation to return 'api' as active tab
-    const { useHeaderNavigation } = await import('@/contexts/HeaderNavigationContext');
+    const { useHeaderNavigation } = await import('../../../src/contexts/HeaderNavigationContext');
     vi.mocked(useHeaderNavigation).mockReturnValue({
       tabs: [
         { id: 'overview', label: 'Overview' },
@@ -468,11 +449,11 @@ describe('ComponentViewPage', () => {
     );
 
     await waitFor(() => {
+      expect(screen.getByTestId('component-view-api')).toBeInTheDocument();
       expect(screen.getByTestId('swagger-data')).toBeInTheDocument();
     });
   });
 
-  //NEW: Test Sonar data is passed to overview
   it('should display Sonar data in overview tab', () => {
     render(
       <MemoryRouter initialEntries={['/cis20/component/accounts-service']}>
@@ -485,12 +466,10 @@ describe('ComponentViewPage', () => {
     expect(screen.getByTestId('sonar-data')).toBeInTheDocument();
   });
 
-  //NEW: Test component with different project
   it('should work with cloud-automation project', () => {
     const caComponent: Component = {
       ...mockComponent,
       name: 'terraform-provider',
-      project_id: 'ca',
     };
 
     vi.mocked(useComponentsByProject).mockReturnValue({

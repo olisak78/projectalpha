@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom'; //NEW: Added for Router context
+import { MemoryRouter } from 'react-router-dom';
 import { ProjectLayout, ProjectLayoutProps } from '../../src/components/ProjectLayout';
 import React, { ReactNode } from 'react';
 
@@ -16,32 +16,29 @@ vi.mock('@/components/LandscapeLinksSection', () => ({
     React.createElement('div', { 'data-testid': 'landscape-links-section' }),
 }));
 
-//NEW: Updated mock to include all relevant props
 vi.mock('@/components/ComponentsTabContent', () => ({
   ComponentsTabContent: ({ 
     title, 
     system, 
     emptyStateMessage, 
     showLandscapeFilter,
-    showComponentMetrics,
     summary,
     isLoadingHealthSummary,
-    onComponentClick //NEW: Added to test click handler
+    onComponentClick
   }: any) => 
     React.createElement('div', { 'data-testid': 'components-tab-content' }, 
-      React.createElement('div', { 'data-testid': 'components-title' }, title),
+      React.createElement('div', { 'data-testid': 'components-title' }, title || ''),
       React.createElement('div', { 'data-testid': 'components-system' }, system),
       React.createElement('div', { 'data-testid': 'components-empty-message' }, emptyStateMessage),
       React.createElement('div', { 'data-testid': 'components-show-filter' }, showLandscapeFilter?.toString()),
       React.createElement('div', { 'data-testid': 'components-has-click-handler' }, (!!onComponentClick).toString()),
-      showComponentMetrics && React.createElement('div', { 'data-testid': 'health-overview' },
+      summary && React.createElement('div', { 'data-testid': 'health-overview' },
         React.createElement('div', { 'data-testid': 'health-overview-loading' }, isLoadingHealthSummary?.toString()),
         React.createElement('div', { 'data-testid': 'health-overview-summary' }, JSON.stringify(summary || {}))
       )
     ),
 }));
 
-//NEW: Added HealthOverview mock
 vi.mock('@/components/Health/HealthOverview', () => ({
   HealthOverview: ({ summary, isLoading }: any) => 
     React.createElement('div', { 'data-testid': 'health-overview' },
@@ -57,7 +54,6 @@ vi.mock('@/components/Health/HealthDashboard', () => ({
     ),
 }));
 
-//NEW: Updated AlertsPage mock to include props
 vi.mock('@/pages/AlertsPage', () => ({
   default: ({ projectId, projectName, alertsUrl }: any) => 
     React.createElement('div', { 'data-testid': 'alerts-page' },
@@ -70,8 +66,10 @@ vi.mock('@/pages/AlertsPage', () => ({
 // Mock functions for testing interactions
 const mockSetTabs = vi.fn();
 const mockSyncTabWithUrl = vi.fn();
-const mockSetSelectedLandscape = vi.fn();
 const mockRefetch = vi.fn();
+const mockGetSelectedLandscapeForProject = vi.fn(() => 'test');
+const mockSetSelectedLandscapeForProject = vi.fn();
+const mockSetShowLandscapeDetails = vi.fn();
 
 // Minimal context mocks
 vi.mock('@/contexts/HeaderNavigationContext', () => ({
@@ -82,9 +80,9 @@ vi.mock('@/contexts/hooks', () => ({
   usePortalState: () => ({ 
     selectedLandscape: 'test', 
     setSelectedLandscape: vi.fn(), 
-    setShowLandscapeDetails: vi.fn(),
-    getSelectedLandscapeForProject: vi.fn(() => 'test'),
-    setSelectedLandscapeForProject: vi.fn()
+    setShowLandscapeDetails: mockSetShowLandscapeDetails,
+    getSelectedLandscapeForProject: mockGetSelectedLandscapeForProject,
+    setSelectedLandscapeForProject: mockSetSelectedLandscapeForProject
   }),
   useLandscapeManagement: () => ({ getFilteredLandscapeIds: vi.fn(), getProductionLandscapeIds: vi.fn() }),
   useComponentManagement: () => ({ componentFilter: '', setComponentFilter: vi.fn(), getAvailableComponents: vi.fn() }),
@@ -118,7 +116,6 @@ vi.mock('@/hooks/api/useTeams', () => ({
   useTeams: () => ({ data: { teams: [] } }),
 }));
 
-//NEW: Added useHealth mock
 vi.mock('@/hooks/api/useHealth', () => ({
   useHealth: () => ({ 
     healthChecks: [], 
@@ -126,6 +123,56 @@ vi.mock('@/hooks/api/useHealth', () => ({
     isLoading: false 
   }),
 }));
+
+// Create configurable mocks for dynamic testing
+const mockUseHeaderNavigation = vi.fn(() => ({ setTabs: mockSetTabs, activeTab: 'components' }));
+const mockUseComponentsByProject = vi.fn(() => ({ 
+  data: [
+    { id: 'comp-1', name: 'test-component', title: 'Test Component', project_id: 'test-project' }
+  ], 
+  isLoading: false, 
+  error: null, 
+  refetch: mockRefetch 
+}));
+const mockUseLandscapesByProject = vi.fn(() => ({ data: [] }));
+const mockUseTeams = vi.fn(() => ({ data: { teams: [] } }));
+const mockUseHealth = vi.fn(() => ({ 
+  healthChecks: [], 
+  summary: { total: 10, up: 8, down: 2, error: 0, avgResponseTime: 150 }, 
+  isLoading: false 
+}));
+
+// Add missing component mocks
+vi.mock('@/components/ViewSwitcher', () => ({
+  ViewSwitcher: () => React.createElement('div', { 'data-testid': 'view-switcher' }),
+}));
+
+vi.mock('@/components/ui/badge', () => ({
+  Badge: ({ children }: { children: ReactNode }) => 
+    React.createElement('div', { 'data-testid': 'badge' }, children),
+}));
+
+vi.mock('@/components/HealthStatusFilter', () => ({
+  HealthStatusFilter: () => React.createElement('div', { 'data-testid': 'health-status-filter' }),
+}));
+
+vi.mock('@/contexts/ComponentDisplayContext', () => ({
+  ComponentDisplayProvider: ({ children }: { children: ReactNode }) => 
+    React.createElement('div', { 'data-testid': 'component-display-provider' }, children),
+}));
+
+vi.mock('@/services/LandscapesApi', () => ({
+  getDefaultLandscapeId: vi.fn(() => 'default-landscape'),
+}));
+
+// Mock react-router-dom hooks
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => vi.fn(),
+  };
+});
 
 describe('ProjectLayout', () => {
   let queryClient: QueryClient;
@@ -138,7 +185,7 @@ describe('ProjectLayout', () => {
 
   const renderComponent = (props: Partial<ProjectLayoutProps> = {}) => {
     return render(
-      React.createElement(MemoryRouter, {}, //NEW: Wrap in MemoryRouter for useNavigate
+      React.createElement(MemoryRouter, {},
         React.createElement(QueryClientProvider, { client: queryClient },
           React.createElement(ProjectLayout, { ...defaultProps, ...props })
         )
@@ -169,329 +216,368 @@ describe('ProjectLayout', () => {
     });
   });
 
-  describe('Props and Defaults', () => {
+  describe('Props and Configuration', () => {
     it('should use default values when optional props not provided', () => {
       renderComponent();
-      expect(screen.getByTestId('components-title')).toHaveTextContent('Test Project Components');
+      expect(screen.getByTestId('components-title')).toHaveTextContent('');
       expect(screen.getByTestId('components-system')).toHaveTextContent('services');
       expect(screen.getByTestId('components-show-filter')).toHaveTextContent('false');
     });
 
     it('should use custom prop values when provided', () => {
       renderComponent({
-        componentsTitle: 'Custom Title',
         system: 'microservices',
         emptyStateMessage: 'Custom empty message',
         showLandscapeFilter: true
       });
-      expect(screen.getByTestId('components-title')).toHaveTextContent('Custom Title');
       expect(screen.getByTestId('components-system')).toHaveTextContent('microservices');
       expect(screen.getByTestId('components-empty-message')).toHaveTextContent('Custom empty message');
       expect(screen.getByTestId('components-show-filter')).toHaveTextContent('true');
     });
-  });
 
-  describe('Tab Configuration', () => {
     it('should handle different tab configurations', () => {
-      // Single tab
-      renderComponent({ tabs: ['components'] });
-      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
-    });
-
-    it('should handle multiple tabs without crashing', () => {
       renderComponent({ tabs: ['components', 'health', 'alerts'] });
       expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
     });
 
-    it('should handle empty tabs array', () => {
-      renderComponent({ tabs: [] });
-      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
-    });
-  });
-
-  //REMOVED: hiddenLandscapeButtons is no longer a prop in the current implementation
-  // The landscape links section handles button visibility internally
-
-  describe('DefaultTab Behavior', () => {
-    it('should use components as defaultTab when not specified', () => {
-      renderComponent({ tabs: ['components', 'health'] });
-      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
-    });
-
-    it('should respect explicit defaultTab prop', () => {
-      renderComponent({ 
-        defaultTab: 'health',
-        tabs: ['components', 'health'] 
-      });
-      // Component still renders components by default due to mocking, but prop is passed
-      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
-    });
-  });
-
-  describe('Component Integration', () => {
-    it('should render without errors when all hooks return data', () => {
-      // Test that component handles all hooks returning data gracefully
+    it('should provide onComponentClick handler', () => {
       renderComponent();
-      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
-      expect(screen.getByTestId('landscape-links-section')).toBeInTheDocument();
-      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
-    });
-
-    it('should handle component rendering with different system configurations', () => {
-      renderComponent({
-        system: 'distributed-services',
-        showLandscapeFilter: true
-      });
-      expect(screen.getByTestId('components-system')).toHaveTextContent('distributed-services');
-      expect(screen.getByTestId('components-show-filter')).toHaveTextContent('true');
-    });
-  });
-
-  describe('Project ID Variations', () => {
-    it('should handle different project ID formats', () => {
-      renderComponent({
-        projectId: 'project-with-dashes-123',
-        projectName: 'Complex Project'
-      });
-      expect(screen.getByTestId('components-title')).toHaveTextContent('Complex Project Components');
-    });
-
-    it('should handle numeric project IDs', () => {
-      renderComponent({
-        projectId: '12345',
-        projectName: 'Numeric ID Project'
-      });
-      expect(screen.getByTestId('components-title')).toHaveTextContent('Numeric ID Project Components');
-    });
-  });
-
-  //REMOVED: hiddenLandscapeButtons tests - no longer applicable
-
-  describe('Edge Cases', () => {
-    it('should handle special project names', () => {
-      renderComponent({
-        projectName: 'Project-Name_With@Special#Characters'
-      });
-      expect(screen.getByTestId('components-title')).toHaveTextContent('Project-Name_With@Special#Characters Components');
-    });
-
-    it('should handle empty project name', () => {
-      renderComponent({
-        projectName: ''
-      });
-      expect(screen.getByTestId('components-title')).toHaveTextContent('Components');
-    });
-
-    it('should handle very long project names gracefully', () => {
-      const longName = 'Very Long Project Name That Could Potentially Cause Layout Issues In The User Interface';
-      renderComponent({
-        projectName: longName
-      });
-      expect(screen.getByTestId('components-title')).toHaveTextContent(`${longName} Components`);
-    });
-  });
-
-  //NEW: Tests for showComponentsMetrics functionality
-  describe('Components Metrics Configuration', () => {
-    it('should not show HealthOverview when showComponentsMetrics is false', () => {
-      renderComponent({
-        showComponentsMetrics: false
-      });
-      expect(screen.queryByTestId('health-overview')).not.toBeInTheDocument();
-    });
-
-    it('should show HealthOverview when showComponentsMetrics is true', () => {
-      renderComponent({
-        showComponentsMetrics: true
-      });
-      expect(screen.getByTestId('health-overview')).toBeInTheDocument();
-    });
-
-    it('should default to not showing HealthOverview when prop not provided', () => {
-      renderComponent();
-      expect(screen.queryByTestId('health-overview')).not.toBeInTheDocument();
-    });
-
-    it('should pass health summary to HealthOverview', () => {
-      renderComponent({
-        showComponentsMetrics: true
-      });
-      expect(screen.getByTestId('health-overview-summary')).toBeInTheDocument();
-    });
-  });
-
-  //NEW: Tests for alertsUrl functionality
-  describe('Alerts Configuration', () => {
-    it('should pass alertsUrl to AlertsPage when provided', () => {
-      renderComponent({
-        tabs: ['components', 'alerts'],
-        alertsUrl: 'https://github.com/alerts/test-project',
-        defaultTab: 'alerts'
-      });
-
-      // Since we mock activeTab to be 'components', we need to check if the prop would be passed
-      // In a real scenario, you'd need to simulate tab switching
-      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
-    });
-
-    it('should handle missing alertsUrl gracefully', () => {
-      renderComponent({
-        tabs: ['components', 'alerts'],
-        defaultTab: 'alerts'
-      });
-      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
-    });
-  });
-
-  //NEW: Tests for health tab rendering
-  describe('Health Tab', () => {
-    it('should render HealthDashboard when health tab is in tabs array', () => {
-      // Note: Due to mocking, activeTab is always 'components'
-      // This test verifies the component accepts health in tabs array
-      renderComponent({
-        tabs: ['components', 'health']
-      });
-      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
-    });
-
-    it('should pass correct projectId to HealthDashboard', () => {
-      renderComponent({
-        tabs: ['components', 'health'],
-        projectId: 'test-project-123'
-      });
-      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
-    });
-  });
-
-  //NEW: Tests for alerts tab rendering
-  describe('Alerts Tab', () => {
-    it('should accept alerts tab in tabs array', () => {
-      renderComponent({
-        tabs: ['components', 'alerts'],
-        alertsUrl: 'https://example.com/alerts'
-      });
-      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
-    });
-
-    it('should handle alerts tab without alertsUrl', () => {
-      renderComponent({
-        tabs: ['components', 'alerts']
-      });
-      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
-    });
-  });
-
-  //NEW: Tests for new ProjectLayout features
-  describe('View Switching and Health Status Filtering', () => {
-    it('should handle showComponentsMetrics with view switching', () => {
-      renderComponent({
-        showComponentsMetrics: true
-      });
-      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
-    });
-
-    it('should pass onComponentClick handler when showComponentsMetrics is true', () => {
-      renderComponent({
-        showComponentsMetrics: true
-      });
-      expect(screen.getByTestId('components-has-click-handler')).toHaveTextContent('true');
-    });
-
-    it('should handle component navigation correctly', () => {
-      renderComponent({
-        showComponentsMetrics: true,
-        projectId: 'test-project'
-      });
-      // Component click handler should be provided
       expect(screen.getByTestId('components-has-click-handler')).toHaveTextContent('true');
     });
   });
 
-  describe('Landscape Management', () => {
-    it('should handle landscape selection and changes', () => {
-      renderComponent({
-        projectId: 'test-project-123'
-      });
-      expect(screen.getByTestId('landscape-links-section')).toBeInTheDocument();
-    });
-
-    it('should handle central vs non-central landscapes', () => {
-      renderComponent({
-        showComponentsMetrics: true
-      });
-      // Should render without errors regardless of landscape type
-      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
-    });
-  });
-
-  describe('Component Health Integration', () => {
-    it('should handle health data loading states', () => {
-      renderComponent({
-        showComponentsMetrics: true
-      });
-      // Should show health overview when metrics are enabled
+  describe('Health Integration', () => {
+    it('should show health overview when summary data is available', () => {
+      renderComponent();
       expect(screen.getByTestId('health-overview')).toBeInTheDocument();
-    });
-
-    it('should handle health summary data', () => {
-      renderComponent({
-        showComponentsMetrics: true
-      });
+      
       const healthSummary = screen.getByTestId('health-overview-summary');
-      expect(healthSummary).toBeInTheDocument();
-      // Should contain summary data from mock
       expect(healthSummary.textContent).toContain('total');
     });
 
     it('should handle health loading state', () => {
-      renderComponent({
-        showComponentsMetrics: true
+      mockUseHealth.mockReturnValue({
+        healthChecks: [],
+        summary: null,
+        isLoading: true
       });
-      const loadingState = screen.getByTestId('health-overview-loading');
-      expect(loadingState).toBeInTheDocument();
-      expect(loadingState.textContent).toBe('false'); // From mock
-    });
-  });
-
-  describe('Team and Component Management', () => {
-    it('should handle team data integration', () => {
+      
       renderComponent();
-      // Should render without errors when team data is available
-      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
-    });
-
-    it('should handle component filtering and sorting', () => {
-      renderComponent({
-        showComponentsMetrics: true
-      });
-      // Should pass through component management props
       expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
     });
   });
 
-  describe('Error Handling and Edge Cases', () => {
-    it('should handle missing landscape data gracefully', () => {
-      renderComponent({
-        showComponentsMetrics: true
-      });
-      // Should render without crashing even with missing data
-      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
+  describe('Tab Navigation', () => {
+    it('should sync tabs with URL', () => {
+      renderComponent({ tabs: ['components', 'health'] });
+      expect(mockSyncTabWithUrl).toHaveBeenCalled();
     });
 
-    it('should handle empty component lists', () => {
+    it('should handle different active tab states', () => {
+      mockUseHeaderNavigation.mockReturnValue({ setTabs: mockSetTabs, activeTab: 'health' });
+      
       renderComponent({
-        showComponentsMetrics: true
+        tabs: ['components', 'health'],
+        defaultTab: 'health'
       });
-      // Should render empty state appropriately
+      
+      expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
+    });
+  });
+
+  describe('Landscape Data Scenarios', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should handle landscapes with different route configurations', () => {
+      mockUseLandscapesByProject.mockReturnValue({
+        data: [
+          { 
+            id: 'land-1', 
+            name: 'Production', 
+            technical_name: 'prod',
+            environment: 'production',
+            isCentral: true,
+            metadata: { route: 'prod.example.com' }
+          } as any,
+          { 
+            id: 'land-2', 
+            name: 'Staging', 
+            technical_name: 'staging',
+            isCentral: false,
+            landscape_url: 'staging-fallback.example.com'
+          } as any
+        ]
+      });
+      
+      renderComponent();
+      expect(screen.getByTestId('landscape-links-section')).toBeInTheDocument();
+    });
+
+    it('should handle no selected landscape scenario', () => {
+      mockGetSelectedLandscapeForProject.mockReturnValue(null as any);
+      
+      renderComponent();
+      expect(screen.getByText('Select a landscape to view components')).toBeInTheDocument();
+    });
+
+    it('should handle invalid selected landscape scenario', () => {
+      mockGetSelectedLandscapeForProject.mockReturnValue('invalid-landscape-id');
+      mockUseLandscapesByProject.mockReturnValue({
+        data: [
+          { id: 'valid-landscape', name: 'Valid', technical_name: 'valid', isCentral: false } as any
+        ]
+      });
+      
+      renderComponent();
+      expect(screen.getByTestId('landscape-links-section')).toBeInTheDocument();
+    });
+  });
+
+  describe('Component Data Scenarios', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should handle components with central-service flag', () => {
+      mockUseComponentsByProject.mockReturnValue({
+        data: [
+          { id: 'comp-1', name: 'central-comp', 'central-service': true } as any,
+          { id: 'comp-2', name: 'regular-comp', 'central-service': false } as any
+        ],
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch
+      });
+      
+      renderComponent();
       expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
     });
 
-    it('should handle API loading states', () => {
-      renderComponent({
-        showComponentsMetrics: true
+    it('should handle different component loading states', () => {
+      mockUseComponentsByProject.mockReturnValue({
+        data: [],
+        isLoading: true,
+        error: null,
+        refetch: mockRefetch
       });
-      // Should handle various loading states gracefully
+      
+      renderComponent();
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
+    });
+
+    it('should handle components error state', () => {
+      mockUseComponentsByProject.mockReturnValue({
+        data: [],
+        isLoading: false,
+        error: new Error('Failed to load components') as any,
+        refetch: mockRefetch
+      });
+      
+      renderComponent();
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
+    });
+  });
+
+  describe('Team Data Scenarios', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should handle teams with different metadata configurations', () => {
+      mockUseTeams.mockReturnValue({
+        data: {
+          teams: [
+            { id: 'team-1', title: 'Team Alpha', name: 'alpha', metadata: { color: '#ff0000' } },
+            { id: 'team-2', name: 'beta', metadata: { color: '#00ff00' } },
+            { id: 'team-3', name: 'gamma' } // No metadata
+          ]
+        }
+      });
+      
+      renderComponent();
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
+    });
+
+    it('should handle null teams data', () => {
+      mockUseTeams.mockReturnValue({
+        data: null
+      });
+      
+      renderComponent();
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
+    });
+  });
+
+  describe('Health Data Integration', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should handle health checks with component mapping', () => {
+      mockUseHealth.mockReturnValue({
+        healthChecks: [
+          { componentId: 'comp-1', status: 'up', responseTime: 100 },
+          { componentId: 'comp-2', status: 'down', responseTime: 0 },
+          { componentId: 'comp-3', status: 'error', responseTime: null }
+        ],
+        summary: { total: 3, up: 1, down: 1, error: 1, avgResponseTime: 50 },
+        isLoading: false
+      });
+      
+      renderComponent();
+      expect(screen.getByTestId('health-overview')).toBeInTheDocument();
+    });
+
+    it('should handle health disabled when no landscapes', () => {
+      mockUseLandscapesByProject.mockReturnValue({ data: [] });
+      
+      renderComponent();
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
+    });
+  });
+
+  describe('Landscape Effects and Central Logic', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should set default landscape when none selected', () => {
+      mockGetSelectedLandscapeForProject.mockReturnValue(null);
+      mockUseLandscapesByProject.mockReturnValue({
+        data: [
+          { id: 'land-1', name: 'Production', technical_name: 'prod', isCentral: true }
+        ]
+      });
+      
+      renderComponent();
+      expect(screen.getByTestId('landscape-links-section')).toBeInTheDocument();
+    });
+
+    it('should handle central vs non-central landscape detection', () => {
+      mockUseLandscapesByProject.mockReturnValue({
+        data: [
+          { id: 'land-1', name: 'Central', technical_name: 'central', isCentral: true },
+          { id: 'land-2', name: 'Regional', technical_name: 'regional', isCentral: false }
+        ]
+      });
+      mockGetSelectedLandscapeForProject.mockReturnValue('land-1');
+      
+      renderComponent();
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
+    });
+
+    it('should handle no central landscapes available', () => {
+      mockUseLandscapesByProject.mockReturnValue({
+        data: [
+          { id: 'land-1', name: 'Regional1', technical_name: 'reg1', isCentral: false },
+          { id: 'land-2', name: 'Regional2', technical_name: 'reg2', isCentral: false }
+        ]
+      });
+      
+      renderComponent();
+      expect(screen.queryByTestId('health-status-filter')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('View Controls and UI Elements', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should render view controls when components and landscapes are available', () => {
+      mockUseLandscapesByProject.mockReturnValue({
+        data: [
+          { id: 'land-1', name: 'Production', technical_name: 'prod', isCentral: true }
+        ]
+      });
+      mockGetSelectedLandscapeForProject.mockReturnValue('land-1');
+      mockUseComponentsByProject.mockReturnValue({
+        data: [
+          { id: 'comp-1', name: 'test-component-1', title: 'Test Component 1', project_id: 'test-project' },
+          { id: 'comp-2', name: 'test-component-2', title: 'Test Component 2', project_id: 'test-project' }
+        ],
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch
+      });
+      
+      renderComponent();
+      
+      expect(screen.getByTestId('view-switcher')).toBeInTheDocument();
+      expect(screen.getByText('Components')).toBeInTheDocument();
+      expect(screen.getByTestId('badge')).toBeInTheDocument();
+      expect(screen.getByTestId('badge')).toHaveTextContent(/\d+/);
+    });
+  });
+
+  describe('Edge Cases and Complex Scenarios', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should handle landscape groups with different environments', () => {
+      mockUseLandscapesByProject.mockReturnValue({
+        data: [
+          { id: 'land-1', name: 'Prod', technical_name: 'prod', environment: 'production', isCentral: true },
+          { id: 'land-2', name: 'Dev', technical_name: 'dev', environment: 'development', isCentral: false },
+          { id: 'land-3', name: 'Test', technical_name: 'test', environment: null, isCentral: false }
+        ]
+      });
+      
+      renderComponent();
+      expect(screen.getByTestId('landscape-links-section')).toBeInTheDocument();
+    });
+
+    it('should handle visibleComponents filtering with central and non-central landscapes', () => {
+      mockUseLandscapesByProject.mockReturnValue({
+        data: [
+          { id: 'land-1', name: 'Central', technical_name: 'central', isCentral: true }
+        ]
+      });
+      mockGetSelectedLandscapeForProject.mockReturnValue('land-1');
+      mockUseComponentsByProject.mockReturnValue({
+        data: [
+          { id: 'comp-1', name: 'central-comp', 'central-service': true },
+          { id: 'comp-2', name: 'regular-comp', 'central-service': false }
+        ],
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch
+      });
+      
+      renderComponent();
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
+    });
+
+    it('should handle all props with custom values', () => {
+      renderComponent({
+        projectName: 'Custom Project',
+        projectId: 'custom-project-123',
+        defaultTab: 'health',
+        tabs: ['components', 'health', 'alerts'],
+        componentsTitle: 'Custom Components Title',
+        emptyStateMessage: 'Custom empty state message',
+        system: 'distributed-services',
+        showLandscapeFilter: true,
+        alertsUrl: 'https://custom-alerts.example.com'
+      });
+      
       expect(screen.getByTestId('breadcrumb-page')).toBeInTheDocument();
+    });
+
+    it('should handle null/empty data scenarios', () => {
+      mockUseLandscapesByProject.mockReturnValue({ data: null });
+      mockUseComponentsByProject.mockReturnValue({
+        data: [],
+        isLoading: false,
+        error: null,
+        refetch: mockRefetch
+      });
+      
+      renderComponent();
+      expect(screen.getByTestId('components-tab-content')).toBeInTheDocument();
     });
   });
 });

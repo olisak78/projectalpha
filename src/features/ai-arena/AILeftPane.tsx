@@ -37,6 +37,14 @@ export default function AILeftPane() {
     }
   };
 
+  const handleCreateNewChat = () => {
+    // Only create a new chat if there isn't already one with "New Chat" title
+    const hasNewChat = conversations.some(c => c.title === "New Chat");
+    if (!hasNewChat) {
+      createConversation("New Chat");
+    }
+  };
+
   return (
     <div className="w-[260px] border-r border-gray-200 dark:border-gray-800 flex-shrink-0 bg-white dark:bg-[#0D0D0D] text-gray-900 dark:text-white flex flex-col">
       {/* Header with New Chat button */}
@@ -44,7 +52,7 @@ export default function AILeftPane() {
         <Button
           variant="ghost"
           className="h-10 w-full justify-start gap-2 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-900 dark:text-white font-medium"
-          onClick={() => createConversation("New Chat")}
+          onClick={handleCreateNewChat}
         >
           <MessageSquarePlus className="h-5 w-5" />
           New Chat

@@ -13,9 +13,10 @@ export type HealthStatus = 'UP' | 'DOWN' | 'UNKNOWN' | 'OUT_OF_SERVICE' | 'ERROR
  */
 export interface HealthResponse {
   status: HealthStatus;
-  components?: Record<string, ComponentHealth>;
   details?: Record<string, any>;
   description?: string;
+  healthy?: boolean;
+  healthURL?: string;
 }
 
 /**
@@ -69,6 +70,7 @@ export interface HealthSummary {
  * Landscape configuration for health checks
  */
 export interface LandscapeConfig {
+  id: string;
   name: string;
   route: string;
 }

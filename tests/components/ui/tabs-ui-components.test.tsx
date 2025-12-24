@@ -156,6 +156,7 @@ describe('Select Component', () => {
 
 describe.skip('Sidebar Component', () => {
   let Sidebar: any;
+  let SidebarProvider: any;
   let SidebarTrigger: any;
   let SidebarContent: any;
   let SidebarHeader: any;
@@ -167,6 +168,7 @@ describe.skip('Sidebar Component', () => {
   beforeEach(async () => {
     const module = await import('../../../src/components/ui/sidebar');
     Sidebar = module.Sidebar;
+    SidebarProvider = module.SidebarProvider;
     SidebarTrigger = module.SidebarTrigger;
     SidebarContent = module.SidebarContent;
     SidebarHeader = module.SidebarHeader;
@@ -178,11 +180,13 @@ describe.skip('Sidebar Component', () => {
 
   it('should render sidebar', () => {
     render(
-      <Sidebar>
-        <SidebarContent>
-          <p>Sidebar content</p>
-        </SidebarContent>
-      </Sidebar>
+      <SidebarProvider>
+        <Sidebar>
+          <SidebarContent>
+            <p>Sidebar content</p>
+          </SidebarContent>
+        </Sidebar>
+      </SidebarProvider>
     );
 
     expect(screen.getByText('Sidebar content')).toBeInTheDocument();
@@ -190,13 +194,15 @@ describe.skip('Sidebar Component', () => {
 
   it('should render sidebar with header and footer', () => {
     render(
-      <Sidebar>
-        <SidebarHeader>
-          <h2>Header</h2>
-        </SidebarHeader>
-        <SidebarContent>Content</SidebarContent>
-        <SidebarFooter>Footer</SidebarFooter>
-      </Sidebar>
+      <SidebarProvider>
+        <Sidebar>
+          <SidebarHeader>
+            <h2>Header</h2>
+          </SidebarHeader>
+          <SidebarContent>Content</SidebarContent>
+          <SidebarFooter>Footer</SidebarFooter>
+        </Sidebar>
+      </SidebarProvider>
     );
 
     expect(screen.getByText('Header')).toBeInTheDocument();
@@ -206,18 +212,20 @@ describe.skip('Sidebar Component', () => {
 
   it('should render sidebar menu', () => {
     render(
-      <Sidebar>
-        <SidebarContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton>Menu Item 1</SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton>Menu Item 2</SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarContent>
-      </Sidebar>
+      <SidebarProvider>
+        <Sidebar>
+          <SidebarContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton>Menu Item 1</SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton>Menu Item 2</SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarContent>
+        </Sidebar>
+      </SidebarProvider>
     );
 
     expect(screen.getByText('Menu Item 1')).toBeInTheDocument();
@@ -227,17 +235,19 @@ describe.skip('Sidebar Component', () => {
   it('should handle menu button clicks', () => {
     const handleClick = vi.fn();
     render(
-      <Sidebar>
-        <SidebarContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton onClick={handleClick}>
-                Clickable Item
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarContent>
-      </Sidebar>
+      <SidebarProvider>
+        <Sidebar>
+          <SidebarContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={handleClick}>
+                  Clickable Item
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarContent>
+        </Sidebar>
+      </SidebarProvider>
     );
 
     const button = screen.getByText('Clickable Item');
@@ -248,12 +258,12 @@ describe.skip('Sidebar Component', () => {
 
   it('should render sidebar trigger', () => {
     render(
-      <>
+      <SidebarProvider>
         <SidebarTrigger />
         <Sidebar>
           <SidebarContent>Content</SidebarContent>
-        </Sidebar></>
-
+        </Sidebar>
+      </SidebarProvider>
     );
 
     const trigger = screen.getByRole('button');
@@ -760,12 +770,12 @@ describe('Toggle Component', () => {
 
   it('should handle controlled state', () => {
     const { container, rerender } = render(<Toggle pressed={false}>Toggle</Toggle>);
-
+    
     let toggle = container.querySelector('button');
     expect(toggle).toHaveAttribute('data-state', 'off');
 
     rerender(<Toggle pressed={true}>Toggle</Toggle>);
-
+    
     toggle = container.querySelector('button');
     expect(toggle).toHaveAttribute('data-state', 'on');
   });

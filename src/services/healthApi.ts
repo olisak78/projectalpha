@@ -1,11 +1,10 @@
 /**
  * Health API Service
- * Utilities for fetching component health statuses
- * Now integrated with React Query system for caching
+ * Utilities for fetching component health statuses using the new backend endpoint
  */
 
 import { apiClient } from './ApiClient';
-import type { Component, HealthResponse, ComponentHealthCheck, LandscapeConfig } from '@/types/health';
+import type { Component, HealthResponse, LandscapeConfig } from '@/types/health';
 
 export interface SystemInformation {
   // Standard /systemInformation/public response structure
@@ -27,40 +26,8 @@ export interface SystemInformation {
 }
 
 /**
- * Build health endpoint URL from component and landscape data
- * Example: accounts-service in eu10-canary with domain "sap.hana.ondemand.com"
- * URL: https://accounts-service.cfapps.sap.hana.ondemand.com/health
- */
-export function buildHealthEndpoint(
-  component: Component,
-  landscape: LandscapeConfig
-): string {
-  const componentName = component.name.toLowerCase();
-  const domain = landscape.route;
-  const url = `https://${componentName}.cfapps.${domain}/health`;
-  return url;
-}
-
-/**
- * Build fallback health endpoint URL with subdomain prefix
- * Example: subscription-management-dashboard with subdomain "sap-provisioning"
- * URL: https://sap-provisioning.subscription-management-dashboard.cfapps.sap.hana.ondemand.com/health
- */
-export function buildHealthEndpointWithSubdomain(
-  component: Component,
-  landscape: LandscapeConfig,
-  subdomain: string
-): string {
-  const componentName = component.name.toLowerCase();
-  const domain = landscape.route;
-  const url = `https://${subdomain}.${componentName}.cfapps.${domain}/health`;
-  return url;
-}
-
-/**
- * Build system information endpoint URL from component and landscape data
- * Example: accounts-service in eu10-canary
- * URL: https://accounts-service.cfapps.sap.hana.ondemand.com/systemInformation/public
+ * Build system information endpoint URL
+ * Default endpoint: /systemInformation/public
  */
 export function buildSystemInfoEndpoint(
   component: Component,
@@ -74,7 +41,7 @@ export function buildSystemInfoEndpoint(
 }
 
 /**
- * Build fallback system information endpoint URL with subdomain prefix
+ * Build system information endpoint URL with subdomain prefix
  */
 export function buildSystemInfoEndpointWithSubdomain(
   component: Component,
@@ -89,36 +56,51 @@ export function buildSystemInfoEndpointWithSubdomain(
 }
 
 /**
- * Fetch health status from a single endpoint via backend proxy
- * Uses backend proxy to avoid CORS issues
+ * Fetch health status for a specific component and landscape using new endpoint
+ * Endpoint: /api/v1/components/health?component-id=<component id>&landscape-id=<landscape id>
+ * 
+ * @param componentId - UUID of the component
+ * @param landscapeId - UUID of the landscape
+ * @param signal - Optional AbortSignal for cancelling the request
+ * @returns Promise with health status result
  */
-export async function fetchHealthStatus(
-  url: string,
+export async function fetchComponentHealth(  // NEW: Add this function to healthApi.ts
+  componentId: string,
+  landscapeId: string,
   signal?: AbortSignal
-): Promise<{ 
-  status: 'success' | 'error'; 
-  data?: HealthResponse; 
+): Promise<{
+  status: 'success' | 'error';
+  data?: HealthResponse;
   error?: string;
   responseTime?: number;
 }> {
   const startTime = Date.now();
 
   try {
-    const data = await apiClient.get<HealthResponse & { componentSuccess?: boolean; statusCode?: number }>('/cis-public/proxy', {
-      params: { url },
+    const rawData = await apiClient.get<any>('/components/health', {   
+      params: {
+        'component-id': componentId,   
+        'landscape-id': landscapeId    
+      },
       signal,
     });
 
-    const responseTime = Date.now() - startTime;
+    // Transform the response to ensure details field is parsed as JSON if it's a string
+    const data: HealthResponse = {
+      ...rawData,
+      details: rawData.details && typeof rawData.details === 'string' 
+        ? (() => {
+            try {
+              return JSON.parse(rawData.details);
+            } catch (parseError) {
+              // Silently handle JSON parsing errors - just return the raw string wrapped in an object
+              return { raw: rawData.details };
+            }
+          })()
+        : rawData.details
+    };
 
-    // Check if the response indicates failure
-    if (data.componentSuccess === false) {
-      return {
-        status: 'error',
-        error: `Health check failed with status ${data.statusCode || 'unknown'}`,
-        responseTime,
-      };
-    }
+    const responseTime = Date.now() - startTime;
 
     return {
       status: 'success',
@@ -127,17 +109,22 @@ export async function fetchHealthStatus(
     };
   } catch (error) {
     const responseTime = Date.now() - startTime;
+    
     return {
       status: 'error',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Failed to fetch component health',
       responseTime,
     };
   }
 }
 
 /**
- * Fetch system information from multiple fallback endpoints
- * Tries /systemInformation/public, then /version with various combinations
+ * Fetch system information for a component with multiple fallback attempts
+ * Tries multiple endpoints in order:
+ * 1. /systemInformation/public
+ * 2. /systemInformation/public with subdomain (if available)
+ * 3. /version
+ * 4. /version with subdomain (if available)
  */
 export async function fetchSystemInformation(
   component: Component,
@@ -219,130 +206,4 @@ export async function fetchSystemInformation(
     status: 'error',
     error: 'All system info endpoints failed',
   };
-}
-
-/**
- * Fetch health for all components in parallel
- * This function is now used by the React Query hook for caching
- */
-export async function fetchAllHealthStatuses(
-  components: Component[],
-  landscape: LandscapeConfig,
-  signal?: AbortSignal
-): Promise<ComponentHealthCheck[]> {
-  const healthChecks: ComponentHealthCheck[] = [];
-
-  // Create all health check promises
-  const promises = components.map(async (component) => {
-    const healthUrl = buildHealthEndpoint(component, landscape);
-
-    const healthCheck: ComponentHealthCheck = {
-      componentId: component.id,
-      componentName: component.name,
-      landscape: landscape.name,
-      healthUrl,
-      status: 'LOADING',
-    };
-
-    try {
-      // Try primary URL first
-      const result = await fetchHealthStatus(healthUrl, signal);
-
-      if (result.status === 'success' && result.data) {
-        healthCheck.status = result.data.status;
-        healthCheck.response = result.data;
-        healthCheck.responseTime = result.responseTime;
-        healthCheck.lastChecked = new Date();
-        return healthCheck;
-      }
-
-      // Attempt 2: Try fallback with subdomain if available
-      const subdomain = component.metadata?.subdomain;
-      if (subdomain && typeof subdomain === 'string') {
-        const fallbackUrl = buildHealthEndpointWithSubdomain(component, landscape, subdomain);
-        const fallbackResult = await fetchHealthStatus(fallbackUrl, signal);
-
-        if (fallbackResult.status === 'success' && fallbackResult.data) {
-          healthCheck.healthUrl = fallbackUrl; // Update to show which URL succeeded
-          healthCheck.status = fallbackResult.data.status;
-          healthCheck.response = fallbackResult.data;
-          healthCheck.responseTime = fallbackResult.responseTime;
-          healthCheck.lastChecked = new Date();
-          return healthCheck;
-        }
-      }
-
-      // Both primary and fallback /health attempts failed
-      healthCheck.status = 'ERROR';
-      healthCheck.error = result.error;
-      healthCheck.responseTime = result.responseTime;
-      healthCheck.lastChecked = new Date();
-      return healthCheck;
-    } catch (error) {
-      // Handle any unexpected errors
-      healthCheck.status = 'ERROR';
-      healthCheck.error = error instanceof Error ? error.message : 'Unknown error';
-      healthCheck.lastChecked = new Date();
-      return healthCheck;
-    }
-  });
-
-  // Wait for all requests to complete (even if some fail)
-  const results = await Promise.allSettled(promises);
-
-  results.forEach((result) => {
-    if (result.status === 'fulfilled') {
-      healthChecks.push(result.value);
-    }
-  });
-
-  return healthChecks;
-}
-
-/**
- * Fetch health status for a specific component and landscape using new endpoint
- * Endpoint: /api/v1/components/health?component-id=<component id>&landscape-id=<landscape id>
- * 
- * @param componentId - UUID of the component
- * @param landscapeId - UUID of the landscape
- * @param signal - Optional AbortSignal for cancelling the request
- * @returns Promise with health status result
- */
-export async function fetchComponentHealth(  // NEW: Add this function to healthApi.ts
-  componentId: string,
-  landscapeId: string,
-  signal?: AbortSignal
-): Promise<{
-  status: 'success' | 'error';
-  data?: HealthResponse;
-  error?: string;
-  responseTime?: number;
-}> {
-  const startTime = Date.now();
-
-  try {
-    const data = await apiClient.get<HealthResponse>('/components/health', {   
-      params: {
-        'component-id': componentId,   
-        'landscape-id': landscapeId    
-      },
-      signal,
-    });
-
-    const responseTime = Date.now() - startTime;
-
-    return {
-      status: 'success',
-      data,
-      responseTime,
-    };
-  } catch (error) {
-    const responseTime = Date.now() - startTime;
-    
-    return {
-      status: 'error',
-      error: error instanceof Error ? error.message : 'Failed to fetch component health',
-      responseTime,
-    };
-  }
 }
