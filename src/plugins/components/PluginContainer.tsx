@@ -1,5 +1,12 @@
+/**
+ * Plugin Container Component
+ * 
+ * Provides consistent theming, borders, and padding for all plugins.
+ * Wraps plugin content with portal-standard styling.
+ */
+
 import React from 'react';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useTheme } from '@/stores/themeStore';
 
 interface BaseContainerProps {
   children: React.ReactNode;

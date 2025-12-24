@@ -7,15 +7,15 @@ import { DeveloperPortalHeader } from '../../../src/components/DeveloperPortalHe
 import { useAuth } from '../../../src/contexts/AuthContext';
 import { useIsMobile } from '../../../src/hooks/use-mobile';
 import { useHeaderNavigation } from '../../../src/contexts/HeaderNavigationContext';
-import { useTheme } from '../../../src/contexts/ThemeContext';
-import { useSidebarState } from '../../../src/contexts/SidebarContext';
+import { useTheme } from '../../../src/stores/themeStore';
+
 
 // Mock all the contexts and hooks
 vi.mock('../../../src/contexts/AuthContext');
 vi.mock('../../../src/hooks/use-mobile');
 vi.mock('../../../src/contexts/HeaderNavigationContext');
-vi.mock('../../../src/contexts/ThemeContext');
-vi.mock('../../../src/contexts/SidebarContext');
+vi.mock('../../../src/stores/themeStore');
+vi.mock('../../../src/stores/sidebarStore');
 
 // Mock react-router-dom
 const mockNavigate = vi.fn();
@@ -117,10 +117,6 @@ describe('DeveloperPortalHeader', () => {
       toggleTheme: vi.fn()
     } as any);
     
-    vi.mocked(useSidebarState).mockReturnValue({
-      isExpanded: true,
-      sidebarWidth: 240
-    } as any);
   });
 
   describe('Basic rendering', () => {

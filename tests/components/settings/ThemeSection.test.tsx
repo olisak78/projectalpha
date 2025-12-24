@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import ThemeSection from '../../../src/components/settings/ThemeSection';
-import { useTheme } from '../../../src/contexts/ThemeContext';
+import { useTheme } from '../../../src/stores/themeStore';
 
-// Mock the ThemeContext
-vi.mock('../../../src/contexts/ThemeContext', () => ({
+// Mock the Theme Store
+vi.mock('../../../src/stores/themeStore', () => ({
   useTheme: vi.fn()
 }));
 
@@ -17,7 +17,7 @@ vi.mock('../../../src/contexts/ThemeContext', () => ({
  * the CustomizationAppearanceSettings component.
  * 
  * Component Location: src/components/settings/ThemeSection.tsx
- * Dependencies: ThemeContext
+ * Dependencies: Theme Store
  */
 
 // ============================================================================

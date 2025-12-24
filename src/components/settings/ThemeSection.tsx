@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { useTheme } from '@/contexts/ThemeContext';
+import { useActualTheme, useThemeStore } from "@/stores/themeStore";
 import { Sun, Moon } from 'lucide-react';
 import { Separator } from '../ui/separator';
 
 export default function ThemeSection() {
-  const { actualTheme, setTheme } = useTheme();
+  const actualTheme = useActualTheme();
+  const setTheme = useThemeStore(state => state.setTheme);
 
   return (
     <div className="bg-muted/20 rounded-lg p-4 border">

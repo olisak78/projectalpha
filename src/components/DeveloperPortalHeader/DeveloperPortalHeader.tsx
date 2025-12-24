@@ -1,13 +1,10 @@
-import { Bell, PanelLeft, PanelLeftClose, Sun, Moon } from "lucide-react";
+import { Bell, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserProfileDropdown } from "@/components/DeveloperPortalHeader/UserProfileDropdown";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
-import { useHeaderNavigation } from "@/contexts/HeaderNavigationContext";
-import { useTheme } from "@/contexts/ThemeContext";
-import { useSidebarState } from "@/contexts/SidebarContext";
+import { useActualTheme, useThemeStore } from "@/stores/themeStore";
 
 interface DeveloperPortalHeaderProps {
   unreadCount: number;
@@ -20,10 +17,8 @@ export function DeveloperPortalHeader({
 }: DeveloperPortalHeaderProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
-  const { tabs, activeTab, setActiveTab, isDropdown } = useHeaderNavigation();
-  const { actualTheme, toggleTheme } = useTheme();
-  const { isExpanded, sidebarWidth } = useSidebarState();
+  const actualTheme = useActualTheme();
+  const toggleTheme = useThemeStore(state => state.toggleTheme);
 
   const handleLogout = async () => {
     try {
@@ -39,7 +34,7 @@ export function DeveloperPortalHeader({
       <div className="px-4 py-3 pl-6 flex items-center justify-between">
         <div className="flex items-center space-x-4">
 
-         
+
           <h1
             className="text-lg font-semibold text-foreground cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
             onClick={() => navigate('/')}
@@ -94,8 +89,6 @@ export function DeveloperPortalHeader({
           )}
         </div>
       </div>
-
-      
     </div>
   );
 }
