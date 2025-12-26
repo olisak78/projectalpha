@@ -147,10 +147,15 @@ vi.mock('../../../src/components/ui/button', () => ({
 // Mock icons
 vi.mock('lucide-react', () => ({
   AlertCircle: () => <span data-testid="alert-circle-icon">⚠️</span>,
+  AlertTriangle: () => <span data-testid="alert-triangle-icon">⚠️</span>,
   Loader2: () => <span data-testid="loader-icon">⏳</span>,
   FileText: () => <span data-testid="file-text-icon">📄</span>,
   Eye: () => <span data-testid="eye-icon">👁️</span>,
   Github: () => <span data-testid="github-icon">🐙</span>,
+  FilePlus: () => <span data-testid="file-plus-icon">📄➕</span>,
+  FolderPlus: () => <span data-testid="folder-plus-icon">📁➕</span>,
+  Trash2: () => <span data-testid="trash-icon">🗑️</span>,
+  X: () => <span data-testid="x-icon">✕</span>,
 }));
 
 // Mock Fuse.js
@@ -276,7 +281,8 @@ describe('DocsPage Component', () => {
       expect(screen.getByTestId('docs-sidebar')).toBeInTheDocument();
       expect(screen.getByTestId('docs-content')).toBeInTheDocument();
       expect(screen.getByTestId('docs-search')).toBeInTheDocument();
-      expect(screen.getByText('Documentation')).toBeInTheDocument();
+      // Title is extracted from last segment of docsPath ("docs/coe" -> "coe", "docs" -> "docs")
+      expect(screen.getByText('docs')).toBeInTheDocument();
       expect(screen.getAllByTestId('github-icon')).toHaveLength(2); // Header and action button
     });
 
@@ -768,7 +774,8 @@ describe('DocsPage Component', () => {
       // Semantic structure
       const mainContainer = screen.getByTestId('docs-sidebar').closest('div');
       expect(mainContainer).toBeInTheDocument();
-      expect(screen.getByText('Documentation')).toBeInTheDocument();
+      // Title is extracted from last segment of docsPath
+      expect(screen.getByText('docs')).toBeInTheDocument();
 
       // Keyboard navigation
       const searchInput = screen.getByTestId('search-input');

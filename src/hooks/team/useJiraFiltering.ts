@@ -2,25 +2,47 @@ import { JiraIssuesParams } from "@/types/api";
 import { useEffect, useMemo, useState } from "react";
 import { useJiraIssues } from "@/hooks/api/useJira";
 
-export type QuickFilterType = "bugs" | "tasks" | "both";
+//   Import from teamStore instead of defining locally
+import {
+  useJiraAssigneeFilter,
+  useJiraStatusFilter,
+  useJiraSortBy,
+  useJiraSearch,
+  useJiraQuickFilter,
+  useJiraCurrentPage,
+  useJiraItemsPerPage,
+  useJiraFilterActions,
+  type QuickFilterType,
+} from '@/stores/teamStore';
 
 interface UseJiraFilteringProps {
   teamName?: string;
 }
 
 export function useJiraFiltering({ teamName }: UseJiraFilteringProps = {}) {
-  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<string>("updated_desc");
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [quickFilter, setQuickFilter] = useState<QuickFilterType>("both");
+  //   Get filter state from Zustand
+  const assigneeFilter = useJiraAssigneeFilter();
+  const statusFilter = useJiraStatusFilter();
+  const sortBy = useJiraSortBy();
+  const search = useJiraSearch();
+  const quickFilter = useJiraQuickFilter();
+  const currentPage = useJiraCurrentPage();
+  const itemsPerPage = useJiraItemsPerPage();
   
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  //   Get actions from Zustand (stable functions)
+  const {
+    setAssigneeFilter,
+    setStatusFilter,
+    setSortBy,
+    setSearch,
+    setQuickFilter,
+    setCurrentPage,
+  } = useJiraFilterActions();
+  
+  //  Local state for debounced search (component-specific, temporary)
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // Debounce search input to avoid too many API calls
+  //  Debounce logic  
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
@@ -29,10 +51,10 @@ export function useJiraFiltering({ teamName }: UseJiraFilteringProps = {}) {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Process team name to remove dashes for API call
+  //   Process team name  
   const processedTeamName = teamName ? teamName.replace(/-/g, '') : undefined;
 
-  // Prepare API parameters for server-side filtering
+  //   API parameters ( uses Zustand state)
   const apiParams = useMemo((): JiraIssuesParams => {
     const params: JiraIssuesParams = {
       team: processedTeamName,
@@ -59,11 +81,12 @@ export function useJiraFiltering({ teamName }: UseJiraFilteringProps = {}) {
     return params;
   }, [processedTeamName, statusFilter, assigneeFilter, debouncedSearch]);
 
-  // Fetch Jira issues using the API with server-side filtering
+  //   Fetch Jira issues 
   const { data: jiraResponse, isLoading, error } = useJiraIssues(apiParams);
 
   const tasks = jiraResponse?.issues || [];
   
+  //  Filtering logic (  uses Zustand state)
   const allFilteredIssues = useMemo(() => {
     let list = tasks.slice();
 
@@ -112,24 +135,22 @@ export function useJiraFiltering({ teamName }: UseJiraFilteringProps = {}) {
     return list;
   }, [tasks, assigneeFilter, statusFilter, sortBy, search, quickFilter]);
 
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [assigneeFilter, statusFilter, sortBy, search, quickFilter]);
+ 
 
-  // Calculate pagination values
+  //   Pagination calculations  
   const totalItems = allFilteredIssues.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   
-  // Get paginated issues
+  //   Paginated issues  
   const paginatedIssues = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     return allFilteredIssues.slice(startIndex, endIndex);
   }, [allFilteredIssues, currentPage, itemsPerPage]);
 
+  //   Return interface  
   return {
-    // Filters
+    // Filters (now from Zustand)
     assigneeFilter,
     setAssigneeFilter,
     statusFilter,
@@ -141,7 +162,7 @@ export function useJiraFiltering({ teamName }: UseJiraFilteringProps = {}) {
     quickFilter,
     setQuickFilter,
     
-    // Pagination
+    // Pagination (now from Zustand)
     currentPage,
     setCurrentPage,
     itemsPerPage,
@@ -157,3 +178,6 @@ export function useJiraFiltering({ teamName }: UseJiraFilteringProps = {}) {
     error,
   };
 }
+
+//   Re-export type from teamStore
+export type { QuickFilterType };

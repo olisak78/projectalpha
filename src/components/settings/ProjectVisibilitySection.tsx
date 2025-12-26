@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { useProjectsContext } from '@/contexts/ProjectsContext';
+import { useProjects, useProjectsLoading } from '@/stores/projectsStore';
 import { Project } from '@/types/api';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -18,7 +18,8 @@ export default function ProjectVisibilitySection({
   onSelectAll,
   onDeselectAll
 }: ProjectVisibilitySectionProps) {
-  const { projects, isLoading } = useProjectsContext();
+  const projects = useProjects();
+  const isLoading = useProjectsLoading();
 
   if (isLoading) {
     return (

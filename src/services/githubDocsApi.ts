@@ -358,3 +358,112 @@ export function flattenDocTree(tree: DocTreeNode[]): Array<{ path: string; name:
   flatten(tree);
   return flat;
 }
+
+/**
+ * Create a new file in GitHub repository
+ * @param filePath - Path to the new file (relative to docsPath)
+ * @param content - File content
+ * @param commitMessage - Commit message
+ * @param config - Docs configuration
+ */
+export async function createGitHubFile(
+  filePath: string,
+  content: string,
+  commitMessage: string,
+  config: typeof DOCS_CONFIG = DOCS_CONFIG
+): Promise<any> {
+  const fullPath = `${config.docsPath}/${filePath}`;
+  const url = `/github/repos/${config.owner}/${config.repo}/contents/${fullPath}`;
+
+  return apiClient.post(url, {
+    message: commitMessage,
+    content,
+    branch: config.branch,
+  });
+}
+
+/**
+ * Create a new folder in GitHub repository by creating a .gitkeep file inside it
+ * Git doesn't track empty directories, so we create a .gitkeep placeholder file
+ * @param folderPath - Path to the new folder (relative to docsPath)
+ * @param config - Docs configuration
+ */
+export async function createGitHubFolder(
+  folderPath: string,
+  config: typeof DOCS_CONFIG = DOCS_CONFIG
+): Promise<any> {
+  const gitkeepPath = `${folderPath}/.gitkeep`;
+  const commitMessage = `Create folder: ${folderPath}`;
+
+  // Use a single newline as content since backend requires non-empty content
+  return createGitHubFile(gitkeepPath, '\n', commitMessage, config);
+}
+
+/**
+ * Delete a file from GitHub repository
+ * @param filePath - Path to the file (relative to docsPath)
+ * @param sha - SHA of the file to delete (required by GitHub)
+ * @param commitMessage - Commit message
+ * @param config - Docs configuration
+ */
+export async function deleteGitHubFile(
+  filePath: string,
+  sha: string,
+  commitMessage: string,
+  config: typeof DOCS_CONFIG = DOCS_CONFIG
+): Promise<any> {
+  const fullPath = `${config.docsPath}/${filePath}`;
+  const url = `/github/repos/${config.owner}/${config.repo}/contents/${fullPath}`;
+
+  // Pass body as second parameter to delete method
+  return apiClient.delete(
+    url,
+    {
+      message: commitMessage,
+      sha,
+      branch: config.branch,
+    }
+  );
+}
+
+/**
+ * Delete an empty folder from GitHub repository
+ * @param folderPath - Path to the folder (relative to docsPath)
+ * @param commitMessage - Commit message
+ * @param config - Docs configuration
+ */
+export async function deleteGitHubFolder(
+  folderPath: string,
+  commitMessage: string,
+  config: typeof DOCS_CONFIG = DOCS_CONFIG
+): Promise<any> {
+  const fullPath = `${config.docsPath}/${folderPath}`;
+  const url = `/github/repos/${config.owner}/${config.repo}/folders/${fullPath}`;
+
+  return apiClient.delete(
+    url,
+    {
+      message: commitMessage,
+      branch: config.branch,
+    }
+  );
+}
+
+/**
+ * Check if a folder is empty (only contains .gitkeep)
+ * @param folderPath - Path to the folder (relative to docsPath)
+ * @param config - Docs configuration
+ */
+export async function isFolderEmpty(
+  folderPath: string,
+  config: typeof DOCS_CONFIG = DOCS_CONFIG
+): Promise<boolean> {
+  try {
+    const contents = await fetchGitHubDirectory(folderPath, config);
+    // Folder is empty if it only contains .gitkeep file
+    return contents.length === 1 && contents[0].name === '.gitkeep';
+  } catch (error) {
+    console.error('Failed to check if folder is empty:', error);
+    return false;
+  }
+}

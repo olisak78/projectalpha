@@ -33,19 +33,6 @@ vi.mock('../../src/hooks/api/useTeams');
 vi.mock('../../src/hooks/api/mutations/useTeamMutations');
 vi.mock('../../src/hooks/use-toast');
 
-// Mock ProjectsContext
-vi.mock('../../src/contexts/ProjectsContext', () => ({
-  useProjectsContext: () => ({
-    projects: [
-      { id: 'project-1', name: 'cis20', title: 'CIS 2.0' },
-      { id: 'project-2', name: 'ca', title: 'Cloud Analytics' },
-    ],
-    isLoading: false,
-    error: null,
-    sidebarItems: [],
-  }),
-}));
-
 // Mock TeamContext to avoid complex dependencies
 vi.mock('../../src/contexts/TeamContext', () => ({
   TeamProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,

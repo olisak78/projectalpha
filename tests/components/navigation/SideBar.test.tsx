@@ -18,6 +18,35 @@ vi.mock('@/hooks/api/useProjects', () => ({
   }))
 }));
 
+// Mock the usePlugins hook
+vi.mock('@/hooks/api/usePlugins', () => ({
+  usePlugins: vi.fn(() => ({
+    data: {
+      plugins: [
+        {
+          id: '1',
+          name: 'Test Plugin',
+          title: 'Test Plugin',
+          slug: 'test-plugin',
+          icon: 'Puzzle',
+          subscribed: true
+        },
+        {
+          id: '2',
+          name: 'Another Plugin',
+          title: 'Another Plugin',
+          slug: 'another-plugin',
+          icon: 'Brain',
+          subscribed: false
+        }
+      ],
+      total: 2
+    },
+    isLoading: false,
+    error: null
+  }))
+}));
+
 /**
  * Sidebar Component Tests
  * 
@@ -111,7 +140,7 @@ describe('SideBar Component', () => {
       renderSidebar({ onProjectChange: mockOnProjectChange });
 
       // Check all project names are visible (since sidebar is expanded by default)
-      // These come from the mocked ProjectsContext sidebarItems. Prjoject names are not included because they are dynamic.
+      // These come from the mocked ProjectsContext sidebarItems. Project names are not included because they are dynamic.
       const expectedItems = ['Home', 'Teams', 'Links', 'Self Service', 'AI Arena'];
       expectedItems.forEach(project => {
         const projectElement = screen.getByText(project);

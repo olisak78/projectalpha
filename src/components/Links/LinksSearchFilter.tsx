@@ -2,16 +2,18 @@ import { Input } from "@/components/ui/input";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
+import { useLinksSearchTerm, useLinksSelectedCategoryId, useLinksSearchFilterActions } from "@/stores/linksPageStore";
 import { useLinksPageContext } from "@/contexts/LinksPageContext";
 
 export const LinksSearchFilter = () => {
-  const {
-    searchTerm,
-    setSearchTerm,
-    selectedCategoryId,
-    setSelectedCategoryId,
-    linkCategories: categories
-  } = useLinksPageContext();
+  // Search and filter state from Zustand
+  const searchTerm = useLinksSearchTerm();
+  const selectedCategoryId = useLinksSelectedCategoryId();
+  const { setSearchTerm, setSelectedCategoryId } = useLinksSearchFilterActions();
+  
+  // Data from context (derived from API)
+  const { linkCategories: categories } = useLinksPageContext();
+  
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);

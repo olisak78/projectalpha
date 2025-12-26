@@ -2,22 +2,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { useTeamContext } from "@/contexts/TeamContext";
 
+// MIGRATED: Import Jira filter state directly from Zustand
+import {
+  useJiraSearch,
+  useJiraAssigneeFilter,
+  useJiraStatusFilter,
+  useJiraSortBy,
+  useJiraFilterActions,
+} from '@/stores/teamStore';
+
 function LabelText({ children }: { children: React.ReactNode }) {
   return <div className="text-xs text-muted-foreground mb-1">{children}</div>;
 }
 
 export function TeamJiraFilters() {
-  const { members, jiraFilters } = useTeamContext();
+  //  Get members from context (data, not UI state)
+  const { members } = useTeamContext();
+  
+  //   Get filter state from Zustand (granular subscriptions)
+  const search = useJiraSearch();
+  const assigneeFilter = useJiraAssigneeFilter();
+  const statusFilter = useJiraStatusFilter();
+  const sortBy = useJiraSortBy();
+  
+  //  Get actions from Zustand (stable functions)
   const {
-    search,
     setSearch,
-    assigneeFilter,
     setAssigneeFilter,
-    statusFilter,
     setStatusFilter,
-    sortBy,
     setSortBy,
-  } = jiraFilters;
+  } = useJiraFilterActions();
 
   const taskStatuses = ['In Progress', 'Open', 'Resolved', 'Closed'];
 

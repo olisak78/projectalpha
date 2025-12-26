@@ -222,10 +222,10 @@ export function ComponentsTabContent({
 
             {/* Library Components Section */}
             {libraryComponents.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+              <div className="space-y-4">
+                <h2 className="text-2xl font-bold">
                   Library Components
-                </h3>
+                </h2>
                 <ComponentsList
                   components={libraryComponents}
                   showProjectGrouping={false}

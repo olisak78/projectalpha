@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
+import { useSearchTerm, useSelectedCategoryId, useSearchFilterActions } from "@/stores/quickLinksStore";
 import { useQuickLinksContext } from "@/contexts/QuickLinksContext";
 import { ViewLinksToggleButton } from "@/components/Links/ViewLinksToggleButton";
 
@@ -11,13 +12,13 @@ interface QuickLinksSearchFilterProps {
 }
 
 export const QuickLinksSearchFilter = ({ onAddLinkClick }: QuickLinksSearchFilterProps) => {
-  const { 
-    linkCategories, 
-    searchTerm, 
-    setSearchTerm, 
-    selectedCategoryId, 
-    setSelectedCategoryId 
-  } = useQuickLinksContext();
+  const searchTerm = useSearchTerm();
+  const selectedCategoryId = useSelectedCategoryId();
+  const { setSearchTerm, setSelectedCategoryId } = useSearchFilterActions();
+  
+  // Data from context (derived from API)
+  const { linkCategories } = useQuickLinksContext();
+  
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);

@@ -234,7 +234,6 @@ export function HealthTable({
                             ...component,
                             title: component?.name || '',
                             description: '',
-                            project_id: '',
                             owner_id: component?.owner_id || ''
                           }}
                         />
@@ -248,10 +247,10 @@ export function HealthTable({
 
           {/* Library Components Section */}
           {libraryComponents.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+            <div className='space-y-4'>
+              <h2 className="text-2xl font-bold">
                 Library Components
-              </h3>
+              </h2>
               <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-[#0D0D0D]">
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -296,7 +295,6 @@ export function HealthTable({
                             ...component,
                             title: component?.name || '',
                             description: '',
-                            project_id: '',
                             owner_id: component?.owner_id || ''
                           }}
                         />

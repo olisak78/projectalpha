@@ -1,33 +1,33 @@
 import { createContext, useContext, ReactNode, useState, useEffect, useMemo } from 'react';
-import type { ComponentHealthCheck, Component, LandscapeConfig } from '@/types/health';
+import type { ComponentHealthCheck, Component } from '@/types/health';
 import { type SystemInformation, fetchSystemInformation } from '@/services/healthApi';
 
 interface ComponentDisplayContextType {
   // Project data
   projectId: string;
-  
+
   // Landscape data
   selectedLandscape: string | null;
   selectedLandscapeData: any;
   isCentralLandscape: boolean;
   noCentralLandscapes: boolean;
-  
+
   // Team mappings
   teamNamesMap: Record<string, string>;
   teamColorsMap: Record<string, string>;
-  
+
   // Health data
   componentHealthMap: Record<string, ComponentHealthCheck>;
   isLoadingHealth: boolean;
-  
+
   // System information
   componentSystemInfoMap: Record<string, SystemInformation>;
   isLoadingSystemInfo: boolean;
-  
+
   // Display state
   expandedComponents: Record<string, boolean>;
   onToggleExpanded: (componentId: string) => void;
-  
+
   // System context
   system: string;
 }
@@ -108,7 +108,7 @@ export function ComponentDisplayProvider({
 
     const fetchSystemInfoForComponents = async () => {
       const systemInfoMap: Record<string, SystemInformation> = {};
-      
+
       // Fetch system info for each component in parallel
       const promises = components.map(async (component) => {
         try {
@@ -134,13 +134,13 @@ export function ComponentDisplayProvider({
             'central-service': component['central-service']
           };
 
-          
+
           const result = await fetchSystemInformation(
             componentForApi,
             landscapeConfig,
             abortController.signal
           );
-          
+
           if (result.status === 'success' && result.data) {
             systemInfoMap[component.id] = result.data;
           }
@@ -151,7 +151,7 @@ export function ComponentDisplayProvider({
       });
 
       await Promise.allSettled(promises);
-      
+
       if (!abortController.signal.aborted) {
         setComponentSystemInfoMap(systemInfoMap);
         setIsLoadingSystemInfo(false);

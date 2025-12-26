@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useMemo, useState } from 'react';
+import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import { Link, LinkCategory, ViewLinksType } from '@/types/developer-portal';
 import { useLinks, useCategories } from '@/hooks/api/useLinks';
 import { useCurrentUser } from '@/hooks/api/useMembers';
@@ -6,6 +6,14 @@ import { useAddFavorite, useRemoveFavorite } from '@/hooks/api/mutations/useFavo
 import { useToast } from '@/hooks/use-toast';
 import { Cloud, Code, FileText, HelpCircle, Monitor, Shield, TestTube, Users, Wrench } from 'lucide-react';
 import type { ApiLink, ApiCategory, UserMeResponse } from '@/types/api';
+
+// Import Zustand hooks for UI state
+import {
+  useLinksSearchTerm,
+  useLinksSelectedCategoryId,
+  useLinksViewMode,
+  useLinksSearchFilterActions,
+} from '@/stores/linksPageStore';
 
 // Centralized icon mapping - shared between QuickLinks and Links
 export const SHARED_ICON_MAP: Record<string, any> = {
@@ -26,15 +34,15 @@ export interface LinksPageContextValue {
   linkCategories: LinkCategory[];
   isLoading: boolean;
   
-  // Filter state
+  // Filter state (from Zustand)
   searchTerm: string;
   selectedCategoryId: string;
   setSearchTerm: (term: string) => void;
   setSelectedCategoryId: (categoryId: string) => void;
   
-  // View state
-  viewMode: ViewLinksType
-  setViewMode: (mode:ViewLinksType) => void;
+  // View state (from Zustand with localStorage)
+  viewMode: ViewLinksType;
+  setViewMode: (mode: ViewLinksType) => void;
   
   // Computed data
   filteredLinks: Link[];
@@ -65,49 +73,27 @@ interface LinksProviderProps {
   children: React.ReactNode;
 }
 
-// Helper function to get initial view mode from localStorage
-const getInitialViewMode = (): ViewLinksType => {
-  try {
-    const saved = localStorage.getItem('links-view-mode');
-    return (saved === 'collapsed' || saved === 'expanded') ? saved : 'collapsed';
-  } catch {
-    return 'collapsed';
-  }
-};
-
-// Helper function to save view mode to localStorage
-const saveViewModeToStorage = (mode: ViewLinksType): void => {
-  try {
-    localStorage.setItem('links-view-mode', mode);
-  } catch (error) {
-    console.warn('Failed to save view mode to localStorage:', error);
-  }
-};
-
 export const LinksProvider: React.FC<LinksProviderProps> = ({ children }) => {
   const { toast } = useToast();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   
-  // Initialize viewMode from localStorage or default to 'collapsed'
-  const [viewMode, setViewModeState] = useState<ViewLinksType>(getInitialViewMode);
+  //  UI state from Zustand instead of useState
+  const searchTerm = useLinksSearchTerm();
+  const selectedCategoryId = useLinksSelectedCategoryId();
+  const viewMode = useLinksViewMode(); // Now persisted via Zustand middleware
   
-  // Wrapper function to save to localStorage when viewMode changes
-  const setViewMode = (mode: ViewLinksType) => {
-    setViewModeState(mode);
-    saveViewModeToStorage(mode);
-  };
+  // Actions from Zustand
+  const { setSearchTerm, setSelectedCategoryId, setViewMode } = useLinksSearchFilterActions();
   
-  // API hooks
+  // API hooks (stay with React Query)
   const { data: currentUser } = useCurrentUser();
   const { data: linksData, isLoading: isLoadingLinks } = useLinks();
   const { data: categoriesData, isLoading: isLoadingCategories } = useCategories();
   
-  // Mutations
+  // Mutations (stay with React Query)
   const addFavoriteMutation = useAddFavorite();
   const removeFavoriteMutation = useRemoveFavorite();
   
-  // Transform API categories to LinkCategory format with icon components
+  // Transform API categories to LinkCategory format with icon components (PRESERVED from original)
   const linkCategories: LinkCategory[] = useMemo(() => {
     if (!categoriesData?.categories) return [];
     
@@ -119,13 +105,13 @@ export const LinksProvider: React.FC<LinksProviderProps> = ({ children }) => {
     }));
   }, [categoriesData]);
   
-  // Get favorite link IDs from currentUser
+  // Get favorite link IDs from currentUser (PRESERVED from original)
   const favoriteLinkIds = useMemo(() => {
     if (!currentUser?.link) return new Set<string>();
     return new Set(currentUser.link.map(link => link.id));
   }, [currentUser]);
   
-  // Transform API links to Link format
+  // Transform API links to Link format (PRESERVED from original)
   const links: Link[] = useMemo(() => {
     if (!linksData) return [];
     
@@ -140,7 +126,7 @@ export const LinksProvider: React.FC<LinksProviderProps> = ({ children }) => {
     }));
   }, [linksData, favoriteLinkIds]);
   
-  // Filter links based on search and category
+  // Filter links based on search and category (PRESERVED from original, uses Zustand state)
   const filteredLinks = useMemo(() => {
     if (!links || !Array.isArray(links)) return [];
     
@@ -150,13 +136,13 @@ export const LinksProvider: React.FC<LinksProviderProps> = ({ children }) => {
       const descriptionLower = link.description?.toLowerCase() || '';
       const searchTermLower = searchTerm.toLowerCase();
       const matchesSearch = titleLower.includes(searchTermLower) ||
-      descriptionLower.includes(searchTermLower);
+        descriptionLower.includes(searchTermLower);
       const matchesCategory = selectedCategoryId === "all" || link.categoryId === selectedCategoryId;
       return matchesSearch && matchesCategory;
     });
   }, [links, searchTerm, selectedCategoryId]);
   
-  // Group filtered links by category
+  // Group filtered links by category (PRESERVED from original)
   const linksByCategory = useMemo(() => {
     return filteredLinks.reduce((acc, link) => {
       if (!acc[link.categoryId]) acc[link.categoryId] = [];
@@ -165,6 +151,7 @@ export const LinksProvider: React.FC<LinksProviderProps> = ({ children }) => {
     }, {} as Record<string, Link[]>);
   }, [filteredLinks]);
   
+  // Handle toggle favorite (PRESERVED from original)
   const handleToggleFavorite = useCallback((linkId: string) => {
     if (!currentUser?.id) {
       toast({
@@ -242,7 +229,7 @@ export const LinksProvider: React.FC<LinksProviderProps> = ({ children }) => {
   
   return (
     <LinksPageContext.Provider value={contextValue}>
-    {children}
+      {children}
     </LinksPageContext.Provider>
   );
 };

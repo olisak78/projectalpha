@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useProjectsContext } from '@/contexts/ProjectsContext';
+import { useProjects } from '@/stores/projectsStore';
 import { Project } from '@/types/api';
 
 const STORAGE_KEY = 'developer-portal-project-visibility';
@@ -10,7 +10,7 @@ interface ProjectVisibilitySettings {
 }
 
 export const useProjectVisibility = () => {
-  const { projects } = useProjectsContext();
+  const projects = useProjects();
 
   // Load visibility settings from localStorage
   const loadVisibilitySettings = useCallback((): ProjectVisibilitySettings => {

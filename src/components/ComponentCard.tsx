@@ -17,14 +17,11 @@ export default function ComponentCard({
   onClick,
 }: ComponentCardProps) {
   const {
-    selectedLandscape,
-    selectedLandscapeData,
     isCentralLandscape,
     noCentralLandscapes,
     teamNamesMap,
     teamColorsMap,
     componentHealthMap,
-    isLoadingHealth,
     componentSystemInfoMap,
     isLoadingSystemInfo,
   } = useComponentDisplay();
@@ -34,9 +31,7 @@ export default function ComponentCard({
   const teamColor = component.owner_id ? teamColorsMap[component.owner_id] : undefined;
   const healthCheck = componentHealthMap[component.id];
   const systemInfo = componentSystemInfoMap[component.id] || null;
-
   const isDisabled = component['central-service'] === true && !isCentralLandscape && !noCentralLandscapes;
-
   const isClickable = onClick && component.health === true; // Only clickable when health is true
 
   // Handle card click - only navigate if not clicking on buttons

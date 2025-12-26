@@ -2,7 +2,7 @@ import { DEFAULT_COMMON_TAB, VALID_COMMON_TABS } from '@/constants/developer-por
 import { getBasePath, shouldNavigateToTab } from '@/utils/developer-portal-helpers';
 import { createContext, useContext, useState, ReactNode, useLayoutEffect, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useProjectsContext } from './ProjectsContext';
+import { useProjects } from '@/stores/projectsStore';
 
 export interface HeaderTab {
   id: string;
@@ -23,7 +23,8 @@ interface HeaderNavigationContextType {
 const HeaderNavigationContext = createContext<HeaderNavigationContextType | undefined>(undefined);
 
 export function HeaderNavigationProvider({ children }: { children: ReactNode }) {
-  const { projects } = useProjectsContext(); // ✅ inside component
+  const projects = useProjects();
+  
   const location = useLocation();
   const navigate = useNavigate();
 

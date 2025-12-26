@@ -2,14 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { PortalProviders } from "@/contexts/PortalProviders";
 import { PortalContent } from "./PortalContent";
-import { useProjectsContext } from "@/contexts/ProjectsContext";
+import { useProjects, useSidebarItems } from "@/stores/projectsStore";
 
 // Mapping from project/page to routes
 const staticRouteToProjectMap: Record<string, string> = {
   "/": "Home",
   "/teams": "Teams",
   "/links": "Links",
-  "/plugins": "Plugins",
   "/self-service": "Self Service",
   "/ai-arena": "AI Arena",
 };
@@ -19,26 +18,17 @@ const staticProjectToRouteMap: Record<string, string> = {
   "Teams": "/teams",
   "Self Service": "/self-service",
   "Links": "/links",
-  "Plugins": "/plugins",
   "AI Arena": "/ai-arena",
 };
 
 export const PortalContainer: React.FC = () => {
-  const { projects } = useProjectsContext(); 
+  const projects = useProjects();
+  const sidebarItems = useSidebarItems();
+  
   const navigate = useNavigate();
   const location = useLocation();
   const [activeProject, setActiveProject] = useState("");
-
-  // Combine static pages with dynamic projects
-  const sidebarItems = [
-    "Home",
-    "Teams",
-    ...projects.map(project => project.title || project.name),
-    "Links",
-    //"Plugins",
-    "Self Service",
-    "AI Arena",
-  ];
+  const isProduction = import.meta.env.PROD;
 
   // Build dynamic route maps including projects
   const routeToProjectMap: Record<string, string> = { ...staticRouteToProjectMap };
@@ -52,6 +42,12 @@ export const PortalContainer: React.FC = () => {
 
   // Determine which project/page is active based on current URL
   const getProjectFromPath = (pathname: string): string => {
+    // Check for pinned plugin routes first (e.g., /plugins/some-plugin-slug)
+    if (pathname.startsWith('/plugins/') && pathname !== '/plugins') {
+      // Return the full path as the active project so sidebar can highlight it
+      return pathname;
+    }
+
     // Dynamic projects - check first for exact matches and sub-routes
     for (const project of projects) {
       const route = `/${project.name}`;
@@ -82,6 +78,14 @@ export const PortalContainer: React.FC = () => {
   }, [location.pathname, projects]);
 
   const handleProjectChange = (project: string) => {
+    // Handle pinned plugin navigation (format: "plugins/{slug}")
+    if (project.startsWith('plugins/')) {
+      navigate(`/${project}`);
+      setActiveProject(`/${project}`);
+      return;
+    }
+
+    // Handle regular project navigation
     const route = projectToRouteMap[project] || "/";
     navigate(route);
     setActiveProject(project);

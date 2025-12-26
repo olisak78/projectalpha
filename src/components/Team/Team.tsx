@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTeamContext } from "@/contexts/TeamContext";
-import { useProjectsContext } from "@/contexts/ProjectsContext";
+import { useProjects } from "@/stores/projectsStore";
 import { TeamMemberDialog } from "@/components/dialogs/TeamMemberDialog";
 import { AddLinkDialog } from "@/components/dialogs/AddLinkDialog";
 import { ScoreBoards } from "./ScoreBoards";
@@ -11,7 +11,6 @@ import { TeamJiraIssues } from "./TeamJiraIssues";
 import { ComponentsList } from "@/components/ComponentsList";
 import { OnDutyAndCall } from "./OnDutyAndCall";
 import { TeamDocs } from "./TeamDocs";
-import { TeamColorPicker } from "./TeamColorPicker";
 import { useCurrentUser } from "@/hooks/api/useMembers";
 import { useUpdateTeamMetadata } from "@/hooks/api/mutations/useTeamMutations";
 import { useTeams } from "@/hooks/api/useTeams";
@@ -28,7 +27,7 @@ export default function Team({
   activeCommonTab,
 }: TeamProps) {
   const navigate = useNavigate();
-  const { projects } = useProjectsContext();
+  const projects = useProjects();
   const { data: currentUser } = useCurrentUser();
   const { data: allTeamsData } = useTeams();
   const { toast } = useToast();
@@ -39,8 +38,6 @@ export default function Team({
     teamName,
     currentTeam,
     teamOptions,
-
-    // Members management
     members,
     memberDialogOpen,
     setMemberDialogOpen,
@@ -51,20 +48,10 @@ export default function Team({
     moveMember,
     openAddMember,
     createMember,
-
-    // Team links
     teamLinks,
-
-    // Components
     teamComponents,
-
-    // Schedule data
     scheduleData,
-
-    // Scoreboard data
     scoreboardData,
-
-    // Authorization
     isAdmin,
   } = useTeamContext();
 

@@ -9,7 +9,9 @@ import { apiClient } from '@/services/ApiClient';
 import { useToast } from '@/hooks/use-toast';
 import { defaultLinkForm } from '@/constants/developer-portal';
 import type { TeamLink, LinkFormData } from '@/components/Team/types';
-import type { ApiCategory } from '@/types/api';
+
+//   Import dialog state from teamStore
+import { useLinkDialogOpen, useDialogActions } from '@/stores/teamStore';
 
 interface UseTeamLinksProps {
   teamId?: string;
@@ -18,23 +20,30 @@ interface UseTeamLinksProps {
 }
 
 export function useTeamLinks({ teamId, initialLinks = [], teamOwner }: UseTeamLinksProps) {
+  //   Links data (from API, not UI state)
   const [links, setLinks] = useState<TeamLink[]>(initialLinks);
-  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  
+  //   Dialog state from Zustand
+  const linkDialogOpen = useLinkDialogOpen();
+  const { setLinkDialogOpen } = useDialogActions();
+  
+  //   Form state (temporary, component-specific)
   const [linkForm, setLinkForm] = useState<LinkFormData>(defaultLinkForm);
   const [editingLink, setEditingLink] = useState<TeamLink | null>(null);
   const [isAddingLink, setIsAddingLink] = useState(false);
+  
   const { toast } = useToast();
 
-  // Use the useTeamById and useCategories hooks to fetch and manage data
+  //   API hooks (React Query)
   const { data: teamData, refetch: refetchTeam } = useTeamById(teamId || '');
   const { data: categoriesData } = useCategories();
   
-  // Use current user data and favorite mutations
+  //  Current user data and favorite mutations
   const { data: currentUser } = useCurrentUser();
   const addFavoriteMutation = useAddFavorite();
   const removeFavoriteMutation = useRemoveFavorite();
 
-  // Helper function to convert API team links to local format
+  //  Helper function to convert API team links to local format
   const convertApiLinksToLocal = (apiLinks: typeof teamData.links): any[] => {
     if (!apiLinks) return [];
     return apiLinks.map(link => ({
@@ -50,7 +59,7 @@ export function useTeamLinks({ teamId, initialLinks = [], teamOwner }: UseTeamLi
     }));
   };
 
-  // Helper function to update links after API operations
+  //   Helper function to update links after API operations
   const updateLinksFromTeamData = async () => {
     const result = await refetchTeam();
     if (result.data?.links) {
@@ -58,7 +67,7 @@ export function useTeamLinks({ teamId, initialLinks = [], teamOwner }: UseTeamLi
     }
   };
 
-  // Update links when team data is loaded from API (prioritize server data)
+  //   Update links when team data is loaded from API (prioritize server data)
   useEffect(() => {
     if (teamId && teamData?.links) {
       setLinks(convertApiLinksToLocal(teamData.links));
@@ -67,14 +76,14 @@ export function useTeamLinks({ teamId, initialLinks = [], teamOwner }: UseTeamLi
     }
   }, [teamData?.links, teamId]);
 
-  // Initialize with initialLinks when provided and no team data exists yet
+  //   Initialize with initialLinks when provided and no team data exists yet
   useEffect(() => {
     if (initialLinks && initialLinks.length > 0 && !teamData?.links) {
       setLinks(initialLinks);
     }
   }, [initialLinks, teamData?.links]);
 
-  // Delete link mutation
+  //   Delete link mutation
   const deleteLinkMutation = useDeleteLink({
     onSuccess: () => {
       toast({
@@ -92,7 +101,7 @@ export function useTeamLinks({ teamId, initialLinks = [], teamOwner }: UseTeamLi
     }
   });
 
-  // Update team links mutation for editing links
+  //   Update team links mutation for editing links
   const updateTeamLinksMutation = useUpdateTeamLinks({
     onSuccess: () => {
       toast({
@@ -131,6 +140,8 @@ export function useTeamLinks({ teamId, initialLinks = [], teamOwner }: UseTeamLi
     // Optimistically update the local state
     const previousLinks = [...links];
     setLinks(prevLinks => [...prevLinks, optimisticLink]);
+    
+    //   Close dialog using Zustand
     closeLinkDialog();
 
     try {
@@ -161,6 +172,8 @@ export function useTeamLinks({ teamId, initialLinks = [], teamOwner }: UseTeamLi
         url: optimisticLink.url,
         existingCategory: optimisticLink.category_id || ''
       });
+      
+      //   Reopen dialog using Zustand
       setLinkDialogOpen(true);
 
       toast({
@@ -206,7 +219,7 @@ export function useTeamLinks({ teamId, initialLinks = [], teamOwner }: UseTeamLi
         }
       });
 
-      // Close dialog immediately after initiating the mutation
+      //  Close dialog using Zustand
       closeLinkDialog();
     } else {
       addNewLink();
@@ -279,20 +292,24 @@ export function useTeamLinks({ teamId, initialLinks = [], teamOwner }: UseTeamLi
       url: link.url,
       existingCategory: link.category_id || ''
     });
+    
+    //  Open dialog using Zustand
     setLinkDialogOpen(true);
   };
 
   const openAddLinkDialog = () => {
+    //  Open dialog using Zustand
     setLinkDialogOpen(true);
   };
 
   const closeLinkDialog = () => {
+    //   Close dialog using Zustand
     setLinkDialogOpen(false);
     setEditingLink(null);
     setLinkForm(defaultLinkForm);
   };
 
-  // Handle toggling favorite status for team links
+  //  Handle toggling favorite status for team links
   const toggleFavorite = (linkId: string) => {
     if (!currentUser?.id) {
       toast({
@@ -333,7 +350,7 @@ export function useTeamLinks({ teamId, initialLinks = [], teamOwner }: UseTeamLi
     );
   };
 
-  // Get existing categories used by current links as category IDs
+  //   Get existing categories used by current links as category IDs
   const existingCategories: string[] = useMemo(() => {
     if (!categoriesData?.categories || categoriesData.categories.length === 0) {
       return [];
@@ -348,10 +365,11 @@ export function useTeamLinks({ teamId, initialLinks = [], teamOwner }: UseTeamLi
     return Array.from(usedCategoryIds);
   }, [links, categoriesData]);
 
+  //   Return interface  
   return {
     // State
     links,
-    linkDialogOpen,
+    linkDialogOpen,        // From Zustand (via hook)
     linkForm,
     editingLink,
     existingCategories,

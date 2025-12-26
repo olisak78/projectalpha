@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useMemo, useState } from 'react';
+import React, { createContext, useContext, useCallback, useMemo } from 'react';
 import { UserMeResponse, UserLink } from '@/types/api';
 import { useCategories } from '@/hooks/api/useLinks';
 import { useCurrentUser } from '@/hooks/api/useMembers';
@@ -8,6 +8,17 @@ import { useToast } from '@/hooks/use-toast';
 import { LinkCategory, ViewLinksType } from '@/types/developer-portal';
 import { HelpCircle } from 'lucide-react';
 import { SHARED_ICON_MAP } from './LinksPageContext';
+
+import {
+  useSearchTerm,
+  useSelectedCategoryId,
+  useViewMode,
+  useDeleteDialog,
+  useEditDialog,
+  useSearchFilterActions,
+  useDeleteDialogActions,
+  useEditDialogActions,
+} from '@/stores/quickLinksStore';
 
 // Re-export for backward compatibility
 export const ICON_MAP = SHARED_ICON_MAP;
@@ -32,13 +43,13 @@ export interface QuickLinksContextValue {
   linkCategories: LinkCategory[];
   isLoading: boolean;
   
-  // Search and Filter
+  // Search and Filter (from Zustand)
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   selectedCategoryId: string;
   setSelectedCategoryId: (categoryId: string) => void;
   
-  // View state
+  // View state (from Zustand with localStorage)
   viewMode: ViewLinksType;
   setViewMode: (mode: ViewLinksType) => void;
   
@@ -49,14 +60,14 @@ export interface QuickLinksContextValue {
   handleDeleteCancel: () => void;
   handleEditClick: (linkId: string) => void;
   
-  // Delete dialog state
+  // Delete dialog state (from Zustand)
   deleteDialog: {
     isOpen: boolean;
     linkId: string;
     linkTitle: string;
   };
 
-  // Edit dialog state
+  // Edit dialog state (from Zustand)
   editDialog: {
     isOpen: boolean;
     linkId: string;
@@ -109,31 +120,17 @@ export const QuickLinksProvider: React.FC<QuickLinksProviderProps> = ({
   const deleteLinkMutation = useDeleteLink();
   const { data: categoriesData } = useCategories();
 
-  // Search and filter state
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
+  const searchTerm = useSearchTerm();
+  const selectedCategoryId = useSelectedCategoryId();
+  const viewMode = useViewMode(); // Now persisted via Zustand middleware
+  const deleteDialog = useDeleteDialog();
+  const editDialog = useEditDialog();
   
-  // Initialize viewMode from localStorage or default to 'collapsed'
-  const [viewMode, setViewModeState] = useState<ViewLinksType>(() => {
-    try {
-      const saved = localStorage.getItem('links-view-mode');
-      return (saved === 'collapsed' || saved === 'expanded') ? saved : 'collapsed';
-    } catch {
-      return 'collapsed';
-    }
-  });
+  const { setSearchTerm, setSelectedCategoryId, setViewMode } = useSearchFilterActions();
+  const { openDeleteDialog, closeDeleteDialog } = useDeleteDialogActions();
+  const { openEditDialog, closeEditDialog } = useEditDialogActions();
 
-  // Wrapper function to save to localStorage when viewMode changes
-  const setViewMode = (mode: ViewLinksType) => {
-    setViewModeState(mode);
-    try {
-      localStorage.setItem('links-view-mode', mode);
-    } catch (error) {
-      console.warn('Failed to save view mode to localStorage:', error);
-    }
-  };
-
-  // Create category map
+  // Create category map (PRESERVED from original)
   const categoryMap = useMemo(() => {
     if (!categoriesData?.categories) return new Map();
     return new Map(
@@ -141,7 +138,7 @@ export const QuickLinksProvider: React.FC<QuickLinksProviderProps> = ({
     );
   }, [categoriesData]);
 
-  // Transform UserLink[] to QuickLink format
+  // Transform UserLink[] to QuickLink format (PRESERVED from original)
   const quickLinks = useMemo(() => {
     if (!userData?.link || userData.link.length === 0) {
       return [];
@@ -165,7 +162,7 @@ export const QuickLinksProvider: React.FC<QuickLinksProviderProps> = ({
     });
   }, [userData, categoryMap]);
 
-  // Transform categories to LinkCategory format for filters
+  // Transform categories to LinkCategory format for filters (PRESERVED from original)
   const linkCategories: LinkCategory[] = useMemo(() => {
     if (!categoriesData?.categories) return [];
     
@@ -183,7 +180,7 @@ export const QuickLinksProvider: React.FC<QuickLinksProviderProps> = ({
       }));
   }, [categoriesData, quickLinks]);
 
-  // Filter links based on search term and selected category
+  // Filter links based on search term and selected category (PRESERVED from original)
   const filteredQuickLinks = useMemo(() => {
     return quickLinks.filter(link => {
       // Filter by category
@@ -206,6 +203,7 @@ export const QuickLinksProvider: React.FC<QuickLinksProviderProps> = ({
     });
   }, [quickLinks, selectedCategoryId, searchTerm]);
 
+  // Handle toggle favorite (PRESERVED from original)
   const handleToggleFavorite = useCallback((linkId: string) => {
     // Use custom handler if provided (for team links)
     if (customHandlers?.onToggleFavorite) {
@@ -243,29 +241,15 @@ export const QuickLinksProvider: React.FC<QuickLinksProviderProps> = ({
     );
   }, [customHandlers, currentUser, removeFavoriteMutation, toast]);
 
-  // Delete dialog state
-  const [deleteDialog, setDeleteDialog] = useState({
-    isOpen: false,
-    linkId: '',
-    linkTitle: '',
-  });
-
   const handleDeleteClick = useCallback((linkId: string, linkTitle: string) => {
-    setDeleteDialog({
-      isOpen: true,
-      linkId,
-      linkTitle,
-    });
-  }, []);
+    openDeleteDialog(linkId, linkTitle);
+  }, [openDeleteDialog]);
 
   const handleDeleteCancel = useCallback(() => {
-    setDeleteDialog({
-      isOpen: false,
-      linkId: '',
-      linkTitle: '',
-    });
-  }, []);
+    closeDeleteDialog();
+  }, [closeDeleteDialog]);
 
+  // Handle delete confirm (PRESERVED from original)
   const handleDeleteConfirm = useCallback(() => {
     const { linkId } = deleteDialog;
     if (!linkId) return;
@@ -273,7 +257,7 @@ export const QuickLinksProvider: React.FC<QuickLinksProviderProps> = ({
     // Use custom handler if provided (for team links with optimistic updates)
     if (customHandlers?.onDeleteLink) {
       customHandlers.onDeleteLink(linkId);
-      handleDeleteCancel();
+      closeDeleteDialog();
       return;
     }
 
@@ -284,7 +268,7 @@ export const QuickLinksProvider: React.FC<QuickLinksProviderProps> = ({
           title: "Link deleted",
           description: "The link has been deleted successfully.",
         });
-        handleDeleteCancel();
+        closeDeleteDialog();
       },
       onError: (error) => {
         toast({
@@ -292,33 +276,21 @@ export const QuickLinksProvider: React.FC<QuickLinksProviderProps> = ({
           title: "Failed to delete link",
           description: error.message || "There was an error deleting this link.",
         });
-        handleDeleteCancel();
+        closeDeleteDialog();
       }
     });
-  }, [deleteDialog, customHandlers, deleteLinkMutation, toast, handleDeleteCancel]);
-
-  // Edit dialog state
-  const [editDialog, setEditDialog] = useState({
-    isOpen: false,
-    linkId: '',
-  });
+  }, [deleteDialog, customHandlers, deleteLinkMutation, toast, closeDeleteDialog]);
 
   const handleEditClick = useCallback((linkId: string) => {
-    setEditDialog({
-      isOpen: true,
-      linkId,
-    });
-  }, []);
+    openEditDialog(linkId);
+  }, [openEditDialog]);
 
   const handleEditCancel = useCallback(() => {
-    setEditDialog({
-      isOpen: false,
-      linkId: '',
-    });
-  }, []);
+    closeEditDialog();
+  }, [closeEditDialog]);
 
   const contextValue: QuickLinksContextValue = {
-   quickLinks,
+    quickLinks,
     filteredQuickLinks,
     linkCategories,
     isLoading: !userData,

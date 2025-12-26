@@ -1,19 +1,49 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { PortalContainer } from '../../src/components/PortalContainer';
 import '@testing-library/jest-dom/vitest';
 
-// Mock the contexts and hooks
-vi.mock('../../src/contexts/ProjectsContext', () => ({
-  useProjectsContext: vi.fn(),
+
+
+// ============================================================================
+// ZUSTAND STORE MOCKS - MUST BE DEFINED BEFORE IMPORTS
+// ============================================================================
+
+
+// ============================================================================
+// ZUSTAND STORE MOCKS - MUST BE DEFINED BEFORE IMPORTS
+// ============================================================================
+
+
+// Mock data that can be mutated by tests
+let currentMockProjects = [
+  { id: '1', name: 'project1', display_name: 'Project One' },
+  { id: '2', name: 'project2', display_name: 'Project Two' },
+  { id: '3', name: 'project3', display_name: null },
+];
+let currentMockLoading = false;
+let currentMockError = null;
+
+// Mock the store - define everything inline to avoid hoisting issues
+vi.mock('@/stores/projectsStore', () => ({
+  useProjects: vi.fn(() => currentMockProjects),
+  useProjectsLoading: vi.fn(() => currentMockLoading),
+  useProjectsError: vi.fn(() => currentMockError),
+  useSidebarItems: vi.fn(() => []), // Add this if it exists
 }));
 
-vi.mock('../../src/contexts/PortalProviders', () => ({
-  PortalProviders: ({ children }: { children: React.ReactNode }) => <div data-testid="portal-providers">{children}</div>,
+
+// ============================================================================
+// COMPONENT MOCKS
+// ============================================================================
+
+vi.mock('@/contexts/PortalProviders', () => ({
+  PortalProviders: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="portal-providers">{children}</div>
+  ),
 }));
 
-vi.mock('../../src/components/PortalContent', () => ({
+vi.mock('@/components/PortalContent', () => ({
   PortalContent: ({ activeProject, projects, onProjectChange }: any) => (
     <div data-testid="portal-content">
       <div data-testid="active-project">{activeProject}</div>
@@ -28,9 +58,12 @@ vi.mock('../../src/components/PortalContent', () => ({
   ),
 }));
 
-// Mock react-router-dom hooks
+// ============================================================================
+// ROUTER MOCKS
+// ============================================================================
+
+let mockLocation = { pathname: '/' };
 const mockNavigate = vi.fn();
-const mockLocation = { pathname: '/' };
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
@@ -41,26 +74,29 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-import { useProjectsContext } from '../../src/contexts/ProjectsContext';
 
-describe('PortalContainer Component', () => {
-  const mockProjects = [
-    { name: 'project1', title: 'Project One' },
-    { name: 'project2', title: 'Project Two' },
-    { name: 'project3', title: null }, // Test fallback to name
-  ];
+// ============================================================================
+// NOW SAFE TO IMPORT COMPONENT
+// ============================================================================
 
-  const mockProjectsContext = {
-    projects: mockProjects,
-    isLoading: false,
-    error: null,
-    sidebarItems: [],
-  };
+import { PortalContainer } from '@/components/PortalContainer';
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    (useProjectsContext as any).mockReturnValue(mockProjectsContext);
-    mockLocation.pathname = '/';
+// ============================================================================
+// TESTS
+// ============================================================================
+
+
+    
+    // Reset mock data to defaults
+    currentMockProjects = [
+      { id: '1', name: 'project1', display_name: 'Project One' },
+      { id: '2', name: 'project2', display_name: 'Project Two' },
+      { id: '3', name: 'project3', display_name: null },
+    ];
+    currentMockLoading = false;
+    currentMockError = null;
+    mockLocation = { pathname: '/' };
+
   });
 
   const renderWithRouter = (initialEntries = ['/']) => {
@@ -97,22 +133,14 @@ describe('PortalContainer Component', () => {
       ]);
     });
 
-    it('should handle projects with null title by using name', () => {
-      const projectsWithNullTitle = [
-        { name: 'test-project', title: null },
-      ];
-
-      (useProjectsContext as any).mockReturnValue({
-        ...mockProjectsContext,
-        projects: projectsWithNullTitle,
-      });
+hould handle projects with null display_name by using name', () => {
 
       renderWithRouter();
 
       const projectsElement = screen.getByTestId('projects');
       const projects = JSON.parse(projectsElement.textContent || '[]');
 
-      expect(projects).toContain('test-project');
+      expect(projects).toContain('project3');
     });
   });
 
@@ -160,15 +188,10 @@ describe('PortalContainer Component', () => {
     });
 
     it('should prioritize exact matches over partial matches', () => {
-      const projectsWithSimilarNames = [
-        { name: 'test', title: 'Test Project' },
-        { name: 'test-extended', title: 'Test Extended Project' },
+      currentMockProjects = [
+        { id: '1', name: 'test', display_name: 'Test Project' },
+        { id: '2', name: 'test-extended', display_name: 'Test Extended Project' },
       ];
-
-      (useProjectsContext as any).mockReturnValue({
-        ...mockProjectsContext,
-        projects: projectsWithSimilarNames,
-      });
 
       mockLocation.pathname = '/test';
       renderWithRouter(['/test']);
@@ -187,26 +210,16 @@ describe('PortalContainer Component', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/teams');
     });
 
-    it('should navigate to project route when project changes to dynamic project', async () => {
-      // Test navigation by directly calling mockNavigate
-      // This simulates the component's navigation behavior for dynamic projects
+    it('should navigate to project route when project changes to dynamic project', () => {
       mockNavigate('/project1');
       expect(mockNavigate).toHaveBeenCalledWith('/project1');
     });
 
     it('should default to root route for unknown projects', () => {
       renderWithRouter();
-
-      // Test the actual component's handleProjectChange function
-      // by triggering it through the PortalContent mock
-      const portalContent = screen.getByTestId('portal-content');
-      
-      // Since we can't directly access handleProjectChange, we'll test the route mapping logic
-      // by checking that unknown projects would map to "/"
       expect(mockNavigate).not.toHaveBeenCalled();
     });
   });
-
 
   describe('Location Changes', () => {
     it('should update active project when location changes', async () => {
@@ -214,7 +227,6 @@ describe('PortalContainer Component', () => {
 
       expect(screen.getByTestId('active-project')).toHaveTextContent('Home');
 
-      // Simulate location change
       mockLocation.pathname = '/teams';
       
       rerender(
@@ -231,16 +243,9 @@ describe('PortalContainer Component', () => {
     it('should update active project when projects list changes', async () => {
       const { rerender } = renderWithRouter();
 
-      // Change the projects context
-      const newProjects = [
-        { name: 'new-project', title: 'New Project' },
+      currentMockProjects = [
+        { id: '1', name: 'new-project', display_name: 'New Project' },
       ];
-
-      (useProjectsContext as any).mockReturnValue({
-        ...mockProjectsContext,
-        projects: newProjects,
-      });
-
       mockLocation.pathname = '/new-project';
 
       rerender(
@@ -257,10 +262,7 @@ describe('PortalContainer Component', () => {
 
   describe('Edge Cases', () => {
     it('should handle empty projects list', () => {
-      (useProjectsContext as any).mockReturnValue({
-        ...mockProjectsContext,
-        projects: [],
-      });
+      currentMockProjects = [];
 
       renderWithRouter();
 
@@ -276,32 +278,22 @@ describe('PortalContainer Component', () => {
       ]);
     });
 
-    it('should handle projects without name or title', () => {
-      const malformedProjects = [
-        { name: '', title: '' },
-        { name: null, title: null },
-        {},
+    it('should handle projects without name or display_name', () => {
+      currentMockProjects = [
+        { id: '1', name: '', display_name: '' },
+        { id: '2', name: null, display_name: null },
+        { id: '3' },
       ];
-
-      (useProjectsContext as any).mockReturnValue({
-        ...mockProjectsContext,
-        projects: malformedProjects,
-      });
 
       expect(() => renderWithRouter()).not.toThrow();
     });
 
     it('should handle special characters in project names', () => {
-      const specialProjects = [
-        { name: 'project-with-dashes', title: 'Project With Dashes' },
-        { name: 'project_with_underscores', title: 'Project With Underscores' },
-        { name: 'project.with.dots', title: 'Project With Dots' },
+      currentMockProjects = [
+        { id: '1', name: 'project-with-dashes', display_name: 'Project With Dashes' },
+        { id: '2', name: 'project_with_underscores', display_name: 'Project With Underscores' },
+        { id: '3', name: 'project.with.dots', display_name: 'Project With Dots' },
       ];
-
-      (useProjectsContext as any).mockReturnValue({
-        ...mockProjectsContext,
-        projects: specialProjects,
-      });
 
       renderWithRouter();
 
@@ -311,6 +303,52 @@ describe('PortalContainer Component', () => {
       expect(projects).toContain('Project With Dashes');
       expect(projects).toContain('Project With Underscores');
       expect(projects).toContain('Project With Dots');
+    });
+  });
+
+  describe('Loading and Error States', () => {
+    it('should handle loading state from projectsStore', () => {
+      currentMockLoading = true;
+
+      renderWithRouter();
+
+      expect(screen.getByTestId('portal-providers')).toBeInTheDocument();
+    });
+
+    it('should handle error state from projectsStore', () => {
+      currentMockError = new Error('Failed to load projects');
+
+      renderWithRouter();
+
+      expect(screen.getByTestId('portal-providers')).toBeInTheDocument();
+    });
+  });
+
+  describe('Zustand Integration', () => {
+    it('should read projects from Zustand store', () => {
+      renderWithRouter();
+      
+      // Component should render with mocked projects
+      expect(screen.getByTestId('portal-content')).toBeInTheDocument();
+    });
+
+    it('should handle projects store updates', () => {
+      const { rerender } = renderWithRouter();
+
+      currentMockProjects = [
+        { id: '1', name: 'updated-project', display_name: 'Updated Project' },
+      ];
+
+      rerender(
+        <MemoryRouter initialEntries={['/']}>
+          <PortalContainer />
+        </MemoryRouter>
+      );
+
+      const projectsElement = screen.getByTestId('projects');
+      const projects = JSON.parse(projectsElement.textContent || '[]');
+
+      expect(projects).toContain('Updated Project');
     });
   });
 });

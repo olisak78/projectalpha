@@ -55,7 +55,7 @@ export function LandscapeLinksSection({
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-2xl font-semibold text-foreground">Landscape Links</h2>
+        <h2 className="text-2xl font-bold">Landscape Links</h2>
         <div className="flex items-center gap-2">
           <div className="w-80">
             <LandscapeFilter

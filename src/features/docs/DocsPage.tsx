@@ -10,11 +10,14 @@ import { DocsContent } from './components/DocsContent';
 import { DocsTableOfContents } from './components/DocsTableOfContents';
 import { DocsSearch } from './components/DocsSearch';
 import { DocsRawEditor } from './components/DocsRawEditor';
-import { flattenDocTree, DocTreeNode } from '@/services/githubDocsApi';
-import { AlertCircle, Loader2, FileText, Eye, Github } from 'lucide-react';
+import { CreateItemDialog, CreateItemType } from './components/CreateItemDialog';
+import { DeleteConfirmDialog } from './components/DeleteConfirmDialog';
+import { flattenDocTree, DocTreeNode, createGitHubFile, createGitHubFolder, deleteGitHubFile, deleteGitHubFolder, isFolderEmpty } from '@/services/githubDocsApi';
+import { AlertCircle, Loader2, FileText, Eye, Github, FilePlus, FolderPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Fuse from 'fuse.js';
 import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 
 export interface TableOfContentsItem {
   id: string;
@@ -39,13 +42,28 @@ const DocsPage: React.FC<DocsPageProps> = ({ owner, repo, branch, docsPath }) =>
   const [fileSHA, setFileSHA] = useState<string>('');
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [docTreeWithLazyChildren, setDocTreeWithLazyChildren] = useState<DocTreeNode[] | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createItemType, setCreateItemType] = useState<CreateItemType>('document');
+  const [createInPath, setCreateInPath] = useState<string>('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteFilePath, setDeleteFilePath] = useState<string>('');
+  const [deleteFileName, setDeleteFileName] = useState<string>('');
+  const [deleteItemType, setDeleteItemType] = useState<'document' | 'folder'>('document');
 
   const queryClient = useQueryClient();
+  const { toast} = useToast();
 
   // Build config object from props if provided
   const docsConfig = owner && repo && branch && docsPath
     ? { owner, repo, branch, docsPath }
     : undefined;
+
+  // Extract the last segment of docsPath as the title (e.g., "docs/coe" -> "coe")
+  const getDocsTitle = () => {
+    if (!docsConfig?.docsPath) return 'Documentation';
+    const segments = docsConfig.docsPath.split('/').filter(Boolean);
+    return segments.length > 0 ? segments[segments.length - 1] : 'Documentation';
+  };
 
   // Fetch documentation tree with LAZY LOADING (only root level)
   const { data: docTree, isLoading: isTreeLoading, error: treeError } = useDocTreeLazy(docsConfig);
@@ -85,44 +103,245 @@ const DocsPage: React.FC<DocsPageProps> = ({ owner, repo, branch, docsPath }) =>
     // Mark as expanded
     setExpandedDirs(prev => new Set(prev).add(dirPath));
 
-    // Check if already in React Query cache
+    // Always fetch fresh data from GitHub
     const queryKey = docsConfig
       ? ['docs', 'dir', dirPath, docsConfig.owner, docsConfig.repo, docsConfig.branch]
       : ['docs', 'dir', dirPath];
 
-    let children = queryClient.getQueryData<DocTreeNode[]>(queryKey);
+    try {
+      const { buildDocTreeLazy } = await import('@/services/githubDocsApi');
+      const children = await buildDocTreeLazy(docsConfig, dirPath);
 
-    if (!children) {
-      // Not in cache, fetch it
-      try {
-        const { buildDocTreeLazy } = await import('@/services/githubDocsApi');
-        children = await buildDocTreeLazy(docsConfig, dirPath);
-        // Store in React Query cache
-        queryClient.setQueryData(queryKey, children);
-      } catch (error) {
-        console.error(`Failed to load directory ${dirPath}:`, error);
-        return;
-      }
+      // Store in React Query cache
+      queryClient.setQueryData(queryKey, children);
+
+      // Merge children into the tree
+      setDocTreeWithLazyChildren(prevTree => {
+        if (!prevTree) return prevTree;
+
+        const updateTreeNode = (nodes: DocTreeNode[]): DocTreeNode[] => {
+          return nodes.map(node => {
+            if (node.type === 'dir' && node.path === dirPath) {
+              return { ...node, children };
+            } else if (node.type === 'dir' && node.children) {
+              return { ...node, children: updateTreeNode(node.children) };
+            }
+            return node;
+          });
+        };
+
+        return updateTreeNode(prevTree);
+      });
+    } catch (error) {
+      console.error(`Failed to load directory ${dirPath}:`, error);
+      return;
+    }
+  }, [expandedDirs, docsConfig, queryClient]);
+
+  // Handler for creating a new folder
+  const handleCreateFolder = useCallback((folderPath: string) => {
+    setCreateInPath(folderPath);
+    setCreateItemType('folder');
+    setCreateDialogOpen(true);
+  }, []);
+
+  // Handler for creating a new document
+  const handleCreateDocument = useCallback((folderPath: string) => {
+    setCreateInPath(folderPath);
+    setCreateItemType('document');
+    setCreateDialogOpen(true);
+  }, []);
+
+  // Handler for confirming creation
+  const handleConfirmCreate = useCallback(async (name: string) => {
+    if (!docsConfig) {
+      toast({
+        title: 'Error',
+        description: 'Documentation configuration is not available',
+        variant: 'destructive',
+      });
+      return;
     }
 
-    // Merge children into the tree
-    setDocTreeWithLazyChildren(prevTree => {
-      if (!prevTree) return prevTree;
+    try {
+      if (createItemType === 'folder') {
+        // Create folder with .gitkeep file
+        const folderPath = createInPath ? `${createInPath}/${name}` : name;
+        await createGitHubFolder(folderPath, docsConfig);
 
-      const updateTreeNode = (nodes: DocTreeNode[]): DocTreeNode[] => {
-        return nodes.map(node => {
-          if (node.type === 'dir' && node.path === dirPath) {
-            return { ...node, children };
-          } else if (node.type === 'dir' && node.children) {
-            return { ...node, children: updateTreeNode(node.children) };
-          }
-          return node;
+        toast({
+          title: 'Success',
+          description: `Folder "${name}" created successfully`,
         });
-      };
+      } else {
+        // Create document (markdown file)
+        const fileName = name.endsWith('.md') ? name : `${name}.md`;
+        const filePath = createInPath ? `${createInPath}/${fileName}` : fileName;
+        await createGitHubFile(filePath, '# ' + name + '\n\nStart writing your documentation here...', `Create ${fileName}`, docsConfig);
 
-      return updateTreeNode(prevTree);
-    });
-  }, [expandedDirs, docsConfig, queryClient]);
+        toast({
+          title: 'Success',
+          description: `Document "${fileName}" created successfully`,
+        });
+
+        // Select the new document for editing
+        setSelectedPath(filePath);
+      }
+
+      if (createInPath) {
+        // Created inside a directory - reload that directory from GitHub
+        const queryKey = docsConfig
+          ? ['docs', 'dir', createInPath, docsConfig.owner, docsConfig.repo, docsConfig.branch]
+          : ['docs', 'dir', createInPath];
+
+        // Invalidate the cache
+        await queryClient.invalidateQueries({ queryKey });
+
+        // Collapse and re-expand to trigger fresh fetch from GitHub
+        if (expandedDirs.has(createInPath)) {
+          setExpandedDirs(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(createInPath);
+            return newSet;
+          });
+        }
+
+        // Expand (or re-expand) to load fresh data from GitHub
+        setTimeout(() => {
+          loadDirectoryChildren(createInPath);
+        }, 100);
+      } else {
+        // Root level creation - refetch entire root tree from GitHub
+        const treeQueryKey = docsConfig
+          ? ['docs', 'tree-lazy', docsConfig.owner, docsConfig.repo, docsConfig.branch, docsConfig.docsPath]
+          : ['docs', 'tree-lazy'];
+
+        await queryClient.invalidateQueries({ queryKey: treeQueryKey });
+        await queryClient.refetchQueries({ queryKey: treeQueryKey });
+      }
+    } catch (error) {
+      console.error('Failed to create item:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to create ${createItemType}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: 'destructive',
+      });
+      throw error; // Re-throw to keep dialog open
+    }
+  }, [createItemType, createInPath, docsConfig, queryClient, toast]);
+
+  // Handler for initiating document deletion
+  const handleDeleteDocument = useCallback((filePath: string, fileName: string) => {
+    setDeleteFilePath(filePath);
+    setDeleteFileName(fileName);
+    setDeleteItemType('document');
+    setDeleteDialogOpen(true);
+  }, []);
+
+  // Handler for initiating folder deletion
+  const handleDeleteFolder = useCallback(async (folderPath: string, folderName: string) => {
+    if (!docsConfig) return;
+
+    // Check if folder is empty
+    const isEmpty = await isFolderEmpty(folderPath, docsConfig);
+    if (!isEmpty) {
+      toast({
+        title: 'Cannot Delete Folder',
+        description: 'The folder is not empty. Please delete all files in the folder first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setDeleteFilePath(folderPath);
+    setDeleteFileName(folderName);
+    setDeleteItemType('folder');
+    setDeleteDialogOpen(true);
+  }, [docsConfig, toast]);
+
+  // Handler for confirming deletion
+  const handleConfirmDelete = useCallback(async () => {
+    if (!docsConfig || !deleteFilePath) {
+      toast({
+        title: 'Error',
+        description: `Unable to delete ${deleteItemType}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      if (deleteItemType === 'folder') {
+        // Delete folder (only .gitkeep file)
+        await deleteGitHubFolder(deleteFilePath, `Delete folder ${deleteFileName}`, docsConfig);
+
+        toast({
+          title: 'Success',
+          description: `Folder "${deleteFileName}" deleted successfully`,
+        });
+      } else {
+        // Fetch the file metadata to get the current SHA
+        const { fetchGitHubFileWithMetadata } = await import('@/services/githubDocsApi');
+        const metadata = await fetchGitHubFileWithMetadata(deleteFilePath, docsConfig);
+
+        // Delete the file using its SHA
+        await deleteGitHubFile(deleteFilePath, metadata.sha, `Delete ${deleteFileName}`, docsConfig);
+
+        toast({
+          title: 'Success',
+          description: `Document "${deleteFileName}" deleted successfully`,
+        });
+      }
+
+      // Close dialog
+      setDeleteDialogOpen(false);
+
+      // Clear selected path if we deleted the currently selected file
+      if (selectedPath === deleteFilePath) {
+        setSelectedPath(null);
+      }
+
+      // Get parent path to determine where to reload
+      const parentPath = deleteFilePath.split('/').slice(0, -1).join('/');
+
+      if (parentPath && expandedDirs.has(parentPath)) {
+        // Parent directory is expanded - reload it from GitHub
+        const queryKey = docsConfig
+          ? ['docs', 'dir', parentPath, docsConfig.owner, docsConfig.repo, docsConfig.branch]
+          : ['docs', 'dir', parentPath];
+
+        // Invalidate the cache
+        await queryClient.invalidateQueries({ queryKey });
+
+        // Collapse and re-expand to trigger fresh fetch
+        setExpandedDirs(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(parentPath);
+          return newSet;
+        });
+
+        // Re-expand after a brief moment to trigger reload from GitHub
+        setTimeout(() => {
+          loadDirectoryChildren(parentPath);
+        }, 100);
+      } else {
+        // Root level deletion or parent not expanded - refetch entire root tree from GitHub
+        const treeQueryKey = docsConfig
+          ? ['docs', 'tree-lazy', docsConfig.owner, docsConfig.repo, docsConfig.branch, docsConfig.docsPath]
+          : ['docs', 'tree-lazy'];
+
+        await queryClient.invalidateQueries({ queryKey: treeQueryKey });
+        await queryClient.refetchQueries({ queryKey: treeQueryKey });
+      }
+    } catch (error) {
+      console.error('Failed to delete document:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to delete document: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: 'destructive',
+      });
+    }
+  }, [deleteFilePath, deleteFileName, deleteItemType, docsConfig, selectedPath, queryClient, toast, expandedDirs, loadDirectoryChildren]);
 
   // Flatten tree for search (use lazy-loaded tree with children)
   const flatFiles = useMemo(() => {
@@ -292,8 +511,8 @@ const DocsPage: React.FC<DocsPageProps> = ({ owner, repo, branch, docsPath }) =>
       <div className="w-64 border-r border-gray-200 dark:border-gray-800 flex-shrink-0 overflow-hidden flex flex-col">
         <div className="p-4 border-b border-gray-200 dark:border-gray-800">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Documentation
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+              {getDocsTitle()}
             </h2>
             {docsConfig && (
               <Button
@@ -311,6 +530,28 @@ const DocsPage: React.FC<DocsPageProps> = ({ owner, repo, branch, docsPath }) =>
             )}
           </div>
           <DocsSearch value={searchQuery} onChange={setSearchQuery} />
+          {docsConfig && (
+            <div className="pt-2 pb-1 flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCreateDocument('')}
+                className="h-8 w-8 p-0"
+                title="New Document"
+              >
+                <FilePlus className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCreateFolder('')}
+                className="h-8 w-8 p-0"
+                title="New Folder"
+              >
+                <FolderPlus className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto">
           <DocsSidebar
@@ -319,6 +560,10 @@ const DocsPage: React.FC<DocsPageProps> = ({ owner, repo, branch, docsPath }) =>
             onSelect={setSelectedPath}
             onLoadDirectory={loadDirectoryChildren}
             expandedDirs={expandedDirs}
+            onCreateFolder={docsConfig ? handleCreateFolder : undefined}
+            onCreateDocument={docsConfig ? handleCreateDocument : undefined}
+            onDeleteDocument={docsConfig ? handleDeleteDocument : undefined}
+            onDeleteFolder={docsConfig ? handleDeleteFolder : undefined}
           />
         </div>
       </div>
@@ -394,6 +639,24 @@ const DocsPage: React.FC<DocsPageProps> = ({ owner, repo, branch, docsPath }) =>
             </>
         </div>
       )}
+
+      {/* Create Item Dialog */}
+      <CreateItemDialog
+        type={createItemType}
+        isOpen={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        onConfirm={handleConfirmCreate}
+        currentPath={createInPath}
+      />
+
+      {/* Delete Confirm Dialog */}
+      <DeleteConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={handleConfirmDelete}
+        documentName={deleteFileName}
+        itemType={deleteItemType}
+      />
     </div>
   );
 };

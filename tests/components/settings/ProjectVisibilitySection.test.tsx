@@ -2,14 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import ProjectVisibilitySection from '../../../src/components/settings/ProjectVisibilitySection';
-import { useProjectsContext } from '../../../src/contexts/ProjectsContext';
 import { Project } from '../../../src/types/api';
 
 // Mock the ProjectsContext
-vi.mock('../../../src/contexts/ProjectsContext', () => ({
-  useProjectsContext: vi.fn()
-}));
-
 /**
  * ProjectVisibilitySection Component Tests
  * 
@@ -67,8 +62,6 @@ const defaultProps = {
   onSelectAll: vi.fn(),
   onDeselectAll: vi.fn()
 };
-
-const mockUseProjectsContext = useProjectsContext as ReturnType<typeof vi.fn>;
 
 /**
  * Helper function to render ProjectVisibilitySection with default props

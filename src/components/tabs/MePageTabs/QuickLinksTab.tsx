@@ -8,17 +8,9 @@ import { useCurrentUser } from "@/hooks/api/useMembers";
 import { AddLinkDialog } from "@/components/dialogs/AddLinkDialog";
 import { QuickLinksSearchFilter } from "./QuickLinksSearchFilter";
 import { QuickLinksProvider, useQuickLinksContext } from "@/contexts/QuickLinksContext";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { EditLinkDialog } from "@/components/dialogs/EditLinkDialog";
+import { DeleteConfirmationDialog } from "./DeleteConfirmationDialog";
+import { useEditDialog, useEditDialogActions } from "@/stores/quickLinksStore";
 
 interface QuickLinksTabProps {
   userData?: UserMeResponse;
@@ -35,18 +27,17 @@ const QuickLinksTabContent = ({ emptyMessage, title }: { emptyMessage?: string; 
   const { data: currentUser } = useCurrentUser();
   const [isAddLinkDialogOpen, setIsAddLinkDialogOpen] = useState(false);
   
+  const editDialog = useEditDialog();
+  const { closeEditDialog } = useEditDialogActions();
+  
+  // Data and configuration from context
   const {
     quickLinks,
     isLoading,
-    handleDeleteConfirm,
-    handleDeleteCancel,
-    deleteDialog,
-    editDialog,
-    handleEditCancel,
     ownerId,
   } = useQuickLinksContext();
 
-   // Find the link being edited
+  // Find the link being edited
   const linkToEdit = useMemo(() => {
     if (!editDialog.isOpen || !editDialog.linkId) return null;
     const link = quickLinks.find(link => link.id === editDialog.linkId);
@@ -109,45 +100,22 @@ const QuickLinksTabContent = ({ emptyMessage, title }: { emptyMessage?: string; 
         </div>
       </div>
 
+      {/* Add Link Dialog */}
       <AddLinkDialog
         open={isAddLinkDialogOpen}
         onOpenChange={setIsAddLinkDialogOpen}
         ownerId={ownerId || currentUser?.uuid}
       />
-
-       {/* Edit Link Dialog */}
       {linkToEdit && (
         <EditLinkDialog
           open={editDialog.isOpen}
           onOpenChange={(open) => {
-            if (!open) handleEditCancel();
+            if (!open) closeEditDialog();
           }}
           linkData={linkToEdit}
         />
       )}
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialog.isOpen} onOpenChange={() => handleDeleteCancel()}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Quick Link</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{deleteDialog.linkTitle}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleDeleteCancel}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmationDialog />
     </>
   );
 };

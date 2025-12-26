@@ -1,6 +1,6 @@
 import { LayoutGrid, List } from "lucide-react";
-import { useLinksPageContext } from "@/contexts/LinksPageContext";
-import { useQuickLinksContext } from "@/contexts/QuickLinksContext";
+import { useViewMode as useQuickLinksViewMode, useSearchFilterActions as useQuickLinksActions } from "@/stores/quickLinksStore";
+import { useLinksViewMode, useLinksSearchFilterActions } from "@/stores/linksPageStore";
 import { cn } from "@/lib/utils";
 
 interface ViewLinksToggleButtonProps {
@@ -8,12 +8,17 @@ interface ViewLinksToggleButtonProps {
 }
 
 export function ViewLinksToggleButton({ context = 'links' }: ViewLinksToggleButtonProps) {
-  // Use the appropriate context based on the prop
-  const linksContext = context === 'links' ? useLinksPageContext() : null;
-  const quickLinksContext = context === 'quicklinks' ? useQuickLinksContext() : null;
+  // QuickLinks: Use quickLinksStore
+  const quickLinksViewMode = useQuickLinksViewMode();
+  const { setViewMode: setQuickLinksViewMode } = useQuickLinksActions();
   
-  const viewMode = linksContext?.viewMode || quickLinksContext?.viewMode || 'collapsed';
-  const setViewMode = linksContext?.setViewMode || quickLinksContext?.setViewMode || (() => {});
+  // Links page: Use linksPageStore
+  const linksViewMode = useLinksViewMode();
+  const { setViewMode: setLinksViewMode } = useLinksSearchFilterActions();
+  
+  // Determine which state to use based on context
+  const viewMode = context === 'quicklinks' ? quickLinksViewMode : linksViewMode;
+  const setViewMode = context === 'quicklinks' ? setQuickLinksViewMode : setLinksViewMode;
 
   return (
     <div className="flex items-center bg-muted rounded-lg p-1">

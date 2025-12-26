@@ -1,5 +1,5 @@
 import { ProjectLayout } from "@/components/ProjectLayout";
-import { useProjectsContext } from "@/contexts/ProjectsContext";
+import { useProjects } from "@/stores/projectsStore";
 import { Project } from "@/types/api";
 
 interface DynamicProjectPageProps {
@@ -7,7 +7,7 @@ interface DynamicProjectPageProps {
 }
 
 export function DynamicProjectPage({ projectName }: DynamicProjectPageProps) {
-  const { projects } = useProjectsContext();
+  const projects = useProjects();
 
 // Dynamic project configuration based on metadata or defaults
 const getProjectConfig = (project: Project) => {

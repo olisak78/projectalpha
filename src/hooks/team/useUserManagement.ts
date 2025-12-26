@@ -4,6 +4,7 @@ import { useDeleteMember, useUpdateUserTeam, useCreateUser } from "@/hooks/api/m
 import type { CreateUserRequest, User } from "@/types/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthWithRole } from "@/hooks/useAuthWithRole";
+import { useDialogActions, useMemberDialogOpen } from "@/stores/teamStore";
 
 interface UseUserManagementProps {
   initialMembers?: DutyMember[];
@@ -20,7 +21,8 @@ export function useUserManagement({
   teamNameToIdMap,
 }: UseUserManagementProps) {
   const [members, setMembers] = useState<DutyMember[]>(initialMembers);
-  const [memberDialogOpen, setMemberDialogOpen] = useState(false);
+  const memberDialogOpen = useMemberDialogOpen();
+  const { setMemberDialogOpen } = useDialogActions();
   const [editingMember, setEditingMember] = useState<DutyMember | null>(null);
   const [memberForm, setMemberForm] = useState<Partial<DutyMember>>({
     fullName: "",
@@ -38,10 +40,10 @@ export function useUserManagement({
 
   // Use ref to store deleted members for rollback to avoid closure issues
   const deletedMembersRef = useRef<Record<string, { member: DutyMember; originalIndex: number }>>({});
-  
+
   // Use ref to store moved members for rollback to avoid closure issues
   const movedMembersRef = useRef<Record<string, { member: DutyMember; originalIndex: number }>>({});
-  
+
   // Use ref to store created members for rollback to avoid closure issues
   const createdMembersRef = useRef<Record<string, DutyMember>>({});
 
@@ -122,7 +124,7 @@ export function useUserManagement({
     onSuccess: (data, variables) => {
       // Get the temporary ID used for optimistic update
       const tempId = (variables as CreateUserRequest & { tempId?: string })?.tempId || '';
-      
+
       // Update the member in state with the real data from server
       setMembers((prev) => {
         const updated = prev.map((member) => {
@@ -141,7 +143,7 @@ export function useUserManagement({
         onMembersChange?.(updated);
         return updated;
       });
-      
+
       // Clear the created member from rollback map on success
       delete createdMembersRef.current[tempId];
 
@@ -149,7 +151,7 @@ export function useUserManagement({
         title: "Member created successfully",
         description: `${data.first_name} ${data.last_name} has been added to the team.`,
       });
-      
+
       setMemberDialogOpen(false); // Close the dialog
     },
     onError: (error, variables) => {
@@ -172,7 +174,7 @@ export function useUserManagement({
       // Check if user already exists - get the server error message
       const apiError = (error as Error & { apiError?: { message?: string } })?.apiError;
       const errorMessage = apiError?.message || '';
-      
+
       // Check if the error message indicates user already exists
       const lowerErrorMessage = errorMessage.toLowerCase();
       if (lowerErrorMessage.includes('member with this email already exists in the organization')) {
@@ -233,7 +235,7 @@ export function useUserManagement({
   const moveMember = (member: DutyMember, targetTeam: string) => {
     // Get the target team ID from the team name using the mapping function
     const targetTeamId = teamNameToIdMap ? teamNameToIdMap(targetTeam) : targetTeam;
-    
+
     if (!targetTeamId) {
       toast({
         variant: "destructive",
@@ -252,18 +254,18 @@ export function useUserManagement({
       });
       return;
     }
-    
+
     // Store the member and its original index for potential rollback
     // Use the member's UUID as the key since that's what the API uses
     const originalIndex = members.findIndex(m => m.id === member.id);
     movedMembersRef.current[member.uuid] = { member, originalIndex };
-    
+
     // Optimistically remove the member from the current team UI
     const next = members.filter((m) => m.id !== member.id);
     setMembers(next);
     onMembersChange?.(next);
     onMoveMember?.(member, targetTeam);
-    
+
     // Call the API to update the current user's team using UpdateUserTeamRequest format
     updateUserMutation.mutate({
       user_uuid: member.uuid,
@@ -274,7 +276,7 @@ export function useUserManagement({
   const createMember = (payload: CreateUserRequest) => {
     // Generate a temporary ID for optimistic update
     const tempId = "temp_" + Date.now();
-    
+
     // Create optimistic member object
     const optimisticMember: DutyMember = {
       id: tempId,

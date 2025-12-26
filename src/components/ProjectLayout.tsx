@@ -5,9 +5,7 @@ import { ComponentsTabContent } from "@/components/ComponentsTabContent";
 import { HealthDashboard } from "@/components/Health/HealthDashboard";
 import AlertsPage from "@/pages/AlertsPage";
 import { useHeaderNavigation } from "@/contexts/HeaderNavigationContext";
-import {
-  usePortalState,
-} from "@/contexts/hooks";
+import { useLandscapeSelection, useSelectedLandscapeForProject, useUIActions } from "@/stores/appStateStore";
 import { useTabRouting } from "@/hooks/useTabRouting";
 import { useComponentsByProject } from "@/hooks/api/useComponents";
 import { useLandscapesByProject } from "@/hooks/api/useLandscapes";
@@ -59,17 +57,10 @@ export function ProjectLayout({
   const { setTabs, activeTab: headerActiveTab } = useHeaderNavigation();
   const { currentTabFromUrl, syncTabWithUrl } = useTabRouting();
 
-  // Context hooks
-  const {
-    getSelectedLandscapeForProject,
-    setSelectedLandscapeForProject,
-    setShowLandscapeDetails
-  } = usePortalState();
+  const { getSelectedLandscapeForProject, setSelectedLandscapeForProject } = useLandscapeSelection();
+  const { setShowLandscapeDetails } = useUIActions();
 
-  // Get project-specific selected landscape (reactive to changes)
-  const selectedLandscape = useMemo(() => {
-    return getSelectedLandscapeForProject(projectId);
-  }, [getSelectedLandscapeForProject, projectId]);
+  const selectedLandscape = useSelectedLandscapeForProject(projectId);
 
   // API hooks
   const {

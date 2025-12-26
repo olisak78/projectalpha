@@ -1,5 +1,7 @@
-import { useState } from 'react';
 import { useComponentsByTeam } from '@/hooks/api/useComponents';
+
+//   Import expansion state from teamStore
+import { useTeamComponentsExpanded, useComponentExpansionActions } from '@/stores/teamStore';
 
 interface UseTeamComponentsProps {
   teamId?: string;
@@ -10,9 +12,11 @@ export function useTeamComponents({
   teamId, 
   organizationId
 }: UseTeamComponentsProps) {
-  const [teamComponentsExpanded, setTeamComponentsExpanded] = useState<Record<string, boolean>>({});
+  //   Expansion state from Zustand
+  const teamComponentsExpanded = useTeamComponentsExpanded();
+  const { toggleComponentExpansion } = useComponentExpansionActions();
 
-  // Fetch components by team using the API
+  //   Fetch components by team using the API (React Query)
   const {
     data: componentsByTeam,
     isLoading,
@@ -26,17 +30,10 @@ export function useTeamComponents({
     }
   );
 
-
-  const toggleComponentExpansion = (componentId: string) => {
-    setTeamComponentsExpanded(prev => ({
-      ...prev,
-      [componentId]: !(prev[componentId] ?? true)
-    }));
-  };
-
+  //   Return interface  
   return {
-    teamComponentsExpanded,
-    toggleComponentExpansion,
+    teamComponentsExpanded,      // From Zustand (via hook)
+    toggleComponentExpansion,    // From Zustand (via hook)
     componentsData: componentsByTeam,
     isLoading,
     error

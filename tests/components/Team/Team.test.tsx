@@ -170,19 +170,6 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
-// Mock ProjectsContext
-vi.mock('../../../src/contexts/ProjectsContext', () => ({
-  useProjectsContext: vi.fn(() => ({
-    projects: [
-      { id: 'project-1', name: 'cis20', title: 'CIS 2.0' },
-      { id: 'project-2', name: 'ca', title: 'Cloud Analytics' },
-    ],
-    isLoading: false,
-    error: null,
-    sidebarItems: [],
-  })),
-}));
-
 // Mock child components to isolate Team component logic
 vi.mock('../../../src/components/dialogs/TeamMemberDialog', () => ({
   TeamMemberDialog: vi.fn(() => <div data-testid="team-member-dialog">Team Member Dialog</div>),

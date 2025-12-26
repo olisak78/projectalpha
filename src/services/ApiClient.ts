@@ -493,14 +493,17 @@ export class ApiClient {
    * DELETE request
    *
    * @param endpoint - API endpoint
+   * @param body - Optional request body (for DELETE operations that require data)
    * @param options - Optional headers
    * @returns Response data (usually void for 204 responses)
    *
    * @example
    * await client.delete('/teams/123');
+   * await client.delete('/github/file', { sha: 'abc123', message: 'Delete file' });
    */
   public async delete<T = void>(
     endpoint: string,
+    body?: Record<string, any>,
     options?: {
       headers?: Record<string, string>;
       signal?: AbortSignal;
@@ -508,6 +511,7 @@ export class ApiClient {
   ): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'DELETE',
+      body,
       headers: options?.headers,
       signal: options?.signal,
     });

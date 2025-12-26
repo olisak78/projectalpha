@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useProjectsContext } from '@/contexts/ProjectsContext';
+import { useProjects, useProjectsLoading } from '@/stores/projectsStore';
 import { useProjectVisibility } from '@/hooks/useProjectVisibility';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserInformation } from '@/hooks/useUserInformation';
@@ -17,7 +17,9 @@ interface UserInformationData {
 }
 
 export const useSettings = () => {
-  const { projects, isLoading } = useProjectsContext();
+  const projects = useProjects();
+  const isLoading = useProjectsLoading();
+  
   const { isProjectVisible, updateProjectVisibility } = useProjectVisibility();
   const { user } = useAuth();
   

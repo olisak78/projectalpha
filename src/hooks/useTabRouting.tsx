@@ -2,15 +2,14 @@ import { HeaderTab, useHeaderNavigation } from "@/contexts/HeaderNavigationConte
 import { getBasePath } from "@/utils/developer-portal-helpers";
 import { useLocation, useParams } from "react-router-dom";
 import { useCallback } from "react";
-//import projectsData from "@/pages/projectsMock.json";
-import { useProjectsContext } from "@/contexts/ProjectsContext";
+import { useProjects } from "@/stores/projectsStore";
 
 
 
 // Hook to get current tab from URL and sync with header tabs
 export function useTabRouting() {
-  // Load projects data
-  const { projects } = useProjectsContext();
+  const projects = useProjects();
+  
   const { activeTab, setTabs } = useHeaderNavigation();
   const params = useParams();
   const location = useLocation();

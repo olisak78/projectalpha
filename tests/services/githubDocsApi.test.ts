@@ -726,4 +726,530 @@ describe('githubDocsApi', () => {
     });
   });
 
+  // ============================================================================
+  // CREATE, UPDATE, DELETE OPERATIONS TESTS
+  // ============================================================================
+
+  describe('CRUD Operations', () => {
+    let mockPost: any;
+    let mockDelete: any;
+
+    beforeEach(async () => {
+      // Re-mock ApiClient with all HTTP methods
+      mockPost = vi.fn();
+      mockDelete = vi.fn();
+
+      vi.doMock('../../src/services/ApiClient', () => ({
+        ApiClient: vi.fn().mockImplementation(() => ({
+          get: mockGet,
+          post: mockPost,
+          delete: mockDelete,
+        })),
+      }));
+
+      // Re-import module with updated mock
+      githubDocsApi = await import('../../src/services/githubDocsApi?update=' + Date.now());
+    });
+
+    describe('createGitHubFile', () => {
+      it('should create a file at root level', async () => {
+        const mockResponse = { commit: { sha: 'abc123' } };
+        mockPost.mockResolvedValue(mockResponse);
+
+        const filePath = 'test-doc.md';
+        const content = '# Test Document';
+        const commitMessage = 'Create test document';
+
+        const result = await githubDocsApi.createGitHubFile(
+          filePath,
+          content,
+          commitMessage
+        );
+
+        expect(mockPost).toHaveBeenCalledWith(
+          `/github/repos/${githubDocsApi.DOCS_CONFIG.owner}/${githubDocsApi.DOCS_CONFIG.repo}/contents/${githubDocsApi.DOCS_CONFIG.docsPath}/${filePath}`,
+          {
+            message: commitMessage,
+            content: content,
+            branch: githubDocsApi.DOCS_CONFIG.branch,
+          }
+        );
+        expect(result).toEqual(mockResponse);
+      });
+
+      it('should create a file in subdirectory', async () => {
+        const mockResponse = { commit: { sha: 'def456' } };
+        mockPost.mockResolvedValue(mockResponse);
+
+        const filePath = 'guides/tutorial.md';
+        const content = '# Tutorial';
+        const commitMessage = 'Add tutorial';
+
+        await githubDocsApi.createGitHubFile(filePath, content, commitMessage);
+
+        expect(mockPost).toHaveBeenCalledWith(
+          `/github/repos/${githubDocsApi.DOCS_CONFIG.owner}/${githubDocsApi.DOCS_CONFIG.repo}/contents/${githubDocsApi.DOCS_CONFIG.docsPath}/${filePath}`,
+          {
+            message: commitMessage,
+            content: content,
+            branch: githubDocsApi.DOCS_CONFIG.branch,
+          }
+        );
+      });
+
+      it('should use custom config when provided', async () => {
+        const mockResponse = { commit: { sha: 'ghi789' } };
+        mockPost.mockResolvedValue(mockResponse);
+
+        const customConfig = {
+          owner: 'custom-owner',
+          repo: 'custom-repo',
+          branch: 'develop',
+          docsPath: 'documentation',
+        };
+
+        await githubDocsApi.createGitHubFile(
+          'test.md',
+          'content',
+          'message',
+          customConfig
+        );
+
+        expect(mockPost).toHaveBeenCalledWith(
+          `/github/repos/${customConfig.owner}/${customConfig.repo}/contents/${customConfig.docsPath}/test.md`,
+          {
+            message: 'message',
+            content: 'content',
+            branch: customConfig.branch,
+          }
+        );
+      });
+
+      it('should handle API errors', async () => {
+        const error = new Error('Failed to create file');
+        mockPost.mockRejectedValue(error);
+
+        await expect(
+          githubDocsApi.createGitHubFile('test.md', 'content', 'message')
+        ).rejects.toThrow('Failed to create file');
+      });
+    });
+
+    describe('createGitHubFolder', () => {
+      it('should create a folder by creating .gitkeep file', async () => {
+        const mockResponse = { commit: { sha: 'folder123' } };
+        mockPost.mockResolvedValue(mockResponse);
+
+        const folderPath = 'new-folder';
+
+        const result = await githubDocsApi.createGitHubFolder(folderPath);
+
+        expect(mockPost).toHaveBeenCalledWith(
+          `/github/repos/${githubDocsApi.DOCS_CONFIG.owner}/${githubDocsApi.DOCS_CONFIG.repo}/contents/${githubDocsApi.DOCS_CONFIG.docsPath}/${folderPath}/.gitkeep`,
+          {
+            message: `Create folder: ${folderPath}`,
+            content: '\n',
+            branch: githubDocsApi.DOCS_CONFIG.branch,
+          }
+        );
+        expect(result).toEqual(mockResponse);
+      });
+
+      it('should create nested folder structure', async () => {
+        const mockResponse = { commit: { sha: 'nested123' } };
+        mockPost.mockResolvedValue(mockResponse);
+
+        const folderPath = 'guides/tutorials/advanced';
+
+        await githubDocsApi.createGitHubFolder(folderPath);
+
+        expect(mockPost).toHaveBeenCalledWith(
+          `/github/repos/${githubDocsApi.DOCS_CONFIG.owner}/${githubDocsApi.DOCS_CONFIG.repo}/contents/${githubDocsApi.DOCS_CONFIG.docsPath}/${folderPath}/.gitkeep`,
+          {
+            message: `Create folder: ${folderPath}`,
+            content: '\n',
+            branch: githubDocsApi.DOCS_CONFIG.branch,
+          }
+        );
+      });
+
+      it('should use custom config when provided', async () => {
+        const mockResponse = { commit: { sha: 'custom123' } };
+        mockPost.mockResolvedValue(mockResponse);
+
+        const customConfig = {
+          owner: 'custom-owner',
+          repo: 'custom-repo',
+          branch: 'develop',
+          docsPath: 'documentation',
+        };
+
+        await githubDocsApi.createGitHubFolder('test-folder', customConfig);
+
+        expect(mockPost).toHaveBeenCalledWith(
+          `/github/repos/${customConfig.owner}/${customConfig.repo}/contents/${customConfig.docsPath}/test-folder/.gitkeep`,
+          {
+            message: 'Create folder: test-folder',
+            content: '\n',
+            branch: customConfig.branch,
+          }
+        );
+      });
+
+      it('should handle API errors', async () => {
+        const error = new Error('Failed to create folder');
+        mockPost.mockRejectedValue(error);
+
+        await expect(
+          githubDocsApi.createGitHubFolder('test-folder')
+        ).rejects.toThrow('Failed to create folder');
+      });
+    });
+
+    describe('deleteGitHubFile', () => {
+      it('should delete a file with required SHA', async () => {
+        const mockResponse = { commit: { sha: 'delete123' } };
+        mockDelete.mockResolvedValue(mockResponse);
+
+        const filePath = 'old-doc.md';
+        const sha = 'file-sha-123';
+        const commitMessage = 'Delete old document';
+
+        const result = await githubDocsApi.deleteGitHubFile(
+          filePath,
+          sha,
+          commitMessage
+        );
+
+        expect(mockDelete).toHaveBeenCalledWith(
+          `/github/repos/${githubDocsApi.DOCS_CONFIG.owner}/${githubDocsApi.DOCS_CONFIG.repo}/contents/${githubDocsApi.DOCS_CONFIG.docsPath}/${filePath}`,
+          {
+            message: commitMessage,
+            sha: sha,
+            branch: githubDocsApi.DOCS_CONFIG.branch,
+          }
+        );
+        expect(result).toEqual(mockResponse);
+      });
+
+      it('should delete a file in subdirectory', async () => {
+        const mockResponse = { commit: { sha: 'delete456' } };
+        mockDelete.mockResolvedValue(mockResponse);
+
+        const filePath = 'guides/old-tutorial.md';
+        const sha = 'file-sha-456';
+        const commitMessage = 'Remove old tutorial';
+
+        await githubDocsApi.deleteGitHubFile(filePath, sha, commitMessage);
+
+        expect(mockDelete).toHaveBeenCalledWith(
+          `/github/repos/${githubDocsApi.DOCS_CONFIG.owner}/${githubDocsApi.DOCS_CONFIG.repo}/contents/${githubDocsApi.DOCS_CONFIG.docsPath}/${filePath}`,
+          {
+            message: commitMessage,
+            sha: sha,
+            branch: githubDocsApi.DOCS_CONFIG.branch,
+          }
+        );
+      });
+
+      it('should use custom config when provided', async () => {
+        const mockResponse = { commit: { sha: 'custom-delete' } };
+        mockDelete.mockResolvedValue(mockResponse);
+
+        const customConfig = {
+          owner: 'custom-owner',
+          repo: 'custom-repo',
+          branch: 'develop',
+          docsPath: 'documentation',
+        };
+
+        await githubDocsApi.deleteGitHubFile(
+          'test.md',
+          'sha123',
+          'Delete test',
+          customConfig
+        );
+
+        expect(mockDelete).toHaveBeenCalledWith(
+          `/github/repos/${customConfig.owner}/${customConfig.repo}/contents/${customConfig.docsPath}/test.md`,
+          {
+            message: 'Delete test',
+            sha: 'sha123',
+            branch: customConfig.branch,
+          }
+        );
+      });
+
+      it('should handle file not found error (404)', async () => {
+        const error = new Error('File not found');
+        mockDelete.mockRejectedValue(error);
+
+        await expect(
+          githubDocsApi.deleteGitHubFile('nonexistent.md', 'sha123', 'Delete')
+        ).rejects.toThrow('File not found');
+      });
+
+      it('should handle invalid SHA error', async () => {
+        const error = new Error('Invalid SHA');
+        mockDelete.mockRejectedValue(error);
+
+        await expect(
+          githubDocsApi.deleteGitHubFile('test.md', 'invalid-sha', 'Delete')
+        ).rejects.toThrow('Invalid SHA');
+      });
+    });
+
+    describe('deleteGitHubFolder', () => {
+      it('should delete an empty folder', async () => {
+        const mockResponse = { commit: { sha: 'folder-delete' } };
+        mockDelete.mockResolvedValue(mockResponse);
+
+        const folderPath = 'empty-folder';
+        const commitMessage = 'Delete empty folder';
+
+        const result = await githubDocsApi.deleteGitHubFolder(
+          folderPath,
+          commitMessage
+        );
+
+        expect(mockDelete).toHaveBeenCalledWith(
+          `/github/repos/${githubDocsApi.DOCS_CONFIG.owner}/${githubDocsApi.DOCS_CONFIG.repo}/folders/${githubDocsApi.DOCS_CONFIG.docsPath}/${folderPath}`,
+          {
+            message: commitMessage,
+            branch: githubDocsApi.DOCS_CONFIG.branch,
+          }
+        );
+        expect(result).toEqual(mockResponse);
+      });
+
+      it('should delete nested empty folder', async () => {
+        const mockResponse = { commit: { sha: 'nested-delete' } };
+        mockDelete.mockResolvedValue(mockResponse);
+
+        const folderPath = 'guides/old/empty';
+        const commitMessage = 'Remove empty nested folder';
+
+        await githubDocsApi.deleteGitHubFolder(folderPath, commitMessage);
+
+        expect(mockDelete).toHaveBeenCalledWith(
+          `/github/repos/${githubDocsApi.DOCS_CONFIG.owner}/${githubDocsApi.DOCS_CONFIG.repo}/folders/${githubDocsApi.DOCS_CONFIG.docsPath}/${folderPath}`,
+          {
+            message: commitMessage,
+            branch: githubDocsApi.DOCS_CONFIG.branch,
+          }
+        );
+      });
+
+      it('should use custom config when provided', async () => {
+        const mockResponse = { commit: { sha: 'custom-folder-delete' } };
+        mockDelete.mockResolvedValue(mockResponse);
+
+        const customConfig = {
+          owner: 'custom-owner',
+          repo: 'custom-repo',
+          branch: 'develop',
+          docsPath: 'documentation',
+        };
+
+        await githubDocsApi.deleteGitHubFolder(
+          'test-folder',
+          'Delete folder',
+          customConfig
+        );
+
+        expect(mockDelete).toHaveBeenCalledWith(
+          `/github/repos/${customConfig.owner}/${customConfig.repo}/folders/${customConfig.docsPath}/test-folder`,
+          {
+            message: 'Delete folder',
+            branch: customConfig.branch,
+          }
+        );
+      });
+
+      it('should handle folder not found error (404)', async () => {
+        const error = new Error('Folder not found');
+        mockDelete.mockRejectedValue(error);
+
+        await expect(
+          githubDocsApi.deleteGitHubFolder('nonexistent-folder', 'Delete')
+        ).rejects.toThrow('Folder not found');
+      });
+
+      it('should handle non-empty folder error (400)', async () => {
+        const error = new Error('cannot delete non-empty directory: contains file.md');
+        mockDelete.mockRejectedValue(error);
+
+        await expect(
+          githubDocsApi.deleteGitHubFolder('non-empty-folder', 'Delete')
+        ).rejects.toThrow('cannot delete non-empty directory');
+      });
+    });
+
+    describe('isFolderEmpty', () => {
+      it('should return true for folder with only .gitkeep', async () => {
+        const mockContents = [
+          {
+            name: '.gitkeep',
+            type: 'file',
+          },
+        ];
+        mockGet.mockResolvedValue(mockContents);
+
+        const result = await githubDocsApi.isFolderEmpty('empty-folder');
+
+        expect(result).toBe(true);
+        expect(mockGet).toHaveBeenCalledWith(
+          `/github/repos/${githubDocsApi.DOCS_CONFIG.owner}/${githubDocsApi.DOCS_CONFIG.repo}/contents/${githubDocsApi.DOCS_CONFIG.docsPath}/empty-folder`,
+          { params: { ref: githubDocsApi.DOCS_CONFIG.branch } }
+        );
+      });
+
+      it('should return false for folder with files', async () => {
+        const mockContents = [
+          {
+            name: '.gitkeep',
+            type: 'file',
+          },
+          {
+            name: 'document.md',
+            type: 'file',
+          },
+        ];
+        mockGet.mockResolvedValue(mockContents);
+
+        const result = await githubDocsApi.isFolderEmpty('non-empty-folder');
+
+        expect(result).toBe(false);
+      });
+
+      it('should return false for folder with subdirectories', async () => {
+        const mockContents = [
+          {
+            name: '.gitkeep',
+            type: 'file',
+          },
+          {
+            name: 'subfolder',
+            type: 'dir',
+          },
+        ];
+        mockGet.mockResolvedValue(mockContents);
+
+        const result = await githubDocsApi.isFolderEmpty('folder-with-subdirs');
+
+        expect(result).toBe(false);
+      });
+
+      it('should return false for folder without .gitkeep', async () => {
+        const mockContents = [
+          {
+            name: 'document.md',
+            type: 'file',
+          },
+        ];
+        mockGet.mockResolvedValue(mockContents);
+
+        const result = await githubDocsApi.isFolderEmpty('folder-no-gitkeep');
+
+        expect(result).toBe(false);
+      });
+
+      it('should return false for empty array (no .gitkeep)', async () => {
+        mockGet.mockResolvedValue([]);
+
+        const result = await githubDocsApi.isFolderEmpty('truly-empty-folder');
+
+        expect(result).toBe(false);
+      });
+
+      it('should use custom config when provided', async () => {
+        const mockContents = [{ name: '.gitkeep', type: 'file' }];
+        mockGet.mockResolvedValue(mockContents);
+
+        const customConfig = {
+          owner: 'custom-owner',
+          repo: 'custom-repo',
+          branch: 'develop',
+          docsPath: 'documentation',
+        };
+
+        await githubDocsApi.isFolderEmpty('test-folder', customConfig);
+
+        expect(mockGet).toHaveBeenCalledWith(
+          `/github/repos/${customConfig.owner}/${customConfig.repo}/contents/${customConfig.docsPath}/test-folder`,
+          { params: { ref: customConfig.branch } }
+        );
+      });
+
+      it('should handle API errors gracefully', async () => {
+        const error = new Error('Failed to fetch contents');
+        mockGet.mockRejectedValue(error);
+
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const result = await githubDocsApi.isFolderEmpty('error-folder');
+
+        expect(result).toBe(false);
+        expect(consoleSpy).toHaveBeenCalled();
+
+        consoleSpy.mockRestore();
+      });
+
+      it('should handle folder not found error', async () => {
+        const error = new Error('Folder not found');
+        mockGet.mockRejectedValue(error);
+
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const result = await githubDocsApi.isFolderEmpty('nonexistent-folder');
+
+        expect(result).toBe(false);
+
+        consoleSpy.mockRestore();
+      });
+    });
+
+    describe('Integration scenarios', () => {
+      it('should create and delete a file successfully', async () => {
+        // Create file
+        const createResponse = { commit: { sha: 'create123' }, content: { sha: 'file-sha' } };
+        mockPost.mockResolvedValue(createResponse);
+
+        await githubDocsApi.createGitHubFile('temp.md', 'content', 'Create temp');
+
+        // Delete file
+        const deleteResponse = { commit: { sha: 'delete123' } };
+        mockDelete.mockResolvedValue(deleteResponse);
+
+        await githubDocsApi.deleteGitHubFile('temp.md', 'file-sha', 'Delete temp');
+
+        expect(mockPost).toHaveBeenCalledTimes(1);
+        expect(mockDelete).toHaveBeenCalledTimes(1);
+      });
+
+      it('should create and delete a folder successfully', async () => {
+        // Create folder
+        const createResponse = { commit: { sha: 'folder-create' } };
+        mockPost.mockResolvedValue(createResponse);
+
+        await githubDocsApi.createGitHubFolder('temp-folder');
+
+        // Verify folder is empty
+        mockGet.mockResolvedValue([{ name: '.gitkeep', type: 'file' }]);
+        const isEmpty = await githubDocsApi.isFolderEmpty('temp-folder');
+        expect(isEmpty).toBe(true);
+
+        // Delete folder
+        const deleteResponse = { commit: { sha: 'folder-delete' } };
+        mockDelete.mockResolvedValue(deleteResponse);
+
+        await githubDocsApi.deleteGitHubFolder('temp-folder', 'Delete temp folder');
+
+        expect(mockPost).toHaveBeenCalledTimes(1);
+        expect(mockGet).toHaveBeenCalledTimes(1);
+        expect(mockDelete).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
 });

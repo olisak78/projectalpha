@@ -1,8 +1,13 @@
 import { UnifiedLinksGrid } from "./UnifiedLinksGrid";
+import { useLinksViewMode } from "@/stores/linksPageStore";
 import { useLinksPageContext } from "@/contexts/LinksPageContext";
 
 export const LinksGrid = () => {
-  const { filteredLinks, linksByCategory, linkCategories, viewMode } = useLinksPageContext();
+  // viewMode from Zustand
+  const viewMode = useLinksViewMode();
+  
+  // Data from context (derived from API)
+  const { filteredLinks, linksByCategory, linkCategories } = useLinksPageContext();
 
   return (
     <UnifiedLinksGrid

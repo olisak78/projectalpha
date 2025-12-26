@@ -7,7 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Landscape } from "@/types/developer-portal";
 import { getLandscapeHistory, addToLandscapeHistory } from "@/utils/landscapeHistory";
 import { sortLandscapeGroups } from "@/utils/developer-portal-helpers";
-import { usePortalState } from "@/contexts/hooks";
+import { useLandscapeSelection, useSelectedLandscape, useSelectedLandscapeForProject } from "@/stores/appStateStore";
 import { cn } from "@/lib/utils";
 
 interface LandscapeFilterProps {
@@ -34,18 +34,13 @@ export function LandscapeFilter({
   disableNonCentral = false
 }: LandscapeFilterProps) {
   const [open, setOpen] = useState(false);
-  
-  // Use context for project-specific landscape selection
-  const { 
-    getSelectedLandscapeForProject, 
-    setSelectedLandscapeForProject,
-    selectedLandscape: globalSelectedLandscape 
-  } = usePortalState();
-  
+
+  const { getSelectedLandscapeForProject, setSelectedLandscapeForProject } = useLandscapeSelection();
+  const globalSelectedLandscape = useSelectedLandscape();
+
   // Determine which landscape to use
-  const selectedLandscape = projectId 
-    ? getSelectedLandscapeForProject(projectId) 
-    : (propSelectedLandscape ?? globalSelectedLandscape);
+  const projectSelectedLandscape = useSelectedLandscapeForProject(projectId || ''); // Hook, creates subscription!
+  const selectedLandscape = projectId ? projectSelectedLandscape : globalSelectedLandscape;
 
   const frequentlyVisitedGroup = useMemo(() => {
     const history = getLandscapeHistory();
@@ -96,17 +91,17 @@ export function LandscapeFilter({
   // Prepare grouped landscapes with frequent at top
   const groupedLandscapes = useMemo(() => {
     const groups: Record<string, Landscape[]> = {};
-    
+
     // Add frequently visited if exists
     if (frequentlyVisitedGroup.length > 0) {
       groups['Frequently Visited'] = frequentlyVisitedGroup;
     }
-    
+
     // Add all other groups
     Object.entries(landscapeGroups).forEach(([groupName, landscapes]) => {
       groups[groupName] = landscapes;
     });
-    
+
     return groups;
   }, [landscapeGroups, frequentlyVisitedGroup]);
 
@@ -123,12 +118,12 @@ export function LandscapeFilter({
     if (value) {
       addToLandscapeHistory(value);
     }
-    
+
     // Use project-specific landscape setting if projectId is provided
     if (projectId) {
       setSelectedLandscapeForProject(projectId, value);
     }
-    
+
     onLandscapeChange(value);
     setOpen(false);
   };
@@ -187,8 +182,8 @@ export function LandscapeFilter({
                 <CommandList className="max-h-[400px]">
                   <CommandEmpty>No landscapes found</CommandEmpty>
                   {sortedLandscapeGroups.map(([groupName, landscapes]) => (
-                    <CommandGroup 
-                      key={groupName} 
+                    <CommandGroup
+                      key={groupName}
                       heading={
                         <div className="flex items-center gap-1.5">
                           {groupName === 'Frequently Visited' && <Clock className="h-3 w-3" />}
@@ -200,7 +195,7 @@ export function LandscapeFilter({
                         const isCentral = isCentralLandscape(landscape);
                         const isDisabled = isLandscapeDisabled(landscape);
                         const landscapeName = (landscape as any).technical_name || landscape.name;
-                        
+
                         return (
                           <CommandItem
                             key={landscape.id}
