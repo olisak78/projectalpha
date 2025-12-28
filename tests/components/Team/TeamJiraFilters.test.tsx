@@ -1,410 +1,604 @@
-import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import '@testing-library/jest-dom';
-import { TeamJiraFilters } from '../../../src/components/Team/TeamJiraFilters';
-import { useTeamContext } from '../../../src/contexts/TeamContext';
-import type { Member } from '../../../src/hooks/useOnDutyData';
+import { render, screen } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
+import { TeamJiraFilters } from '@/components/Team/TeamJiraFilters';
 
-// Mock the TeamContext
-vi.mock('../../../src/contexts/TeamContext');
+// Mock TeamContext
+vi.mock('@/contexts/TeamContext', () => ({
+  useTeamContext: vi.fn(),
+}));
 
-const mockUseTeamContext = vi.mocked(useTeamContext);
+// Mock Zustand store hooks
+vi.mock('@/stores/teamStore', () => ({
+  useJiraSearch: vi.fn(),
+  useJiraAssigneeFilter: vi.fn(),
+  useJiraStatusFilter: vi.fn(),
+  useJiraSortBy: vi.fn(),
+  useJiraFilterActions: vi.fn(),
+}));
+
+// Mock UI components
+vi.mock('@/components/ui/select', () => ({
+  Select: vi.fn(({ value, onValueChange, children }) => (
+    <div data-testid="select" data-value={value}>
+      <button onClick={() => onValueChange?.(value)}>Select</button>
+      {children}
+    </div>
+  )),
+  SelectTrigger: vi.fn(({ children }) => (
+    <div data-testid="select-trigger">{children}</div>
+  )),
+  SelectValue: vi.fn(({ placeholder }) => (
+    <div data-testid="select-value">{placeholder || 'Value'}</div>
+  )),
+  SelectContent: vi.fn(({ children }) => (
+    <div data-testid="select-content">{children}</div>
+  )),
+  SelectItem: vi.fn(({ value, children }) => (
+    <div data-testid={`select-item-${value}`} data-value={value}>
+      {children}
+    </div>
+  )),
+}));
+
+vi.mock('@/components/ui/input', () => ({
+  Input: vi.fn((props) => <input data-testid="search-input" {...props} />),
+}));
+
+import { useTeamContext } from '@/contexts/TeamContext';
+import {
+  useJiraSearch,
+  useJiraAssigneeFilter,
+  useJiraStatusFilter,
+  useJiraSortBy,
+  useJiraFilterActions,
+} from '@/stores/teamStore';
 
 describe('TeamJiraFilters', () => {
-  const mockMembers: Member[] = [
+  const mockSetSearch = vi.fn();
+  const mockSetAssigneeFilter = vi.fn();
+  const mockSetStatusFilter = vi.fn();
+  const mockSetSortBy = vi.fn();
+
+  const mockMembers = [
     {
-      id: '1',
+      id: 'member-1',
       fullName: 'John Doe',
-      email: 'john.doe@example.com',
+      email: 'john@example.com',
       role: 'Developer',
+      iuser: 'jdoe',
       team: 'Team A',
-      iuser: 'john.doe',
-      uuid: 'uuid-1'
+      uuid: 'uuid-1',
     },
     {
-      id: '2',
+      id: 'member-2',
       fullName: 'Jane Smith',
-      email: 'jane.smith@example.com',
-      role: 'Manager',
+      email: 'jane@example.com',
+      role: 'Designer',
+      iuser: 'jsmith',
       team: 'Team A',
-      iuser: 'jane.smith',
-      uuid: 'uuid-2'
+      uuid: 'uuid-2',
     },
     {
-      id: '3',
+      id: 'member-3',
       fullName: 'Bob Johnson',
-      email: 'bob.johnson@example.com',
-      role: 'Developer',
+      email: 'bob@example.com',
+      role: 'Manager',
+      iuser: 'bjohnson',
       team: 'Team A',
-      iuser: 'bob.johnson',
-      uuid: 'uuid-3'
-    }
+      uuid: 'uuid-3',
+    },
   ];
-
-  const mockJiraFilters = {
-    assigneeFilter: 'all',
-    setAssigneeFilter: vi.fn(),
-    statusFilter: 'all',
-    setStatusFilter: vi.fn(),
-    sortBy: 'updated_desc',
-    setSortBy: vi.fn(),
-    search: '',
-    setSearch: vi.fn(),
-    quickFilter: 'all' as const,
-    setQuickFilter: vi.fn(),
-    currentPage: 1,
-    setCurrentPage: vi.fn(),
-    totalPages: 1,
-    totalItems: 0,
-    itemsPerPage: 10,
-    filteredIssues: [],
-    isLoading: false,
-    error: null,
-  };
-
-  const defaultMockContext = {
-    teamId: 'team-1',
-    teamName: 'Team A',
-    currentTeam: null,
-    teamOptions: ['Team A', 'Team B'],
-    members: mockMembers,
-    memberDialogOpen: false,
-    setMemberDialogOpen: vi.fn(),
-    editingMember: null,
-    memberForm: {},
-    setMemberForm: vi.fn(),
-    openAddMember: vi.fn(),
-    openEditMember: vi.fn(),
-    deleteMember: vi.fn(),
-    moveMember: vi.fn(),
-    createMember: vi.fn(),
-    jiraFilters: mockJiraFilters,
-    teamLinks: {
-      links: [],
-      linkDialogOpen: false,
-      onLinkDialogOpenChange: vi.fn(),
-      removeLink: vi.fn(),
-      setLinks: vi.fn(),
-    },
-    teamComponents: {
-      componentsData: undefined,
-      teamComponentsExpanded: {},
-      toggleComponentExpansion: vi.fn(),
-    },
-    scheduleData: {
-      todayAssignments: {
-        dayMember: null,
-        nightMember: null,
-      },
-    },
-    scoreboardData: {
-      jiraTop3: [],
-      gitTop3: [],
-      dutyTop3: [],
-      crossTeamRows: [],
-      scoreWeights: {
-        jira: 1,
-        git: 1,
-        duty: 1,
-      },
-    },
-    isAdmin: false,
-    onOpenComponent: vi.fn(),
-    isLoading: false,
-    error: null,
-  };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseTeamContext.mockReturnValue(defaultMockContext);
+
+    vi.mocked(useTeamContext).mockReturnValue({
+      members: mockMembers,
+    } as any);
+
+    vi.mocked(useJiraSearch).mockReturnValue('');
+    vi.mocked(useJiraAssigneeFilter).mockReturnValue('all');
+    vi.mocked(useJiraStatusFilter).mockReturnValue('all');
+    vi.mocked(useJiraSortBy).mockReturnValue('updated_desc');
+
+    vi.mocked(useJiraFilterActions).mockReturnValue({
+      setSearch: mockSetSearch,
+      setAssigneeFilter: mockSetAssigneeFilter,
+      setStatusFilter: mockSetStatusFilter,
+      setSortBy: mockSetSortBy,
+    });
   });
 
-  describe('Component Rendering', () => {
-    it('renders all filter elements with correct structure and styling', () => {
+  describe('Rendering', () => {
+    it('should render all filter sections', () => {
       render(<TeamJiraFilters />);
 
-      // Check for search input
-      expect(screen.getByPlaceholderText('Search key or summary')).toBeInTheDocument();
-      
-      // Check for filter labels with correct styling
-      const labelElements = screen.getAllByText(/Search|Assignee|Status|Order by/);
-      expect(labelElements).toHaveLength(4);
-      labelElements.forEach(label => {
-        expect(label).toHaveClass('text-xs', 'text-muted-foreground', 'mb-1');
-      });
+      expect(screen.getByText('Search')).toBeInTheDocument();
+      expect(screen.getByText('Assignee')).toBeInTheDocument();
+      expect(screen.getByText('Status')).toBeInTheDocument();
+      expect(screen.getByText('Order by')).toBeInTheDocument();
+    });
 
-      // Check for select triggers
-      expect(screen.getAllByRole('combobox')).toHaveLength(3); // Assignee, Status, Sort by
-      
-      // Check responsive layout
-      const { container } = render(<TeamJiraFilters />);
-      const mainContainer = container.firstChild;
-      expect(mainContainer).toHaveClass('flex', 'flex-col', 'md:flex-row', 'gap-3', 'md:items-end', 'mb-4');
+    it('should render search input', () => {
+      render(<TeamJiraFilters />);
+
+      const searchInput = screen.getByTestId('search-input');
+      expect(searchInput).toBeInTheDocument();
+      expect(searchInput).toHaveAttribute('placeholder', 'Search key or summary');
+    });
+
+    it('should render assignee select', () => {
+      render(<TeamJiraFilters />);
+
+      const assigneeSelects = screen.getAllByTestId('select');
+      expect(assigneeSelects.length).toBeGreaterThan(0);
+    });
+
+    it('should render status select', () => {
+      render(<TeamJiraFilters />);
+
+      const selects = screen.getAllByTestId('select');
+      expect(selects.length).toBe(3); // Assignee, Status, Sort
+    });
+
+    it('should render sort by select', () => {
+      render(<TeamJiraFilters />);
+
+      const selects = screen.getAllByTestId('select');
+      expect(selects.length).toBe(3);
     });
   });
 
   describe('Search Functionality', () => {
-    it('displays and updates search value correctly', () => {
-      const contextWithSearch = {
-        ...defaultMockContext,
-        jiraFilters: {
-          ...mockJiraFilters,
-          search: 'test search',
-        },
-      };
-      mockUseTeamContext.mockReturnValue(contextWithSearch);
+    it('should display current search value', () => {
+      vi.mocked(useJiraSearch).mockReturnValue('TEST-123');
 
       render(<TeamJiraFilters />);
-      
-      const searchInput = screen.getByPlaceholderText('Search key or summary');
-      expect(searchInput).toHaveValue('test search');
-      
-      // Test updating search
-      fireEvent.change(searchInput, { target: { value: 'new search term' } });
-      expect(mockJiraFilters.setSearch).toHaveBeenCalledWith('new search term');
+
+      const searchInput = screen.getByTestId('search-input') as HTMLInputElement;
+      expect(searchInput.value).toBe('TEST-123');
     });
 
-    it('handles various search input scenarios', () => {
+    it('should call setSearch when search input changes', async () => {
+      const user = userEvent.setup();
+
       render(<TeamJiraFilters />);
-      
-      const searchInput = screen.getByPlaceholderText('Search key or summary');
-      
-      // Test basic text input
-      fireEvent.change(searchInput, { target: { value: 'basic search' } });
-      expect(mockJiraFilters.setSearch).toHaveBeenCalledWith('basic search');
-      
-      // Test special characters
-      fireEvent.change(searchInput, { target: { value: '!@#$%^&*()' } });
-      expect(mockJiraFilters.setSearch).toHaveBeenCalledWith('!@#$%^&*()');
-      
-      // Test long search term
-      const longTerm = 'a'.repeat(100);
-      fireEvent.change(searchInput, { target: { value: longTerm } });
-      expect(mockJiraFilters.setSearch).toHaveBeenCalledWith(longTerm);
-      
-      // Verify calls were made
-      expect(mockJiraFilters.setSearch).toHaveBeenCalledTimes(3);
+
+      const searchInput = screen.getByTestId('search-input');
+      await user.type(searchInput, 'test');
+
+      expect(mockSetSearch).toHaveBeenCalledWith('t');
+      expect(mockSetSearch).toHaveBeenCalledWith('e');
+      expect(mockSetSearch).toHaveBeenCalledWith('s');
+      expect(mockSetSearch).toHaveBeenCalledWith('t');
     });
 
-    it('handles clearing search input correctly', () => {
-      // Start with a context that has a search value
-      const contextWithSearch = {
-        ...defaultMockContext,
-        jiraFilters: {
-          ...mockJiraFilters,
-          search: 'initial value',
-        },
-      };
-      mockUseTeamContext.mockReturnValue(contextWithSearch);
+    it('should handle empty search', () => {
+      vi.mocked(useJiraSearch).mockReturnValue('');
 
       render(<TeamJiraFilters />);
-      
-      const searchInput = screen.getByPlaceholderText('Search key or summary');
-      expect(searchInput).toHaveValue('initial value');
-      
-      // Clear the search
-      fireEvent.change(searchInput, { target: { value: '' } });
-      expect(mockJiraFilters.setSearch).toHaveBeenCalledWith('');
+
+      const searchInput = screen.getByTestId('search-input') as HTMLInputElement;
+      expect(searchInput.value).toBe('');
+    });
+
+    it('should call setSearch when clearing search', async () => {
+      const user = userEvent.setup();
+      vi.mocked(useJiraSearch).mockReturnValue('existing');
+
+      render(<TeamJiraFilters />);
+
+      const searchInput = screen.getByTestId('search-input');
+      await user.clear(searchInput);
+
+      expect(mockSetSearch).toHaveBeenCalledWith('');
     });
   });
 
-  describe('Filter Dropdowns', () => {
-    it('renders all select components with proper handlers', () => {
+  describe('Assignee Filter', () => {
+
+    it('should display "Unassigned" option in assignee filter', () => {
       render(<TeamJiraFilters />);
-      
-      // Verify all handler functions are properly connected
-      expect(mockJiraFilters.setAssigneeFilter).toBeDefined();
-      expect(mockJiraFilters.setStatusFilter).toBeDefined();
-      expect(mockJiraFilters.setSortBy).toBeDefined();
-      
-      // Verify select elements are rendered
-      const selectElements = screen.getAllByRole('combobox');
-      expect(selectElements).toHaveLength(3);
-      
-      selectElements.forEach(select => {
-        expect(select).toHaveAttribute('aria-expanded', 'false');
+
+      expect(screen.getByTestId('select-item-Unassigned')).toHaveTextContent('Unassigned');
+    });
+
+    it('should render all team members in assignee filter', () => {
+      render(<TeamJiraFilters />);
+
+      expect(screen.getByTestId('select-item-member-1')).toHaveTextContent('John Doe');
+      expect(screen.getByTestId('select-item-member-2')).toHaveTextContent('Jane Smith');
+      expect(screen.getByTestId('select-item-member-3')).toHaveTextContent('Bob Johnson');
+    });
+
+    it('should display current assignee filter value', () => {
+      vi.mocked(useJiraAssigneeFilter).mockReturnValue('member-1');
+
+      render(<TeamJiraFilters />);
+
+      const selects = screen.getAllByTestId('select');
+      const assigneeSelect = selects[0];
+      expect(assigneeSelect).toHaveAttribute('data-value', 'member-1');
+    });
+
+  });
+
+  describe('Status Filter', () => {
+    it('should display "All" option in status filter', () => {
+      render(<TeamJiraFilters />);
+
+      const allItems = screen.getAllByTestId('select-item-all');
+      expect(allItems.length).toBeGreaterThan(0);
+    });
+
+    it('should render all task statuses', () => {
+      render(<TeamJiraFilters />);
+
+      expect(screen.getByTestId('select-item-In Progress')).toHaveTextContent('In Progress');
+      expect(screen.getByTestId('select-item-Open')).toHaveTextContent('Open');
+      expect(screen.getByTestId('select-item-Resolved')).toHaveTextContent('Resolved');
+      expect(screen.getByTestId('select-item-Closed')).toHaveTextContent('Closed');
+    });
+
+    it('should display current status filter value', () => {
+      vi.mocked(useJiraStatusFilter).mockReturnValue('In Progress');
+
+      render(<TeamJiraFilters />);
+
+      const selects = screen.getAllByTestId('select');
+      const statusSelect = selects[1];
+      expect(statusSelect).toHaveAttribute('data-value', 'In Progress');
+    });
+
+    it('should display "all" when no specific status is selected', () => {
+      vi.mocked(useJiraStatusFilter).mockReturnValue('all');
+
+      render(<TeamJiraFilters />);
+
+      const selects = screen.getAllByTestId('select');
+      const statusSelect = selects[1];
+      expect(statusSelect).toHaveAttribute('data-value', 'all');
+    });
+  });
+
+  describe('Sort By Filter', () => {
+    it('should render all sort options', () => {
+      render(<TeamJiraFilters />);
+
+      expect(screen.getByTestId('select-item-updated_desc')).toHaveTextContent('Updated (newest)');
+      expect(screen.getByTestId('select-item-updated_asc')).toHaveTextContent('Updated (oldest)');
+      expect(screen.getByTestId('select-item-created_desc')).toHaveTextContent('Created (newest)');
+      expect(screen.getByTestId('select-item-created_asc')).toHaveTextContent('Created (oldest)');
+      expect(screen.getByTestId('select-item-priority')).toHaveTextContent('Priority');
+    });
+
+    it('should display current sort by value', () => {
+      vi.mocked(useJiraSortBy).mockReturnValue('priority');
+
+      render(<TeamJiraFilters />);
+
+      const selects = screen.getAllByTestId('select');
+      const sortSelect = selects[2];
+      expect(sortSelect).toHaveAttribute('data-value', 'priority');
+    });
+
+    it('should default to "updated_desc"', () => {
+      vi.mocked(useJiraSortBy).mockReturnValue('updated_desc');
+
+      render(<TeamJiraFilters />);
+
+      const selects = screen.getAllByTestId('select');
+      const sortSelect = selects[2];
+      expect(sortSelect).toHaveAttribute('data-value', 'updated_desc');
+    });
+  });
+
+  describe('Integration with Store', () => {
+    it('should use search from Zustand store', () => {
+      render(<TeamJiraFilters />);
+
+      expect(useJiraSearch).toHaveBeenCalled();
+    });
+
+    it('should use assignee filter from Zustand store', () => {
+      render(<TeamJiraFilters />);
+
+      expect(useJiraAssigneeFilter).toHaveBeenCalled();
+    });
+
+    it('should use status filter from Zustand store', () => {
+      render(<TeamJiraFilters />);
+
+      expect(useJiraStatusFilter).toHaveBeenCalled();
+    });
+
+    it('should use sort by from Zustand store', () => {
+      render(<TeamJiraFilters />);
+
+      expect(useJiraSortBy).toHaveBeenCalled();
+    });
+
+    it('should get filter actions from Zustand store', () => {
+      render(<TeamJiraFilters />);
+
+      expect(useJiraFilterActions).toHaveBeenCalled();
+    });
+  });
+
+  describe('Integration with Context', () => {
+    it('should get members from TeamContext', () => {
+      render(<TeamJiraFilters />);
+
+      expect(useTeamContext).toHaveBeenCalled();
+    });
+
+    it('should render members from context in assignee filter', () => {
+      render(<TeamJiraFilters />);
+
+      mockMembers.forEach(member => {
+        expect(screen.getByTestId(`select-item-${member.id}`)).toHaveTextContent(member.fullName);
       });
     });
 
-    it('displays current filter values correctly', () => {
-      const contextWithFilters = {
-        ...defaultMockContext,
-        jiraFilters: {
-          ...mockJiraFilters,
-          assigneeFilter: '1',
-          statusFilter: 'In Progress',
-          sortBy: 'priority',
-        },
-      };
-      mockUseTeamContext.mockReturnValue(contextWithFilters);
-
-      render(<TeamJiraFilters />);
-      
-      // Component should render without errors with all filter values set
-      expect(screen.getAllByRole('combobox')).toHaveLength(3);
-    });
-  });
-
-  describe('Edge Cases and Error Handling', () => {
-    it('handles empty members list gracefully', () => {
-      const contextWithNoMembers = {
-        ...defaultMockContext,
-        members: [],
-      };
-      mockUseTeamContext.mockReturnValue(contextWithNoMembers);
-
-      render(<TeamJiraFilters />);
-      
-      // Component should still render all elements
-      expect(screen.getByPlaceholderText('Search key or summary')).toBeInTheDocument();
-      expect(screen.getAllByRole('combobox')).toHaveLength(3);
-    });
-
-    it('handles members with incomplete data', () => {
-      const membersWithIncompleteData: Member[] = [
-        {
-          id: '1',
-          fullName: '',
-          email: 'test@example.com',
-          role: 'Developer',
-          team: 'Team A',
-          iuser: 'test',
-          uuid: 'uuid-1'
-        }
-      ];
-
-      const contextWithIncompleteMembers = {
-        ...defaultMockContext,
-        members: membersWithIncompleteData,
-      };
-      mockUseTeamContext.mockReturnValue(contextWithIncompleteMembers);
-
-      render(<TeamJiraFilters />);
-      
-      // Component should render without errors
-      expect(screen.getByPlaceholderText('Search key or summary')).toBeInTheDocument();
-    });
-
-    it('handles varying member list sizes', () => {
-      // Test with many members
-      const manyMembers = Array.from({ length: 10 }, (_, i) => ({
+    it('should handle context with many members', () => {
+      const manyMembers = Array.from({ length: 50 }, (_, i) => ({
         id: `member-${i}`,
         fullName: `Member ${i}`,
         email: `member${i}@example.com`,
         role: 'Developer',
+        iuser: `user${i}`,
         team: 'Team A',
-        iuser: `member${i}`,
-        uuid: `uuid-${i}`
+        uuid: `uuid-${i}`,
       }));
 
-      const contextWithManyMembers = {
-        ...defaultMockContext,
+      vi.mocked(useTeamContext).mockReturnValue({
         members: manyMembers,
-      };
-      mockUseTeamContext.mockReturnValue(contextWithManyMembers);
+      } as any);
 
       render(<TeamJiraFilters />);
-      expect(screen.getAllByRole('combobox')).toHaveLength(3);
-    });
 
-    it('requires valid jiraFilters context', () => {
-      const contextWithNullFilters = {
-        ...defaultMockContext,
-        jiraFilters: null as any,
-      };
-      mockUseTeamContext.mockReturnValue(contextWithNullFilters);
-
-      // Component should throw when jiraFilters is null (expected behavior)
-      expect(() => render(<TeamJiraFilters />)).toThrow();
-    });
-  });
-
-  describe('Integration and State Management', () => {
-    it('uses context correctly and maintains independent filter states', () => {
-      const contextWithFilters = {
-        ...defaultMockContext,
-        jiraFilters: {
-          ...mockJiraFilters,
-          search: 'test',
-          assigneeFilter: '1',
-          statusFilter: 'Open',
-          sortBy: 'priority',
-        },
-      };
-      mockUseTeamContext.mockReturnValue(contextWithFilters);
-
-      render(<TeamJiraFilters />);
-      
-      expect(mockUseTeamContext).toHaveBeenCalled();
-      
-      // Verify search input displays correct value
-      const searchInput = screen.getByPlaceholderText('Search key or summary');
-      expect(searchInput).toHaveValue('test');
-      
-      // Changing search shouldn't affect other filters
-      fireEvent.change(searchInput, { target: { value: 'new test' } });
-      expect(mockJiraFilters.setSearch).toHaveBeenCalledWith('new test');
-      expect(mockJiraFilters.setAssigneeFilter).not.toHaveBeenCalled();
-      expect(mockJiraFilters.setStatusFilter).not.toHaveBeenCalled();
-      expect(mockJiraFilters.setSortBy).not.toHaveBeenCalled();
-    });
-
-    it('handles context updates correctly', () => {
-      const { rerender } = render(<TeamJiraFilters />);
-      
-      // Update context with new values
-      const updatedContext = {
-        ...defaultMockContext,
-        jiraFilters: {
-          ...mockJiraFilters,
-          search: 'updated search',
-          assigneeFilter: '2',
-          statusFilter: 'Closed',
-          sortBy: 'created_desc',
-        },
-      };
-      
-      mockUseTeamContext.mockReturnValue(updatedContext);
-      rerender(<TeamJiraFilters />);
-      
-      const searchInput = screen.getByPlaceholderText('Search key or summary');
-      expect(searchInput).toHaveValue('updated search');
-    });
-
-    it('handles rapid successive changes', () => {
-      render(<TeamJiraFilters />);
-      
-      const searchInput = screen.getByPlaceholderText('Search key or summary');
-      
-      // Simulate rapid typing
-      fireEvent.change(searchInput, { target: { value: 'a' } });
-      fireEvent.change(searchInput, { target: { value: 'ab' } });
-      fireEvent.change(searchInput, { target: { value: 'abc' } });
-      
-      expect(mockJiraFilters.setSearch).toHaveBeenCalledTimes(3);
-      expect(mockJiraFilters.setSearch).toHaveBeenLastCalledWith('abc');
-    });
-  });
-
-  describe('Accessibility', () => {
-    it('provides proper accessibility features', () => {
-      render(<TeamJiraFilters />);
-      
-      // Check form elements have proper accessibility
-      expect(screen.getByPlaceholderText('Search key or summary')).toBeInTheDocument();
-      
-      // Check select elements have proper ARIA attributes
-      const comboBoxes = screen.getAllByRole('combobox');
-      expect(comboBoxes).toHaveLength(3);
-      
-      comboBoxes.forEach(comboBox => {
-        expect(comboBox).toHaveAttribute('aria-expanded', 'false');
+      // Should render all members
+      manyMembers.forEach(member => {
+        expect(screen.getByTestId(`select-item-${member.id}`)).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('Labels', () => {
+    it('should render "Search" label', () => {
+      render(<TeamJiraFilters />);
+
+      expect(screen.getByText('Search')).toBeInTheDocument();
+    });
+
+    it('should render "Assignee" label', () => {
+      render(<TeamJiraFilters />);
+
+      expect(screen.getByText('Assignee')).toBeInTheDocument();
+    });
+
+    it('should render "Status" label', () => {
+      render(<TeamJiraFilters />);
+
+      expect(screen.getByText('Status')).toBeInTheDocument();
+    });
+
+    it('should render "Order by" label', () => {
+      render(<TeamJiraFilters />);
+
+      expect(screen.getByText('Order by')).toBeInTheDocument();
+    });
+
+    it('should style labels with muted foreground', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const labels = container.querySelectorAll('.text-muted-foreground');
+      expect(labels.length).toBeGreaterThan(0);
+    });
+
+    it('should apply small text size to labels', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const labels = container.querySelectorAll('.text-xs');
+      expect(labels.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Layout', () => {
+    it('should use flexbox layout', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const mainContainer = container.querySelector('.flex');
+      expect(mainContainer).toBeInTheDocument();
+    });
+
+    it('should be responsive with flex-col on mobile', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const mainContainer = container.querySelector('.flex-col');
+      expect(mainContainer).toBeInTheDocument();
+    });
+
+    it('should switch to flex-row on medium screens', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const mainContainer = container.querySelector('.md\\:flex-row');
+      expect(mainContainer).toBeInTheDocument();
+    });
+
+    it('should have proper spacing between elements', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const mainContainer = container.querySelector('.gap-3');
+      expect(mainContainer).toBeInTheDocument();
+    });
+
+    it('should align items at end on medium screens', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const mainContainer = container.querySelector('.md\\:items-end');
+      expect(mainContainer).toBeInTheDocument();
+    });
+
+    it('should have margin bottom', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const mainContainer = container.querySelector('.mb-4');
+      expect(mainContainer).toBeInTheDocument();
+    });
+  });
+
+  describe('Filter Widths', () => {
+    it('should make search input flex-1', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const searchContainer = container.querySelector('.flex-1');
+      expect(searchContainer).toBeInTheDocument();
+    });
+
+    it('should set min-width for assignee filter', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const assigneeContainer = container.querySelector('.min-w-\\[180px\\]');
+      expect(assigneeContainer).toBeInTheDocument();
+    });
+
+    it('should set min-width for status filter', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const statusContainer = container.querySelector('.min-w-\\[160px\\]');
+      expect(statusContainer).toBeInTheDocument();
+    });
+
+    it('should set min-width for sort filter', () => {
+      const { container } = render(<TeamJiraFilters />);
+
+      const sortContainer = container.querySelector('.min-w-\\[200px\\]');
+      expect(sortContainer).toBeInTheDocument();
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle member with missing fullName', () => {
+      const membersWithMissingName = [
+        {
+          id: 'member-1',
+          fullName: '',
+          email: 'test@example.com',
+          role: 'Developer',
+          iuser: 'test',
+          team: 'Team A',
+          uuid: 'uuid-1',
+        },
+      ];
+
+      vi.mocked(useTeamContext).mockReturnValue({
+        members: membersWithMissingName,
+      } as any);
+
+      render(<TeamJiraFilters />);
+
+      expect(screen.getByTestId('select-item-member-1')).toBeInTheDocument();
+    });
+
+    it('should handle special characters in search', async () => {
+      const user = userEvent.setup();
+
+      render(<TeamJiraFilters />);
+
+      const searchInput = screen.getByTestId('search-input');
+      await user.type(searchInput, '!@#$%');
+
+      expect(mockSetSearch).toHaveBeenCalled();
+    });
+
+    it('should handle very long search strings', async () => {
+      const user = userEvent.setup();
+
+      render(<TeamJiraFilters />);
+
+      const searchInput = screen.getByTestId('search-input');
+      const longString = 'a'.repeat(1000);
+      await user.type(searchInput, longString);
+
+      expect(mockSetSearch).toHaveBeenCalled();
+    });
+
+    it('should handle members with duplicate names', () => {
+      const membersWithDuplicates = [
+        {
+          id: 'member-1',
+          fullName: 'John Doe',
+          email: 'john1@example.com',
+          role: 'Developer',
+          iuser: 'jdoe1',
+          team: 'Team A',
+          uuid: 'uuid-1',
+        },
+        {
+          id: 'member-2',
+          fullName: 'John Doe',
+          email: 'john2@example.com',
+          role: 'Designer',
+          iuser: 'jdoe2',
+          team: 'Team A',
+          uuid: 'uuid-2',
+        },
+      ];
+
+      vi.mocked(useTeamContext).mockReturnValue({
+        members: membersWithDuplicates,
+      } as any);
+
+      render(<TeamJiraFilters />);
+
+      // Both should render with unique keys
+      expect(screen.getByTestId('select-item-member-1')).toBeInTheDocument();
+      expect(screen.getByTestId('select-item-member-2')).toBeInTheDocument();
+    });
+  });
+
+  describe('Filter State Combinations', () => {
+    it('should handle all filters set to default values', () => {
+      vi.mocked(useJiraSearch).mockReturnValue('');
+      vi.mocked(useJiraAssigneeFilter).mockReturnValue('all');
+      vi.mocked(useJiraStatusFilter).mockReturnValue('all');
+      vi.mocked(useJiraSortBy).mockReturnValue('updated_desc');
+
+      render(<TeamJiraFilters />);
+
+      expect(screen.getByTestId('search-input')).toHaveValue('');
       
-      // Test focus management
-      const searchInput = screen.getByPlaceholderText('Search key or summary');
-      searchInput.focus();
-      expect(document.activeElement).toBe(searchInput);
+      const selects = screen.getAllByTestId('select');
+      expect(selects[0]).toHaveAttribute('data-value', 'all');
+      expect(selects[1]).toHaveAttribute('data-value', 'all');
+      expect(selects[2]).toHaveAttribute('data-value', 'updated_desc');
+    });
+
+    it('should handle all filters with specific values', () => {
+      vi.mocked(useJiraSearch).mockReturnValue('TEST-123');
+      vi.mocked(useJiraAssigneeFilter).mockReturnValue('member-1');
+      vi.mocked(useJiraStatusFilter).mockReturnValue('In Progress');
+      vi.mocked(useJiraSortBy).mockReturnValue('priority');
+
+      render(<TeamJiraFilters />);
+
+      expect(screen.getByTestId('search-input')).toHaveValue('TEST-123');
+      
+      const selects = screen.getAllByTestId('select');
+      expect(selects[0]).toHaveAttribute('data-value', 'member-1');
+      expect(selects[1]).toHaveAttribute('data-value', 'In Progress');
+      expect(selects[2]).toHaveAttribute('data-value', 'priority');
+    });
+
+    it('should handle unassigned filter', () => {
+      vi.mocked(useJiraAssigneeFilter).mockReturnValue('Unassigned');
+
+      render(<TeamJiraFilters />);
+
+      const selects = screen.getAllByTestId('select');
+      expect(selects[0]).toHaveAttribute('data-value', 'Unassigned');
     });
   });
 });

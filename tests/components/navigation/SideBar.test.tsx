@@ -1,507 +1,776 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
-import { SideBar } from '../../../src/components/Sidebar/SideBar';
-import { ProjectsProvider } from '../../../src/contexts/ProjectsContext';
-import { ReactNode } from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
+import { SideBar } from '@/components/Sidebar/SideBar';
 
-// Mock the useFetchProjects hook
-vi.mock('@/hooks/api/useProjects', () => ({
-  useFetchProjects: vi.fn(() => ({
-    data: [
-      { title: 'CIS@2.0', name: 'CIS@2.0' },
-      { title: 'Cloud Automation', name: 'Cloud Automation' },
-      { title: 'Unified Services', name: 'Unified Services' }
-    ],
-    isLoading: false,
-    error: null
-  }))
+// Mock stores
+vi.mock('@/stores/sidebarStore', () => ({
+  useSidebarStore: vi.fn(),
 }));
 
-// Mock the usePlugins hook
+vi.mock('@/stores/projectsStore', () => ({
+  useProjects: vi.fn(),
+  useSidebarItems: vi.fn(),
+  useProjectsLoading: vi.fn(),
+}));
+
+// Mock hooks
+vi.mock('@/hooks/useProjectVisibility', () => ({
+  useProjectVisibility: vi.fn(),
+}));
+
 vi.mock('@/hooks/api/usePlugins', () => ({
-  usePlugins: vi.fn(() => ({
-    data: {
-      plugins: [
-        {
-          id: '1',
-          name: 'Test Plugin',
-          title: 'Test Plugin',
-          slug: 'test-plugin',
-          icon: 'Puzzle',
-          subscribed: true
-        },
-        {
-          id: '2',
-          name: 'Another Plugin',
-          title: 'Another Plugin',
-          slug: 'another-plugin',
-          icon: 'Brain',
-          subscribed: false
-        }
-      ],
-      total: 2
-    },
-    isLoading: false,
-    error: null
-  }))
+  usePlugins: vi.fn(),
 }));
 
-/**
- * Sidebar Component Tests
- * 
- * Tests for the SideBar component which provides navigation between different
- * projects in the developer portal. The sidebar can be expanded or collapsed
- * and displays project icons alongside project names.
- * 
- * Component Location: src/components/Sidebar/SideBar.tsx
- * Context Location: src/contexts/SidebarContext.tsx
- */
+// Mock utilities
+vi.mock('@/lib/utils', () => ({
+  buildJiraFeedbackUrl: vi.fn(),
+  cn: vi.fn((...classes) => classes.filter(Boolean).join(' ')),
+}));
 
-// ============================================================================
-// TEST UTILITIES
-// ============================================================================
+// Mock icons
+vi.mock('../icons/CloudAutomationIcon', () => ({
+  CloudAutomationIcon: vi.fn(() => <div data-testid="cloud-automation-icon">CA</div>),
+}));
 
-/**
- * Wrapper component that provides SidebarContext and ProjectsContext for testing
- */
-function createSidebarWrapper() {
-  return ({ children }: { children: ReactNode }) => (
-    <ProjectsProvider>
-      {children}
-    </ProjectsProvider>
-  );
-}
+vi.mock('../icons/UnifiedServiceIcon', () => ({
+  UnifiedServicesIcon: vi.fn(() => <div data-testid="unified-services-icon">USRV</div>),
+}));
 
-/**
- * Helper function to render SideBar with default props
- */
-function renderSidebar(props?: Partial<React.ComponentProps<typeof SideBar>>) {
-  const defaultProps = {
-    activeProject: 'Me',
-    projects: ['Me', 'Teams', 'CIS@2.0', 'Cloud Automation', 'Unified Services', 'Self Service', 'Links'],
-    onProjectChange: vi.fn(),
+vi.mock('lucide-react', async () => {
+  const actual = await vi.importActual('lucide-react');
+  return {
+    ...actual,
+    Home: vi.fn(() => <div data-testid="home-icon">Home</div>),
+    Users: vi.fn(() => <div data-testid="users-icon">Users</div>),
+    Wrench: vi.fn(() => <div data-testid="wrench-icon">Wrench</div>),
+    Link: vi.fn(() => <div data-testid="link-icon">Link</div>),
+    Network: vi.fn(() => <div data-testid="network-icon">Network</div>),
+    Brain: vi.fn(() => <div data-testid="brain-icon">Brain</div>),
+    MessageSquare: vi.fn(() => <div data-testid="message-square-icon">Feedback</div>),
+    ChevronLeft: vi.fn(() => <div data-testid="chevron-left">Left</div>),
+    ChevronRight: vi.fn(() => <div data-testid="chevron-right">Right</div>),
+    ChevronDown: vi.fn(() => <div data-testid="chevron-down">Down</div>),
+    Puzzle: vi.fn(() => <div data-testid="puzzle-icon">Puzzle</div>),
+    Store: vi.fn(() => <div data-testid="store-icon">Store</div>),
+    Database: vi.fn(() => <div data-testid="database-icon">Database</div>),
+    Settings: vi.fn(() => <div data-testid="settings-icon">Settings</div>),
+    // Allow accessing any other icon (returns undefined, which the component handles)
+    NonExistentIcon: undefined,
+  };
+});
+
+import { useSidebarStore } from '@/stores/sidebarStore';
+import { useProjects, useSidebarItems, useProjectsLoading } from '@/stores/projectsStore';
+import { useProjectVisibility } from '@/hooks/useProjectVisibility';
+import { usePlugins } from '@/hooks/api/usePlugins';
+import { buildJiraFeedbackUrl } from '@/lib/utils';
+
+describe('SideBar', () => {
+  const mockOnProjectChange = vi.fn();
+  const mockToggle = vi.fn();
+  const mockIsProjectVisible = vi.fn();
+
+  const mockProjects = [
+    {
+      id: 'proj-1',
+      name: 'cis20',
+      title: 'CIS 2.0',
+      description: 'CIS Project',
+    },
+    {
+      id: 'proj-2',
+      name: 'ca',
+      title: 'Cloud Automation',
+      description: 'CA Project',
+    },
+    {
+      id: 'proj-3',
+      name: 'usrv',
+      title: 'Unified Services',
+      description: 'USRV Project',
+    },
+  ];
+
+  const mockSidebarItems = [
+    'Home',
+    'Teams',
+    'cis20',
+    'ca',
+    'usrv',
+    'Self Service',
+    'Links',
+    'Plugin Marketplace',
+  ];
+
+  const mockPlugins = {
+    plugins: [
+      {
+        id: 'plugin-1',
+        name: 'Test Plugin',
+        title: 'Test Plugin Title',
+        subscribed: true,
+        icon: 'Database',
+      },
+      {
+        id: 'plugin-2',
+        name: 'Another Plugin',
+        title: 'Another Plugin Title',
+        subscribed: true,
+        icon: 'Settings',
+      },
+      {
+        id: 'plugin-3',
+        name: 'Unsubscribed Plugin',
+        title: 'Unsubscribed',
+        subscribed: false,
+        icon: 'Cloud',
+      },
+    ],
   };
 
-  return render(
-    <SideBar {...defaultProps} {...props} />,
-    { wrapper: createSidebarWrapper() }
-  );
-}
-
-// ============================================================================
-// SIDEBAR COMPONENT TESTS
-// ============================================================================
-
-describe('SideBar Component', () => {
-  let mockOnProjectChange: ReturnType<typeof vi.fn>;
+  const defaultProps = {
+    activeProject: 'Home',
+    onProjectChange: mockOnProjectChange,
+  };
 
   beforeEach(() => {
-    mockOnProjectChange = vi.fn();
     vi.clearAllMocks();
+
+    // Mock useSidebarStore to handle selector pattern
+    vi.mocked(useSidebarStore).mockImplementation((selector: any) => {
+      const state = {
+        isExpanded: true,
+        toggle: mockToggle,
+        setIsExpanded: vi.fn(),
+        getSidebarWidth: vi.fn(),
+      };
+      return selector ? selector(state) : state;
+    });
+
+    vi.mocked(useProjects).mockReturnValue(mockProjects);
+    vi.mocked(useSidebarItems).mockReturnValue(mockSidebarItems);
+    vi.mocked(useProjectsLoading).mockReturnValue(false);
+
+    vi.mocked(useProjectVisibility).mockReturnValue({
+      isProjectVisible: mockIsProjectVisible,
+    } as any);
+
+    vi.mocked(usePlugins).mockReturnValue({
+      data: mockPlugins,
+      isLoading: false,
+    } as any);
+
+    vi.mocked(buildJiraFeedbackUrl).mockReturnValue('https://feedback.example.com');
+
+    mockIsProjectVisible.mockReturnValue(true);
+
+    // Mock window.open
+    global.window.open = vi.fn();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  // ==========================================================================
-  // RENDERING TESTS
-  // ==========================================================================
-
   describe('Rendering', () => {
-
-    it('should render in expanded state by default', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
+    it('should render sidebar', () => {
+      render(<SideBar {...defaultProps} />);
 
       const sidebar = screen.getByRole('complementary');
-      expect(sidebar).toHaveClass('w-52');
+      expect(sidebar).toBeInTheDocument();
     });
 
     it('should render toggle button', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
+      render(<SideBar {...defaultProps} />);
 
-      const toggleButton = screen.getByLabelText(/collapse sidebar|expand sidebar/i);
-      expect(toggleButton).toBeInTheDocument();
+      expect(screen.getByLabelText('Collapse sidebar')).toBeInTheDocument();
     });
 
-    it('should render project icons for all projects', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
+    it('should render all static projects', () => {
+      const { container } = render(<SideBar {...defaultProps} />);
 
-      // Check that icons are rendered (lucide-react icons have aria-hidden attribute)
-      const icons = screen.getAllByRole('button').filter(button =>
-        button.querySelector('svg')
-      );
+      // Get all project names from span.truncate elements
+      const buttons = container.querySelectorAll('button');
+      const projectNames = Array.from(buttons).map(button => {
+        const span = button.querySelector('span.truncate');
+        return span?.textContent;
+      }).filter(Boolean);
 
-      expect(icons.length).toBeGreaterThan(0);
+      expect(projectNames).toContain('Home');
+      expect(projectNames).toContain('Teams');
+      expect(projectNames).toContain('Self Service');
+      expect(projectNames).toContain('Links');
+      expect(projectNames).toContain('Plugin Marketplace');
     });
 
-    it('should render all project names when expanded', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
+    it('should render dynamic projects', () => {
+      render(<SideBar {...defaultProps} />);
 
-      // Check all project names are visible (since sidebar is expanded by default)
-      // These come from the mocked ProjectsContext sidebarItems. Project names are not included because they are dynamic.
-      const expectedItems = ['Home', 'Teams', 'Links', 'Self Service', 'AI Arena'];
-      expectedItems.forEach(project => {
-        const projectElement = screen.getByText(project);
-        expect(projectElement).toBeVisible();
-      });
-    });
-  });
-
-  // ==========================================================================
-  // INTERACTION TESTS
-  // ==========================================================================
-
-  describe('Interactions', () => {
-    it('should toggle sidebar when toggle button is clicked', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-      const collapseButton = screen.getByLabelText(/collapse sidebar/i);
-
-      // Initially expanded
-      expect(sidebar).toHaveClass('w-52');
-
-      // Click to collapse
-      fireEvent.click(collapseButton);
-      expect(sidebar).toHaveClass('w-16');
-
-      // Click to expand
-      const expandButton = screen.getByLabelText(/expand sidebar/i);
-      fireEvent.click(expandButton);
-      expect(sidebar).toHaveClass('w-52');
+      expect(screen.getByText('cis20')).toBeInTheDocument();
+      expect(screen.getByText('ca')).toBeInTheDocument();
+      expect(screen.getByText('usrv')).toBeInTheDocument();
     });
 
-    it('should call onProjectChange when a project is clicked', () => {
-      renderSidebar({
-        projects: ['Me', 'Teams', 'CIS@2.0'],
-        onProjectChange: mockOnProjectChange
-      });
+    it('should render feedback button', () => {
+      render(<SideBar {...defaultProps} />);
 
-      const teamsButton = screen.getByRole('button', { name: /teams/i });
-      fireEvent.click(teamsButton);
-
-      expect(mockOnProjectChange).toHaveBeenCalledWith('Teams');
-      expect(mockOnProjectChange).toHaveBeenCalledTimes(1);
-    });
-
-    it('should handle clicking the same project twice', () => {
-      renderSidebar({
-        activeProject: 'Home',
-        projects: ['Home', 'Teams'],
-        onProjectChange: mockOnProjectChange
-      });
-
-      const homeButton = screen.getByRole('button', { name: /^home$/i });
-
-      fireEvent.click(homeButton);
-      fireEvent.click(homeButton);
-
-      expect(mockOnProjectChange).toHaveBeenCalledTimes(2);
-      expect(mockOnProjectChange).toHaveBeenCalledWith('Home');
+      expect(screen.getByText('Send Feedback')).toBeInTheDocument();
     });
   });
-
-  // ==========================================================================
-  // EXPANSION STATE TESTS
-  // ==========================================================================
 
   describe('Expansion State', () => {
-    it('should show chevron icons in toggle button', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
+    it('should render expanded sidebar', () => {
+      vi.mocked(useSidebarStore).mockReturnValue({
+        isExpanded: true,
+        toggle: mockToggle,
+      } as any);
 
-      const toggleButton = screen.getByLabelText(/collapse sidebar/i);
-      expect(toggleButton.querySelector('svg')).toBeInTheDocument();
+      const { container } = render(<SideBar {...defaultProps} />);
+
+      const sidebar = container.querySelector('.w-52');
+      expect(sidebar).toBeInTheDocument();
     });
 
-    it('should transition between expanded and collapsed states', async () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-      const collapseButton = screen.getByLabelText(/collapse sidebar/i);
-
-      // Verify initial expanded state
-      expect(sidebar).toHaveClass('w-52');
-
-      // Collapse
-      fireEvent.click(collapseButton);
-
-      await waitFor(() => {
-        expect(sidebar).toHaveClass('w-16');
+    it('should render collapsed sidebar', () => {
+      vi.mocked(useSidebarStore).mockImplementation((selector: any) => {
+        const state = {
+          isExpanded: false,
+          toggle: mockToggle,
+        };
+        return selector(state);
       });
 
-      // Expand
-      const expandButton = screen.getByLabelText(/expand sidebar/i);
-      fireEvent.click(expandButton);
-
-      await waitFor(() => {
-        expect(sidebar).toHaveClass('w-52');
-      });
-    });
-
-    it('should have transition classes for smooth animation', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-      expect(sidebar).toHaveClass('transition-all', 'duration-300', 'ease-in-out');
-    });
-
-    it('should render spacer div that matches sidebar width', () => {
-      const { container } = renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-      const spacer = container.querySelector('div.transition-all.duration-300.ease-in-out:not([role])');
-
-      expect(spacer).toBeInTheDocument();
-
-      // Both should have matching width classes
-      if (sidebar.classList.contains('w-16')) {
-        expect(spacer).toHaveClass('w-16');
-      } else if (sidebar.classList.contains('w-52')) {
-        expect(spacer).toHaveClass('w-52');
-      }
-    });
-  });
-
-  // ==========================================================================
-  // ACCESSIBILITY TESTS
-  // ==========================================================================
-
-  describe('Accessibility', () => {
-    it('should have proper ARIA labels', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const toggleButton = screen.getByLabelText(/collapse sidebar/i);
-      expect(toggleButton).toHaveAttribute('aria-label');
-    });
-
-    it('should update aria-label when sidebar state changes', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const collapseButton = screen.getByLabelText(/collapse sidebar/i);
-      fireEvent.click(collapseButton);
-
-      const expandButton = screen.getByLabelText(/expand sidebar/i);
-      expect(expandButton).toBeInTheDocument();
-    });
-
-    it('should have clickable project buttons with proper roles', () => {
-      renderSidebar({
-        projects: ['Me', 'Teams'],
-        onProjectChange: mockOnProjectChange
-      });
-
-      const buttons = screen.getAllByRole('button');
-
-      // At least project buttons + toggle button
-      expect(buttons.length).toBeGreaterThanOrEqual(3);
-
-      buttons.forEach(button => {
-        expect(button).toBeEnabled();
-      });
-    });
-
-    it('should be keyboard navigable', () => {
-      renderSidebar({
-        projects: ['Me', 'Teams'],
-        onProjectChange: mockOnProjectChange
-      });
-
-      const firstButton = screen.getAllByRole('button')[0];
-      firstButton.focus();
-
-      expect(document.activeElement).toBe(firstButton);
-    });
-
-    it('should have semantic HTML structure', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-      expect(sidebar.tagName).toBe('ASIDE');
-
-      const nav = sidebar.querySelector('nav');
-      expect(nav).toBeInTheDocument();
-    });
-  });
-
-  // ==========================================================================
-  // STYLING TESTS
-  // ==========================================================================
-
-  describe('Styling', () => {
-    it('should have fixed positioning', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-      expect(sidebar).toHaveClass('fixed', 'top-0', 'left-0', 'h-screen');
-    });
-
-    it('should have proper z-index', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-      const computedStyle = window.getComputedStyle(sidebar);
-
-      // Should have a z-index to stay above content
-      expect(sidebar.className).toContain('z-');
-    });
-
-    it('should have background color', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-      expect(sidebar.className).toContain('bg-');
-    });
-
-  });
-
-  // ==========================================================================
-  // CONTEXT INTEGRATION TESTS
-  // ==========================================================================
-
-  describe('Context Integration', () => {
-    it('should work without SidebarProvider context', () => {
-      const { container } = render(
-        <ProjectsProvider>
-            <SideBar
-              activeProject="Me"
-              projects={['Me', 'Teams']}
-              onProjectChange={mockOnProjectChange}
-            />
-        </ProjectsProvider>
-      );
-
-      expect(container.firstChild).toBeInTheDocument();
-    });
-
-  });
-
-  // ==========================================================================
-  // PERSISTENCE TESTS
-  // ==========================================================================
-
-  describe('State Persistence', () => {
-    beforeEach(() => {
-      localStorage.clear();
-    });
-
-    it('should persist expanded state to localStorage', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const collapseButton = screen.getByLabelText(/collapse sidebar/i);
-      fireEvent.click(collapseButton);
-
-      const stored = localStorage.getItem('sidebar:expanded');
-      expect(stored).toBe('false');
-    });
-
-    it('should persist collapsed state to localStorage', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-
-      // Initially expanded
-      expect(sidebar).toHaveClass('w-52');
-
-      const collapseButton = screen.getByLabelText(/collapse sidebar/i);
-      fireEvent.click(collapseButton);
-
-      // Verify it's collapsed
-      expect(sidebar).toHaveClass('w-16');
-
-      const stored = localStorage.getItem('sidebar:expanded');
-      expect(stored).toBe('false');
-    });
-
-    it('should restore state from localStorage on mount', () => {
-      // Set collapsed state in localStorage
-      localStorage.setItem('sidebar:expanded', 'false');
-
-      renderSidebar({ onProjectChange: mockOnProjectChange });
+      const { container } = render(<SideBar {...defaultProps} />);
 
       const sidebar = screen.getByRole('complementary');
       expect(sidebar).toHaveClass('w-16');
     });
 
-    it('should restore expanded state from localStorage on mount', () => {
-      // Set expanded state in localStorage
-      localStorage.setItem('sidebar:expanded', 'true');
-
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-      expect(sidebar).toHaveClass('w-52');
-    });
-
-    it('should default to expanded when localStorage is empty', () => {
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-      expect(sidebar).toHaveClass('w-52');
-    });
-
-    it('should handle invalid localStorage values gracefully', () => {
-      localStorage.setItem('sidebar:expanded', 'invalid-json');
-
-      renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-      // Should default to expanded
-      expect(sidebar).toHaveClass('w-52');
-    });
-
-    it('should sync state across storage events', () => {
-      const { rerender } = renderSidebar({ onProjectChange: mockOnProjectChange });
-
-      const sidebar = screen.getByRole('complementary');
-
-      // Initially expanded
-      expect(sidebar).toHaveClass('fixed top-0 left-0 h-screen bg-background border-r border-border transition-all duration-300 ease-in-out z-50 w-52');
-
-      // Simulate storage event from another tab
-      const storageEvent = new StorageEvent('storage', {
-        key: 'sidebar:expanded',
-        newValue: 'false',
-        oldValue: 'true',
+    it('should show "Expand sidebar" label when collapsed', () => {
+      vi.mocked(useSidebarStore).mockImplementation((selector: any) => {
+        const state = {
+          isExpanded: false,
+          toggle: mockToggle,
+        };
+        return selector(state);
       });
 
-      act(() => {
-        window.dispatchEvent(storageEvent);
-      });
+      render(<SideBar {...defaultProps} />);
 
-      // Force re-render to see the effect
-      rerender(
-          <SideBar
-            activeProject="Me"
-            projects={['Me', 'Teams', 'CIS@2.0', 'Cloud Automation', 'Unified Services', 'Self Service', 'Links']}
-            onProjectChange={mockOnProjectChange}
-          />
-      );
-
-      // Should reflect the change from the storage event
-      expect(sidebar).toHaveClass("fixed top-0 left-0 h-screen bg-background border-r border-border transition-all duration-300 ease-in-out z-50 w-52");
+      expect(screen.getByLabelText('Expand sidebar')).toBeInTheDocument();
     });
 
-    it('should persist state across page refreshes', () => {
-      // First render - collapse sidebar
-      const { unmount } = renderSidebar({ onProjectChange: mockOnProjectChange });
+    it('should show "Collapse sidebar" label when expanded', () => {
+      vi.mocked(useSidebarStore).mockReturnValue({
+        isExpanded: true,
+        toggle: mockToggle,
+      } as any);
 
-      const collapseButton = screen.getByLabelText(/collapse sidebar/i);
-      fireEvent.click(collapseButton);
+      render(<SideBar {...defaultProps} />);
 
-      // Verify localStorage
-      expect(localStorage.getItem('sidebar:expanded')).toBe('false');
+      expect(screen.getByLabelText('Collapse sidebar')).toBeInTheDocument();
+    });
 
-      // Unmount (simulate page close)
+    it('should call toggle when toggle button is clicked', async () => {
+      const user = userEvent.setup();
+
+      render(<SideBar {...defaultProps} />);
+
+      const toggleButton = screen.getByLabelText('Collapse sidebar');
+      await user.click(toggleButton);
+
+      expect(mockToggle).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Loading State', () => {
+    it('should show loading message when projects are loading', () => {
+      vi.mocked(useProjectsLoading).mockReturnValue(true);
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByText('Loading projects...')).toBeInTheDocument();
+    });
+
+    it('should show loading message when projects data is null', () => {
+      vi.mocked(useProjects).mockReturnValue(null as any);
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByText('Loading projects...')).toBeInTheDocument();
+    });
+
+    it('should not render project list when loading', () => {
+      vi.mocked(useProjectsLoading).mockReturnValue(true);
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.queryByText('Home')).not.toBeInTheDocument();
+      expect(screen.queryByText('Teams')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Empty State', () => {
+    it('should show "No projects available" when sidebar items are empty', () => {
+      vi.mocked(useSidebarItems).mockReturnValue([]);
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByText('No projects available')).toBeInTheDocument();
+    });
+
+    it('should not render project list when sidebar items are empty', () => {
+      vi.mocked(useSidebarItems).mockReturnValue([]);
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.queryByText('Home')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Active Project', () => {
+    it('should highlight active project', () => {
+      const { container } = render(<SideBar {...defaultProps} activeProject="Home" />);
+
+      // Find the Home button by its span.truncate content
+      const buttons = container.querySelectorAll('button');
+      const homeButton = Array.from(buttons).find(button => {
+        const span = button.querySelector('span.truncate');
+        return span?.textContent === 'Home';
+      });
+
+      expect(homeButton).toHaveClass('font-medium');
+    });
+
+    it('should not highlight inactive projects', () => {
+      render(<SideBar {...defaultProps} activeProject="Home" />);
+
+      const teamsButton = screen.getByText('Teams').closest('button');
+      expect(teamsButton).toHaveClass('text-muted-foreground');
+    });
+
+    it('should apply active styling to dynamic projects', () => {
+      render(<SideBar {...defaultProps} activeProject="cis20" />);
+
+      const cis20Button = screen.getByText('cis20').closest('button');
+      expect(cis20Button).toHaveClass('font-medium');
+    });
+  });
+
+  describe('Project Navigation', () => {
+    it('should call onProjectChange when project is clicked', async () => {
+      const user = userEvent.setup();
+
+      render(<SideBar {...defaultProps} />);
+
+      const teamsButton = screen.getByText('Teams');
+      await user.click(teamsButton);
+
+      expect(mockOnProjectChange).toHaveBeenCalledWith('Teams');
+    });
+
+    it('should handle multiple project clicks', async () => {
+      const user = userEvent.setup();
+
+      render(<SideBar {...defaultProps} />);
+
+      await user.click(screen.getByText('Teams'));
+      await user.click(screen.getByText('Links'));
+      await user.click(screen.getByText('cis20'));
+
+      expect(mockOnProjectChange).toHaveBeenCalledTimes(3);
+      expect(mockOnProjectChange).toHaveBeenNthCalledWith(1, 'Teams');
+      expect(mockOnProjectChange).toHaveBeenNthCalledWith(2, 'Links');
+      expect(mockOnProjectChange).toHaveBeenNthCalledWith(3, 'cis20');
+    });
+  });
+
+  describe('Project Icons', () => {
+    it('should render Home icon for Home project', () => {
+      render(<SideBar {...defaultProps} />);
+
+      const homeIcons = screen.getAllByTestId('home-icon');
+      expect(homeIcons.length).toBeGreaterThan(0);
+    });
+
+    it('should render Users icon for Teams project', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByTestId('users-icon')).toBeInTheDocument();
+    });
+
+    it('should render Wrench icon for Self Service project', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByTestId('wrench-icon')).toBeInTheDocument();
+    });
+
+    it('should render Link icon for Links project', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByTestId('link-icon')).toBeInTheDocument();
+    });
+
+    it('should render Network icon for cis20 project', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByTestId('network-icon')).toBeInTheDocument();
+    });
+
+    it('should render CloudAutomation icon for ca project', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByTestId('cloud-automation-icon')).toBeInTheDocument();
+    });
+
+    // Replace these mocks at the top of your test file:
+    vi.mock('@/components/icons/CloudAutomationIcon', () => ({
+      CloudAutomationIcon: vi.fn(() => <div data-testid="cloud-automation-icon">CA</div>),
+    }));
+
+    vi.mock('@/components/icons/UnifiedServiceIcon', () => ({
+      UnifiedServicesIcon: vi.fn(() => <div data-testid="unified-services-icon">USRV</div>),
+    }));
+  });
+
+  describe('Plugin Marketplace', () => {
+    it('should render Plugin Marketplace button', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByText('Plugin Marketplace')).toBeInTheDocument();
+    });
+
+    it('should call onProjectChange when Plugin Marketplace is clicked', async () => {
+      const user = userEvent.setup();
+
+      render(<SideBar {...defaultProps} />);
+
+      const marketplaceButton = screen.getByText('Plugin Marketplace');
+      await user.click(marketplaceButton);
+
+      expect(mockOnProjectChange).toHaveBeenCalledWith('Plugin Marketplace');
+    });
+
+    it('should show expand/collapse chevron when subscribed plugins exist', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByTestId('chevron-down')).toBeInTheDocument();
+    });
+
+    it('should not show chevron when no subscribed plugins', () => {
+      vi.mocked(usePlugins).mockReturnValue({
+        data: { plugins: [] },
+        isLoading: false,
+      } as any);
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.queryByTestId('chevron-down')).not.toBeInTheDocument();
+    });
+
+    it('should show subscribed plugins when expanded', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByText('Test Plugin Title')).toBeInTheDocument();
+      expect(screen.getByText('Another Plugin Title')).toBeInTheDocument();
+    });
+
+    it('should not show unsubscribed plugins', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.queryByText('Unsubscribed')).not.toBeInTheDocument();
+    });
+
+    it('should toggle plugin list when chevron is clicked', async () => {
+      const user = userEvent.setup();
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByText('Test Plugin Title')).toBeInTheDocument();
+
+      const chevron = screen.getByLabelText('Collapse plugins');
+      await user.click(chevron);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Test Plugin Title')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should call onProjectChange with plugin slug when plugin is clicked', async () => {
+      const user = userEvent.setup();
+
+      render(<SideBar {...defaultProps} />);
+
+      const pluginButton = screen.getByText('Test Plugin Title');
+      await user.click(pluginButton);
+
+      expect(mockOnProjectChange).toHaveBeenCalledWith('plugins/test-plugin');
+    });
+
+    it('should highlight active plugin', () => {
+      render(<SideBar {...defaultProps} activeProject="/plugins/test-plugin" />);
+
+      const pluginButton = screen.getByText('Test Plugin Title').closest('button');
+      expect(pluginButton).toHaveClass('font-medium');
+    });
+  });
+
+  describe('Project Visibility', () => {
+    it('should filter out invisible projects', () => {
+      mockIsProjectVisible.mockImplementation((project) => {
+        return project.name !== 'ca';
+      });
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.queryByText('ca')).not.toBeInTheDocument();
+      expect(screen.getByText('cis20')).toBeInTheDocument();
+      expect(screen.getByText('usrv')).toBeInTheDocument();
+    });
+
+    it('should always show static projects', () => {
+      mockIsProjectVisible.mockReturnValue(false);
+
+      const { container } = render(<SideBar {...defaultProps} />);
+
+      // Find project buttons by their span.truncate content
+      const buttons = container.querySelectorAll('button');
+      const projectNames = Array.from(buttons).map(button => {
+        const span = button.querySelector('span.truncate');
+        return span?.textContent;
+      }).filter(Boolean);
+
+      expect(projectNames).toContain('Home');
+      expect(projectNames).toContain('Teams');
+      expect(projectNames).toContain('Self Service');
+    });
+
+    it('should update when visibility changes via event', async () => {
+      const { rerender } = render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByText('cis20')).toBeInTheDocument();
+
+      // Trigger visibility change event
+      const event = new Event('projectVisibilityChanged');
+      window.dispatchEvent(event);
+
+      rerender(<SideBar {...defaultProps} />);
+
+      expect(screen.getByText('cis20')).toBeInTheDocument();
+    });
+
+    it('should clean up event listener on unmount', () => {
+      const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+
+      const { unmount } = render(<SideBar {...defaultProps} />);
+
       unmount();
 
-      // Re-render (simulate page refresh)
-      renderSidebar({ onProjectChange: mockOnProjectChange });
+      expect(removeEventListenerSpy).toHaveBeenCalledWith(
+        'projectVisibilityChanged',
+        expect.any(Function)
+      );
+    });
+  });
 
-      const sidebar = screen.getByRole('complementary');
-      // Should still be collapsed
-      expect(sidebar).toHaveClass('w-16');
+  describe('Feedback Button', () => {
+    it('should render Send Feedback button', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByText('Send Feedback')).toBeInTheDocument();
+    });
+
+    it('should build Jira feedback URL', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(buildJiraFeedbackUrl).toHaveBeenCalledWith({
+        summary: '[BUG|FeatReq] Tell Us How Can We Help!',
+        description: '',
+      });
+    });
+
+    it('should open feedback URL in new tab when clicked', async () => {
+      const user = userEvent.setup();
+
+      render(<SideBar {...defaultProps} />);
+
+      const feedbackButton = screen.getByText('Send Feedback');
+      await user.click(feedbackButton);
+
+      expect(window.open).toHaveBeenCalledWith('https://feedback.example.com', '_blank');
+    });
+  });
+
+  describe('Collapsed State Behavior', () => {
+    it('should show tooltips on projects when collapsed', () => {
+      vi.mocked(useSidebarStore).mockImplementation((selector: any) => {
+        const state = {
+          isExpanded: false,
+          toggle: mockToggle,
+        };
+        return selector(state);
+      });
+
+      const { container } = render(<SideBar {...defaultProps} />);
+
+      // Find the Home button by looking for buttons with the Home text in a span
+      const buttons = container.querySelectorAll('button');
+      const homeButton = Array.from(buttons).find(button => {
+        const span = button.querySelector('span.truncate');
+        return span?.textContent === 'Home';
+      });
+
+      expect(homeButton).toHaveAttribute('title', 'Home');
+    });
+
+    it('should not show tooltips when expanded', () => {
+      vi.mocked(useSidebarStore).mockImplementation((selector: any) => {
+        const state = {
+          isExpanded: true,
+          toggle: mockToggle,
+        };
+        return selector(state);
+      });
+
+      const { container } = render(<SideBar {...defaultProps} />);
+
+      // Find the Home button by looking for buttons with the Home text in a span
+      const buttons = container.querySelectorAll('button');
+      const homeButton = Array.from(buttons).find(button => {
+        const span = button.querySelector('span.truncate');
+        return span?.textContent === 'Home';
+      });
+
+      expect(homeButton).not.toHaveAttribute('title');
+    });
+
+    it('should hide plugin list when sidebar is collapsed', () => {
+      // Properly mock the Zustand selector pattern for collapsed state
+      vi.mocked(useSidebarStore).mockImplementation((selector: any) => {
+        const state = {
+          isExpanded: false,
+          toggle: mockToggle,
+        };
+        return selector(state);
+      });
+
+      render(<SideBar {...defaultProps} />);
+
+      // Plugin list should not be visible when collapsed
+      expect(screen.queryByText('Test Plugin Title')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Edge Cases', () => {
+
+
+    it('should handle plugins with missing icon', () => {
+      vi.mocked(usePlugins).mockReturnValue({
+        data: {
+          plugins: [
+            {
+              id: 'plugin-1',
+              name: 'Test Plugin',
+              title: 'Test Plugin',
+              subscribed: true,
+              icon: undefined,
+            },
+          ],
+        },
+        isLoading: false,
+      } as any);
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByTestId('puzzle-icon')).toBeInTheDocument();
+    });
+
+    it('should handle plugins with invalid icon name', () => {
+      vi.mocked(usePlugins).mockReturnValue({
+        data: {
+          plugins: [
+            {
+              id: 'plugin-1',
+              name: 'Test Plugin',
+              title: 'Test Plugin',
+              subscribed: true,
+              icon: 'NonExistentIcon',
+            },
+          ],
+        },
+        isLoading: false,
+      } as any);
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByTestId('puzzle-icon')).toBeInTheDocument();
+    });
+
+    it('should handle undefined plugins data', () => {
+      vi.mocked(usePlugins).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+      } as any);
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByText('Plugin Marketplace')).toBeInTheDocument();
+    });
+
+    it('should handle very long project names', () => {
+      const longProjectName = 'Very Long Project Name That Should Be Truncated';
+
+      vi.mocked(useProjects).mockReturnValue([
+        ...mockProjects,
+        {
+          id: 'proj-long',
+          name: longProjectName,
+          title: longProjectName,
+          description: 'Long name project',
+        },
+      ]);
+
+      vi.mocked(useSidebarItems).mockReturnValue([
+        'Home',
+        longProjectName,
+      ]);
+
+      render(<SideBar {...defaultProps} />);
+
+      expect(screen.getByText(longProjectName)).toBeInTheDocument();
+    });
+  });
+
+  describe('Integration', () => {
+    it('should integrate with sidebarStore', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(useSidebarStore).toHaveBeenCalled();
+    });
+
+    it('should integrate with projectsStore', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(useProjects).toHaveBeenCalled();
+      expect(useSidebarItems).toHaveBeenCalled();
+      expect(useProjectsLoading).toHaveBeenCalled();
+    });
+
+    it('should integrate with useProjectVisibility', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(useProjectVisibility).toHaveBeenCalled();
+    });
+
+    it('should integrate with usePlugins', () => {
+      render(<SideBar {...defaultProps} />);
+
+      expect(usePlugins).toHaveBeenCalledWith({
+        limit: 100,
+        offset: 0,
+      });
     });
   });
 });

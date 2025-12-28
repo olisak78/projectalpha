@@ -1,628 +1,347 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
-import { ReactNode } from 'react';
-import { MemoryRouter } from 'react-router-dom';
-import { HeaderNavigation } from '../../../src/components/DeveloperPortalHeader/HeaderNavigation';
-import { HeaderTab, HeaderNavigationProvider } from '../../../src/contexts/HeaderNavigationContext';
-import { ProjectsProvider } from '../../../src/contexts/ProjectsContext';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { HeaderNavigation } from '@/components/DeveloperPortalHeader/HeaderNavigation';
+import type { HeaderTab } from '@/contexts/HeaderNavigationContext';
 
-// Mock the useFetchProjects hook
-vi.mock('@/hooks/api/useProjects', () => ({
-  useFetchProjects: vi.fn(() => ({
-    data: [
-      { title: 'CIS@2.0', name: 'CIS@2.0' },
-      { title: 'Cloud Automation', name: 'Cloud Automation' },
-      { title: 'Unified Services', name: 'Unified Services' }
-    ],
-    isLoading: false,
-    error: null
-  }))
+// Mock child components
+vi.mock('@/components/DeveloperPortalHeader/HeaderDropdown', () => ({
+  HeaderDropdown: vi.fn(({ tabs, activeTab, onTabClick }) => (
+    <div data-testid="header-dropdown">
+      <div data-testid="dropdown-tabs-count">{tabs.length}</div>
+      <div data-testid="dropdown-active-tab">{activeTab || 'none'}</div>
+      <button onClick={() => onTabClick(tabs[0]?.id)}>Dropdown Click</button>
+    </div>
+  )),
 }));
 
-// Mock the HeaderNavigationContext
-const mockSetActiveTab = vi.fn();
-vi.mock('@/contexts/HeaderNavigationContext', async () => {
-  const actual = await vi.importActual('@/contexts/HeaderNavigationContext');
-  return {
-    ...actual,
-    useHeaderNavigation: () => ({
-      tabs: [],
-      activeTab: null,
-      setTabs: vi.fn(),
-      setActiveTab: mockSetActiveTab,
-      isDropdown: false,
-      setIsDropdown: vi.fn()
-    })
+vi.mock('@/components/DeveloperPortalHeader/HeaderTabsList', () => ({
+  HeaderTabsList: vi.fn(({ tabs, activeTab, onTabClick }) => (
+    <div data-testid="header-tabs-list">
+      <div data-testid="tabs-list-count">{tabs.length}</div>
+      <div data-testid="tabs-list-active-tab">{activeTab || 'none'}</div>
+      <button onClick={() => onTabClick(tabs[0]?.id)}>Tabs List Click</button>
+    </div>
+  )),
+}));
+
+import { HeaderDropdown } from '@/components/DeveloperPortalHeader/HeaderDropdown';
+import { HeaderTabsList } from '@/components/DeveloperPortalHeader/HeaderTabsList';
+
+describe('HeaderNavigation', () => {
+  const mockOnTabClick = vi.fn();
+
+  const mockTabs: HeaderTab[] = [
+    {
+      id: 'tab-1',
+      label: 'Tab 1',
+    },
+    {
+      id: 'tab-2',
+      label: 'Tab 2',
+    },
+    {
+      id: 'tab-3',
+      label: 'Tab 3',
+    },
+  ];
+
+  const defaultProps = {
+    tabs: mockTabs,
+    activeTab: 'tab-1',
+    onTabClick: mockOnTabClick,
   };
-});
-
-/**
- * HeaderNavigation Component Tests
- * 
- * Tests for the HeaderNavigation component which conditionally renders either
- * HeaderDropdown or HeaderTabsList based on the isDropdown prop.
- */
-
-// Mock DOM methods before all tests to prevent Radix UI errors
-beforeAll(() => {
-  // Mock scrollIntoView for jsdom environment
-  Element.prototype.scrollIntoView = vi.fn();
-  window.HTMLElement.prototype.scrollIntoView = vi.fn();
-  
-  // Mock ResizeObserver
-  global.ResizeObserver = vi.fn().mockImplementation(() => ({
-    observe: vi.fn(),
-    unobserve: vi.fn(),
-    disconnect: vi.fn(),
-  }));
-
-  // Mock PointerEvent for better Radix UI compatibility
-  if (!global.PointerEvent) {
-    class MockPointerEvent extends MouseEvent {
-      constructor(type: string, props: PointerEventInit) {
-        super(type, props);
-      }
-    }
-    global.PointerEvent = MockPointerEvent as any;
-  }
-});
-
-// ✅ FIX: Wrapper component to provide SidebarContext and Router
-function TestWrapper({ children }: { children: ReactNode }) {
-  return (
-    <MemoryRouter>
-      <ProjectsProvider>
-          <HeaderNavigationProvider>
-            {children}
-          </HeaderNavigationProvider>
-      </ProjectsProvider>
-    </MemoryRouter>
-  );
-}
-
-// Mock data
-const createMockTabs = (): HeaderTab[] => [
-  {
-    id: 'team-1',
-    label: 'Team Alpha',
-    icon: '🚀',
-  },
-  {
-    id: 'team-2',
-    label: 'Team Beta',
-    icon: '⚡',
-  },
-  {
-    id: 'team-3',
-    label: 'Team Gamma',
-    icon: '🎯',
-  },
-];
-
-describe('HeaderNavigation Component', () => {
-  let mockOnTabClick: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    mockOnTabClick = vi.fn();
     vi.clearAllMocks();
   });
 
-  // ============================================================================
-  // BASIC RENDERING TESTS
-  // ============================================================================
+  describe('Rendering', () => {
+    it('should render HeaderTabsList by default', () => {
+      render(<HeaderNavigation {...defaultProps} />);
 
-  describe('Basic Rendering', () => {
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-dropdown')).not.toBeInTheDocument();
+    });
+
+    it('should render HeaderDropdown when isDropdown is true', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(screen.getByTestId('header-dropdown')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-tabs-list')).not.toBeInTheDocument();
+    });
+
+    it('should render HeaderTabsList when isDropdown is false', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={false} />);
+
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-dropdown')).not.toBeInTheDocument();
+    });
+
+    it('should render HeaderTabsList when isDropdown is undefined', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={undefined} />);
+
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
+    });
+  });
+
+  describe('Empty State', () => {
     it('should return null when tabs array is empty', () => {
-      const { container } = render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={[]}
-            activeTab={null}
-            onTabClick={mockOnTabClick}
-          />
-        </TestWrapper>
-      );
+      const { container } = render(<HeaderNavigation {...defaultProps} tabs={[]} />);
 
       expect(container.firstChild).toBeNull();
     });
 
-    it('should render HeaderTabsList by default when isDropdown is false', () => {
-      const tabs = createMockTabs();
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
+    it('should not render HeaderTabsList when tabs are empty', () => {
+      render(<HeaderNavigation {...defaultProps} tabs={[]} />);
 
-      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
-      expect(screen.getByText('Team Beta')).toBeInTheDocument();
-      expect(screen.getByText('Team Gamma')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-tabs-list')).not.toBeInTheDocument();
     });
 
-    it('should render HeaderTabsList when isDropdown prop is not provided', () => {
-      const tabs = createMockTabs();
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-          />
-        </TestWrapper>
-      );
+    it('should not render HeaderDropdown when tabs are empty', () => {
+      render(<HeaderNavigation {...defaultProps} tabs={[]} isDropdown={true} />);
 
-      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
-    });
-
-    it('should render HeaderDropdown when isDropdown is true', () => {
-      const tabs = createMockTabs();
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={true}
-          />
-        </TestWrapper>
-      );
-
-      // HeaderDropdown uses a Select component, so we check for the trigger
-      expect(screen.getByRole('combobox')).toBeInTheDocument();
-      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
-    });
-
-    it('should not render both HeaderDropdown and HeaderTabsList simultaneously', () => {
-      const tabs = createMockTabs();
-      const { container } = render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={true}
-          />
-        </TestWrapper>
-      );
-
-      // When isDropdown is true, we should see the select combobox
-      expect(screen.getByRole('combobox')).toBeInTheDocument();
-      
-      // Should not see the tabs list structure
-      const tabButtons = container.querySelectorAll('button[class*="flex items-center"]');
-      expect(tabButtons.length).toBeLessThanOrEqual(1); // Only the select trigger
+      expect(screen.queryByTestId('header-dropdown')).not.toBeInTheDocument();
     });
   });
 
-  // ============================================================================
-  // PROPS PASSING TESTS
-  // ============================================================================
+  describe('Props Passing - HeaderTabsList', () => {
+    it('should pass tabs prop to HeaderTabsList', () => {
+      render(<HeaderNavigation {...defaultProps} />);
 
-  describe('Props Passing', () => {
-    it('should pass correct tabs to HeaderTabsList', () => {
-      const tabs = createMockTabs();
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
-
-      tabs.forEach((tab) => {
-        expect(screen.getByText(tab.label)).toBeInTheDocument();
-      });
+      expect(screen.getByTestId('tabs-list-count')).toHaveTextContent('3');
     });
 
-    it('should pass correct tabs to HeaderDropdown', () => {
-      const tabs = createMockTabs();
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={true}
-          />
-        </TestWrapper>
-      );
+    it('should pass activeTab prop to HeaderTabsList', () => {
+      render(<HeaderNavigation {...defaultProps} activeTab="tab-2" />);
 
-      // The active tab should be visible
-      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('tab-2');
     });
 
-    it('should pass onTabClick callback to HeaderTabsList', () => {
-      const tabs = createMockTabs();
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
+    it('should pass null activeTab to HeaderTabsList', () => {
+      render(<HeaderNavigation {...defaultProps} activeTab={null} />);
 
-      const teamBetaButton = screen.getByText('Team Beta');
-      fireEvent.click(teamBetaButton);
-
-      expect(mockSetActiveTab).toHaveBeenCalledWith('team-2');
-    });
-  });
-
-  // ============================================================================
-  // CONDITIONAL RENDERING TESTS
-  // ============================================================================
-
-  describe('Conditional Rendering Logic', () => {
-    it('should switch from TabsList to Dropdown when isDropdown changes', () => {
-      const tabs = createMockTabs();
-      const { rerender, container } = render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
-
-      // Should show tabs list (multiple clickable tab buttons)
-      const initialButtons = screen.getAllByRole('button');
-      expect(initialButtons.length).toBeGreaterThan(1);
-
-      rerender(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={true}
-          />
-        </TestWrapper>
-      );
-
-      // Should show dropdown (combobox)
-      expect(screen.getByRole('combobox')).toBeInTheDocument();
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('none');
     });
 
-    it('should switch from Dropdown to TabsList when isDropdown changes', () => {
-      const tabs = createMockTabs();
-      const { rerender } = render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={true}
-          />
-        </TestWrapper>
-      );
+    it('should pass onTabClick prop to HeaderTabsList', async () => {
+      const user = await import('@testing-library/user-event').then(m => m.userEvent.setup());
 
-      // Should show dropdown
-      expect(screen.getByRole('combobox')).toBeInTheDocument();
+      render(<HeaderNavigation {...defaultProps} />);
 
-      rerender(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
+      const button = screen.getByText('Tabs List Click');
+      await user.click(button);
 
-      // Should show tabs list (multiple tab buttons)
-      const buttons = screen.getAllByRole('button');
-      expect(buttons.length).toBeGreaterThan(1);
+      expect(mockOnTabClick).toHaveBeenCalledWith('tab-1');
     });
 
-    it('should maintain activeTab when switching between modes', () => {
-      const tabs = createMockTabs();
-      const { rerender } = render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-2"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
+    it('should call HeaderTabsList with correct props', () => {
+      render(<HeaderNavigation {...defaultProps} />);
 
-      expect(screen.getByText('Team Beta')).toBeInTheDocument();
-
-      rerender(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-2"
-            onTabClick={mockOnTabClick}
-            isDropdown={true}
-          />
-        </TestWrapper>
-      );
-
-      // Team Beta should still be visible as the selected option
-      expect(screen.getByText('Team Beta')).toBeInTheDocument();
-    });
-  });
-
-  // ============================================================================
-  // STATE MANAGEMENT TESTS
-  // ============================================================================
-
-  describe('State Management', () => {
-    it('should handle null activeTab in TabsList mode', () => {
-      const tabs = createMockTabs();
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab={null}
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
-
-      // All tabs should be rendered
-      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
-      expect(screen.getByText('Team Beta')).toBeInTheDocument();
-      expect(screen.getByText('Team Gamma')).toBeInTheDocument();
-    });
-
-    it('should handle null activeTab in Dropdown mode', () => {
-      const tabs = createMockTabs();
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab={null}
-            onTabClick={mockOnTabClick}
-            isDropdown={true}
-          />
-        </TestWrapper>
-      );
-
-      // Should show the dropdown with placeholder
-      expect(screen.getByRole('combobox')).toBeInTheDocument();
-    });
-
-    it('should update when activeTab changes in TabsList mode', () => {
-      const tabs = createMockTabs();
-      const { rerender, container } = render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
-
-      // Check team-1 is active
-      let activeIndicators = container.querySelectorAll('.bg-primary');
-      expect(activeIndicators.length).toBeGreaterThan(0);
-
-      rerender(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-3"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
-
-      // Team 3 should now be active
-      expect(screen.getByText('Team Gamma')).toBeInTheDocument();
-    });
-
-    it('should update when activeTab changes in Dropdown mode', () => {
-      const tabs = createMockTabs();
-      const { rerender } = render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={true}
-          />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
-
-      rerender(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-2"
-            onTabClick={mockOnTabClick}
-            isDropdown={true}
-          />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText('Team Beta')).toBeInTheDocument();
-    });
-
-    it('should handle tabs array updates', () => {
-      const initialTabs = createMockTabs();
-      const { rerender } = render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={initialTabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
-
-      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
-      expect(screen.getByText('Team Beta')).toBeInTheDocument();
-
-      const updatedTabs: HeaderTab[] = [
+      expect(HeaderTabsList).toHaveBeenCalledWith(
         {
-          id: 'team-4',
-          label: 'Team Delta',
-          icon: '🔥',
+          tabs: mockTabs,
+          activeTab: 'tab-1',
+          onTabClick: mockOnTabClick,
         },
-      ];
-
-      rerender(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={updatedTabs}
-            activeTab="team-4"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
+        expect.anything()
       );
-
-      expect(screen.queryByText('Team Alpha')).not.toBeInTheDocument();
-      expect(screen.getByText('Team Delta')).toBeInTheDocument();
     });
   });
 
-  // ============================================================================
-  // EDGE CASES TESTS
-  // ============================================================================
+  describe('Props Passing - HeaderDropdown', () => {
+    it('should pass tabs prop to HeaderDropdown', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(screen.getByTestId('dropdown-tabs-count')).toHaveTextContent('3');
+    });
+
+    it('should pass activeTab prop to HeaderDropdown', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} activeTab="tab-3" />);
+
+      expect(screen.getByTestId('dropdown-active-tab')).toHaveTextContent('tab-3');
+    });
+
+    it('should pass null activeTab to HeaderDropdown', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} activeTab={null} />);
+
+      expect(screen.getByTestId('dropdown-active-tab')).toHaveTextContent('none');
+    });
+
+    it('should pass onTabClick prop to HeaderDropdown', async () => {
+      const user = await import('@testing-library/user-event').then(m => m.userEvent.setup());
+
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      const button = screen.getByText('Dropdown Click');
+      await user.click(button);
+
+      expect(mockOnTabClick).toHaveBeenCalledWith('tab-1');
+    });
+
+    it('should call HeaderDropdown with correct props', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(HeaderDropdown).toHaveBeenCalledWith(
+        {
+          tabs: mockTabs,
+          activeTab: 'tab-1',
+          onTabClick: mockOnTabClick,
+        },
+        expect.anything()
+      );
+    });
+  });
+
+  describe('Conditional Rendering', () => {
+    it('should switch from tabs list to dropdown', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} isDropdown={false} />);
+
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
+
+      rerender(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(screen.getByTestId('header-dropdown')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-tabs-list')).not.toBeInTheDocument();
+    });
+
+    it('should switch from dropdown to tabs list', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(screen.getByTestId('header-dropdown')).toBeInTheDocument();
+
+      rerender(<HeaderNavigation {...defaultProps} isDropdown={false} />);
+
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-dropdown')).not.toBeInTheDocument();
+    });
+  });
 
   describe('Edge Cases', () => {
-    it('should handle single tab in array', () => {
-      const singleTab: HeaderTab[] = [
-        {
-          id: 'only-tab',
-          label: 'Only Tab',
-          icon: '🎯',
-        },
-      ];
+    it('should handle single tab', () => {
+      const singleTab = [mockTabs[0]];
 
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={singleTab}
-            activeTab="only-tab"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
+      render(<HeaderNavigation {...defaultProps} tabs={singleTab} />);
 
-      expect(screen.getByText('Only Tab')).toBeInTheDocument();
+      expect(screen.getByTestId('tabs-list-count')).toHaveTextContent('1');
     });
 
-    it('should handle tabs without icons', () => {
-      const tabsWithoutIcons: HeaderTab[] = [
-        {
-          id: 'tab-1',
-          label: 'Tab One',
-        },
-        {
-          id: 'tab-2',
-          label: 'Tab Two',
-        },
-      ];
+    it('should handle many tabs', () => {
+      const manyTabs = Array.from({ length: 20 }, (_, i) => ({
+        id: `tab-${i}`,
+        label: `Tab ${i}`,
+      }));
 
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabsWithoutIcons}
-            activeTab="tab-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
+      render(<HeaderNavigation {...defaultProps} tabs={manyTabs} />);
 
-      expect(screen.getByText('Tab One')).toBeInTheDocument();
-      expect(screen.getByText('Tab Two')).toBeInTheDocument();
+      expect(screen.getByTestId('tabs-list-count')).toHaveTextContent('20');
     });
 
-    it('should handle empty string as activeTab', () => {
-      const tabs = createMockTabs();
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab=""
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
+    it('should handle tabs with icons', () => {
+      const tabsWithIcons = mockTabs.map(tab => ({
+        ...tab,
+        icon: <span>Icon</span>,
+      }));
 
-      // All tabs should still be rendered
-      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
-      expect(screen.getByText('Team Beta')).toBeInTheDocument();
+      render(<HeaderNavigation {...defaultProps} tabs={tabsWithIcons} />);
+
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
     });
 
-    it('should handle non-existent activeTab id', () => {
-      const tabs = createMockTabs();
-      render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="non-existent-id"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
-      );
+    it('should handle changing activeTab', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} activeTab="tab-1" />);
 
-      // Component should still render all tabs
-      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
-      expect(screen.getByText('Team Beta')).toBeInTheDocument();
-      expect(screen.getByText('Team Gamma')).toBeInTheDocument();
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('tab-1');
+
+      rerender(<HeaderNavigation {...defaultProps} activeTab="tab-2" />);
+
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('tab-2');
     });
 
-    it('should maintain callback reference across re-renders', () => {
-      const tabs = createMockTabs();
-      const { rerender } = render(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-1"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
+    it('should handle changing tabs array', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} />);
+
+      expect(screen.getByTestId('tabs-list-count')).toHaveTextContent('3');
+
+      const newTabs = [mockTabs[0], mockTabs[1]];
+      rerender(<HeaderNavigation {...defaultProps} tabs={newTabs} />);
+
+      expect(screen.getByTestId('tabs-list-count')).toHaveTextContent('2');
+    });
+  });
+
+  describe('Component Calls', () => {
+    it('should not call HeaderDropdown when isDropdown is false', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={false} />);
+
+      expect(HeaderDropdown).not.toHaveBeenCalled();
+    });
+
+    it('should not call HeaderTabsList when isDropdown is true', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(HeaderTabsList).not.toHaveBeenCalled();
+    });
+
+    it('should call HeaderTabsList exactly once by default', () => {
+      render(<HeaderNavigation {...defaultProps} />);
+
+      expect(HeaderTabsList).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call HeaderDropdown exactly once when isDropdown is true', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(HeaderDropdown).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Integration', () => {
+    it('should integrate with HeaderTabsList component', () => {
+      render(<HeaderNavigation {...defaultProps} />);
+
+      expect(HeaderTabsList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tabs: mockTabs,
+          activeTab: 'tab-1',
+          onTabClick: mockOnTabClick,
+        }),
+        expect.anything()
       );
+    });
 
-      rerender(
-        <TestWrapper>
-          <HeaderNavigation
-            tabs={tabs}
-            activeTab="team-2"
-            onTabClick={mockOnTabClick}
-            isDropdown={false}
-          />
-        </TestWrapper>
+    it('should integrate with HeaderDropdown component', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(HeaderDropdown).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tabs: mockTabs,
+          activeTab: 'tab-1',
+          onTabClick: mockOnTabClick,
+        }),
+        expect.anything()
       );
+    });
+  });
 
-      const button = screen.getByText('Team Gamma');
-      fireEvent.click(button);
+  describe('Re-rendering', () => {
+    it('should update when props change', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} />);
 
-      expect(mockSetActiveTab).toHaveBeenCalledWith('team-3');
-      expect(mockSetActiveTab).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('tab-1');
+
+      rerender(<HeaderNavigation {...defaultProps} activeTab="tab-3" />);
+
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('tab-3');
+    });
+
+    it('should handle multiple re-renders', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} />);
+
+      rerender(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+      rerender(<HeaderNavigation {...defaultProps} isDropdown={false} />);
+      rerender(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(screen.getByTestId('header-dropdown')).toBeInTheDocument();
     });
   });
 });

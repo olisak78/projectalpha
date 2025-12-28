@@ -1,413 +1,540 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import { MemoryRouter } from 'react-router-dom';
-import App from '../src/App';
+import { render, screen, waitFor } from '@testing-library/react';
+import { useParams } from 'react-router-dom';
+import App from '@/App';
 
-// ============================================================================
-// ZUSTAND STORE MOCKS (Updated for migration)
-// ============================================================================
-
-// Mock projectsStore (migrated from ProjectsContext)
+// Mock stores
 vi.mock('@/stores/projectsStore', () => ({
-  useProjects: vi.fn(() => [
-    { id: 'cis20', name: 'cis', display_name: 'CIS' },
-    { id: 'test-project', name: 'test', display_name: 'Test Project' }
-  ]),
-  useProjectsLoading: vi.fn(() => false),
-  useProjectsError: vi.fn(() => null),
+  useProjects: vi.fn(),
+  useProjectsLoading: vi.fn(),
+  useProjectsError: vi.fn(),
 }));
 
-// Mock appStateStore (migrated from AppStateContext)
-vi.mock('@/stores/appStateStore', () => ({
-  useLandscapeFilter: vi.fn(() => 'all'),
-  useAppStateActions: vi.fn(() => ({
-    setLandscapeFilter: vi.fn(),
-  })),
+// Mock react-router-dom with useParams
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useParams: vi.fn(),
+  };
+});
+
+// Mock hooks
+vi.mock('@/hooks/useProjectSync', () => ({
+  useProjectsSync: vi.fn(),
 }));
 
-// ============================================================================
-// CONTEXT MOCKS (Only for contexts that weren't migrated)
-// ============================================================================
-
-// Mock AuthContext (NOT migrated - stays as context)
-vi.mock('@/contexts/AuthContext', () => ({
-  AuthProvider: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="auth-provider">{children}</div>
-  ),
-  useAuth: () => ({
-    user: { id: 'test-user', name: 'Test User' },
-    isAuthenticated: true,
-    login: vi.fn(),
-    logout: vi.fn()
-  })
-}));
-
-// Mock HeaderNavigationContext (NOT migrated - URL-driven)
-vi.mock('@/contexts/HeaderNavigationContext', () => ({
-  HeaderNavigationProvider: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="header-navigation-provider">{children}</div>
-
-  ),
-  useHeaderNavigation: () => ({
-    tabs: [],
-    activeTab: null,
-    setTabs: vi.fn(),
-    setActiveTab: vi.fn(),
-    isDropdown: false,
-    setIsDropdown: vi.fn(),
-  })
-
-}));
-
-// ============================================================================
-// PROVIDER MOCKS
-// ============================================================================
-
-
-
-
-
-
-// ============================================================================
-// PROVIDER MOCKS
-// ============================================================================
-
-
+// Mock providers
 vi.mock('@/providers/QueryProvider', () => ({
-  QueryProvider: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="query-provider">{children}</div>
-  )
+  QueryProvider: vi.fn(({ children }) => <div data-testid="query-provider">{children}</div>),
 }));
 
-// ============================================================================
-// UI COMPONENT MOCKS
-// ============================================================================
+vi.mock('@/contexts/AuthContext', () => ({
+  AuthProvider: vi.fn(({ children }) => <div data-testid="auth-provider">{children}</div>),
+  useAuth: vi.fn(),
+}));
 
+// Mock react-router-dom
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useParams: vi.fn(() => ({})),
+  };
+});
+
+// Mock UI components
 vi.mock('@/components/ui/toaster', () => ({
-  Toaster: () => <div data-testid="toaster" />
+  Toaster: vi.fn(() => <div data-testid="toaster">Toaster</div>),
 }));
 
 vi.mock('@/components/ui/sonner', () => ({
-  Toaster: () => <div data-testid="sonner" />
+  Toaster: vi.fn(() => <div data-testid="sonner">Sonner</div>),
 }));
 
 vi.mock('@/components/ui/tooltip', () => ({
-  TooltipProvider: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="tooltip-provider">{children}</div>
-  )
+  TooltipProvider: vi.fn(({ children }) => <div data-testid="tooltip-provider">{children}</div>),
 }));
 
-// ============================================================================
-// COMPONENT MOCKS
-// ============================================================================
-
-vi.mock('@/components/PortalContainer', () => ({
-  PortalContainer: () => <div data-testid="portal-container">Portal Container</div>
-}));
+// Mock components
+vi.mock('@/components/PortalContainer', async () => {
+  const { Outlet } = await vi.importActual('react-router-dom');
+  return {
+    PortalContainer: vi.fn(() => (
+      <div data-testid="portal-container">
+        Portal Container
+        <Outlet />
+      </div>
+    )),
+  };
+});
 
 vi.mock('@/components/ProtectedRoute', () => ({
-  __esModule: true,
-  default: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="protected-route">{children}</div>
-  )
+  default: vi.fn(({ children }) => <div data-testid="protected-route">{children}</div>),
 }));
 
-// ============================================================================
-// PAGE COMPONENT MOCKS
-// ============================================================================
-
+// Mock pages
 vi.mock('@/pages/LoginPage', () => ({
-  __esModule: true,
-  default: () => <div data-testid="login-page">Login Page</div>
+  default: vi.fn(() => <div data-testid="login-page">Login Page</div>),
 }));
 
 vi.mock('@/pages/HomePage', () => ({
-  __esModule: true,
-  default: () => <div data-testid="home-page">Home Page</div>
+  default: vi.fn(() => <div data-testid="home-page">Home Page</div>),
 }));
 
 vi.mock('@/pages/TeamsPage', () => ({
-  __esModule: true,
-  default: () => <div data-testid="teams-page">Teams Page</div>
+  default: vi.fn(() => <div data-testid="teams-page">Teams Page</div>),
 }));
 
 vi.mock('@/pages/SelfServicePage', () => ({
-  __esModule: true,
-  default: () => <div data-testid="self-service-page">Self Service Page</div>
+  default: vi.fn(() => <div data-testid="self-service-page">Self Service Page</div>),
 }));
 
 vi.mock('@/pages/LinksPage', () => ({
-  __esModule: true,
-  default: () => <div data-testid="links-page">Links Page</div>
+  default: vi.fn(() => <div data-testid="links-page">Links Page</div>),
 }));
 
 vi.mock('@/pages/AIArenaPage', () => ({
-  __esModule: true,
-  default: () => <div data-testid="ai-arena-page">AI Arena Page</div>
-}));
-
-vi.mock('@/pages/CisPage', () => ({
-  __esModule: true,
-  default: () => <div data-testid="cis-page">CIS Page</div>
-}));
-
-vi.mock('@/pages/ComponentViewPage', () => ({
-  __esModule: true,
-  default: () => <div data-testid="component-view-page">Component View Page</div>
+  default: vi.fn(() => <div data-testid="ai-arena-page">AI Arena Page</div>),
 }));
 
 vi.mock('@/pages/DynamicProjectPage', () => ({
-  DynamicProjectPage: ({ projectName }: { projectName: string }) => (
+  DynamicProjectPage: vi.fn(({ projectName }) => (
     <div data-testid="dynamic-project-page">Dynamic Project: {projectName}</div>
-  )
+  )),
 }));
 
-vi.mock('@/pages/ComponentDetailPage', () => ({
-  __esModule: true,
-  default: () => <div data-testid="component-detail-page">Component Detail Page</div>
+vi.mock('@/pages/ComponentViewPage', () => ({
+  default: vi.fn(() => <div data-testid="component-view-page">Component View Page</div>),
+}));
+
+vi.mock('@/pages/PluginMarketplacePage', () => ({
+  default: vi.fn(() => <div data-testid="plugin-marketplace-page">Plugin Marketplace Page</div>),
+}));
+
+vi.mock('@/pages/PluginViewPage', () => ({
+  default: vi.fn(() => <div data-testid="plugin-view-page">Plugin View Page</div>),
 }));
 
 vi.mock('@/pages/NotFound', () => ({
-  __esModule: true,
-  default: () => <div data-testid="not-found-page">Not Found Page</div>
+  default: vi.fn(() => <div data-testid="not-found-page">Not Found</div>),
 }));
 
-// ============================================================================
-// TEST WRAPPER
-// ============================================================================
+import { useProjects, useProjectsLoading, useProjectsError } from '@/stores/projectsStore';
+import { useProjectsSync } from '@/hooks/useProjectSync';
 
-const TestWrapper = ({ children }: { children: React.ReactNode }) => {
-  return <>{children}</>;
-};
+describe('App', () => {
+  const mockProjects = [
+    {
+      id: 'proj-1',
+      name: 'cis20',
+      title: 'CIS 2.0',
+      description: 'CIS Project',
+    },
+    {
+      id: 'proj-2',
+      name: 'platform',
+      title: 'Platform Services',
+      description: 'Platform Project',
+    },
+  ];
 
-// ============================================================================
-// TESTS
-// ============================================================================
-
-describe('App Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    vi.mocked(useProjects).mockReturnValue(mockProjects);
+    vi.mocked(useProjectsLoading).mockReturnValue(false);
+    vi.mocked(useProjectsError).mockReturnValue(null);
+    vi.mocked(useProjectsSync).mockReturnValue(undefined);
   });
 
-  describe('Provider Setup', () => {
-    it('renders all providers in correct order', () => {
-      render(
-        <TestWrapper>
-          <App />
-        </TestWrapper>
-      );
+  describe('Providers', () => {
+    it('should render QueryProvider', () => {
+      render(<App />);
 
-      // Check that all App-level providers are rendered
       expect(screen.getByTestId('query-provider')).toBeInTheDocument();
-      expect(screen.getByTestId('tooltip-provider')).toBeInTheDocument();
-      expect(screen.getByTestId('toaster')).toBeInTheDocument();
-      expect(screen.getByTestId('sonner')).toBeInTheDocument();
+    });
+
+    it('should render AuthProvider inside QueryProvider', () => {
+      render(<App />);
+
       expect(screen.getByTestId('auth-provider')).toBeInTheDocument();
-      
-      // Note: ProjectsProvider removed - now using Zustand (projectsStore)
-      // Note: SidebarProvider removed - now using Zustand (sidebarStore) if applicable
-      
-      expect(screen.getByTestId('portal-container')).toBeInTheDocument();
     });
 
-    it('includes QueryClientProvider with proper setup', () => {
-      render(
-        <TestWrapper>
-          <App />
-        </TestWrapper>
-      );
+    it('should render TooltipProvider', () => {
+      render(<App />);
 
-      // The QueryClientProvider is set up internally
-      expect(screen.getByTestId('query-provider')).toBeInTheDocument();
+      expect(screen.getByTestId('tooltip-provider')).toBeInTheDocument();
+    });
+
+    it('should render Toaster', () => {
+      render(<App />);
+
+      expect(screen.getByTestId('toaster')).toBeInTheDocument();
+    });
+
+    it('should render Sonner', () => {
+      render(<App />);
+
+      expect(screen.getByTestId('sonner')).toBeInTheDocument();
     });
   });
 
-  describe('Routing Configuration', () => {
-    it('sets up protected routes correctly', () => {
+  describe('Public Routes', () => {
+    it('should render LoginPage at /login', () => {
+      window.history.pushState({}, '', '/login');
       render(<App />);
-      
-      // Verify protected route wrapper exists
+
+      expect(screen.getByTestId('login-page')).toBeInTheDocument();
+    });
+
+    it('should redirect /me to /', async () => {
+      window.history.pushState({}, '', '/me');
+      render(<App />);
+
+      await waitFor(() => {
+        expect(window.location.pathname).toBe('/');
+      });
+    });
+  });
+
+  describe('Protected Routes - Static Pages', () => {
+    it('should render HomePage at root path', () => {
+      window.history.pushState({}, '', '/');
+      render(<App />);
+
+      expect(screen.getByTestId('home-page')).toBeInTheDocument();
+    });
+
+    it('should render TeamsPage at /teams', () => {
+      window.history.pushState({}, '', '/teams');
+      render(<App />);
+
+      expect(screen.getByTestId('teams-page')).toBeInTheDocument();
+    });
+
+    it('should render SelfServicePage at /self-service', () => {
+      window.history.pushState({}, '', '/self-service');
+      render(<App />);
+
+      expect(screen.getByTestId('self-service-page')).toBeInTheDocument();
+    });
+
+    it('should render LinksPage at /links', () => {
+      window.history.pushState({}, '', '/links');
+      render(<App />);
+
+      expect(screen.getByTestId('links-page')).toBeInTheDocument();
+    });
+
+    it('should render AIArenaPage at /ai-arena', () => {
+      window.history.pushState({}, '', '/ai-arena');
+      render(<App />);
+
+      expect(screen.getByTestId('ai-arena-page')).toBeInTheDocument();
+    });
+
+    it('should render PluginMarketplacePage at /plugin-marketplace', () => {
+      window.history.pushState({}, '', '/plugin-marketplace');
+      render(<App />);
+
+      expect(screen.getByTestId('plugin-marketplace-page')).toBeInTheDocument();
+    });
+  });
+
+  describe('Protected Routes - With Params', () => {
+    it('should render TeamsPage with team name param', () => {
+      window.history.pushState({}, '', '/teams/team-alpha/overview');
+      render(<App />);
+
+      expect(screen.getByTestId('teams-page')).toBeInTheDocument();
+    });
+
+    it('should render AIArenaPage with tab param', () => {
+      window.history.pushState({}, '', '/ai-arena/chat');
+      render(<App />);
+
+      expect(screen.getByTestId('ai-arena-page')).toBeInTheDocument();
+    });
+
+    it('should render PluginViewPage with plugin slug', () => {
+      window.history.pushState({}, '', '/plugins/test-plugin');
+      render(<App />);
+
+      expect(screen.getByTestId('plugin-view-page')).toBeInTheDocument();
+    });
+  });
+
+  describe('Dynamic Project Routes', () => {
+   it('should render DynamicProjectPage for project index', () => {
+  vi.mocked(useParams).mockReturnValue({ projectName: 'cis20' });
+
+  window.history.pushState({}, '', '/cis20');
+  render(<App />);
+
+  expect(screen.getByTestId('dynamic-project-page')).toBeInTheDocument();
+  expect(screen.getByText('Dynamic Project: cis20')).toBeInTheDocument();
+});
+
+   it('should render DynamicProjectPage with tab param', () => {
+  vi.mocked(useParams).mockReturnValue({ 
+    projectName: 'cis20',
+    tabId: 'components'
+  });
+
+  window.history.pushState({}, '', '/cis20/components');
+  render(<App />);
+
+  expect(screen.getByTestId('dynamic-project-page')).toBeInTheDocument();
+});
+
+    it('should render ComponentViewPage for component route', () => {
+  vi.mocked(useParams).mockReturnValue({ 
+    projectName: 'cis20',
+    componentName: 'api-service'
+  });
+
+  window.history.pushState({}, '', '/cis20/component/api-service');
+  render(<App />);
+
+  expect(screen.getByTestId('component-view-page')).toBeInTheDocument();
+});
+
+    it('should render ComponentViewPage with tab param', () => {
+  vi.mocked(useParams).mockReturnValue({ 
+    projectName: 'cis20',
+    componentName: 'api-service',
+    tabId: 'overview'
+  });
+
+  window.history.pushState({}, '', '/cis20/component/api-service/overview');
+  render(<App />);
+
+  expect(screen.getByTestId('component-view-page')).toBeInTheDocument();
+});
+
+
+  });
+
+  describe('Dynamic Project Loading States', () => {
+    it('should show loading state when projects are loading', () => {
+      vi.mocked(useProjectsLoading).mockReturnValue(true);
+
+      window.history.pushState({}, '', '/cis20');
+      render(<App />);
+
+      expect(screen.getByText('Loading project...')).toBeInTheDocument();
+    });
+
+    it('should show error state when projects fail to load', () => {
+      vi.mocked(useProjectsError).mockReturnValue(new Error('Failed to load'));
+
+      window.history.pushState({}, '', '/cis20');
+      render(<App />);
+
+      expect(screen.getByText('Error loading projects')).toBeInTheDocument();
+    });
+
+    it('should show not found when project does not exist', () => {
+  vi.mocked(useProjects).mockReturnValue(mockProjects);
+  vi.mocked(useParams).mockReturnValue({ projectName: 'nonexistent-project' });
+
+  window.history.pushState({}, '', '/nonexistent-project');
+  render(<App />);
+
+  expect(screen.getByText(/project not found/i)).toBeInTheDocument();
+});
+  });
+
+  describe('Component View Loading States', () => {
+    it('should show loading state for component view when projects are loading', () => {
+      vi.mocked(useProjectsLoading).mockReturnValue(true);
+
+      window.history.pushState({}, '', '/cis20/component/api-service');
+      render(<App />);
+
+      expect(screen.getByText('Loading project...')).toBeInTheDocument();
+    });
+
+    it('should show error state for component view when projects fail to load', () => {
+      vi.mocked(useProjectsError).mockReturnValue(new Error('Failed to load'));
+
+      window.history.pushState({}, '', '/cis20/component/api-service');
+      render(<App />);
+
+      expect(screen.getByText('Error loading projects')).toBeInTheDocument();
+    });
+
+    it('should show not found for component view when project does not exist', () => {
+  // Use a project name that exists in mockProjects to trigger the wrapper
+  // but then verify it shows "Project not found" when project doesn't match
+  vi.mocked(useProjects).mockReturnValue([]);
+  
+  vi.mocked(useParams).mockReturnValue({ 
+    projectName: 'cis20',
+    componentName: 'test'
+  });
+
+  window.history.pushState({}, '', '/cis20/component/test');
+  render(<App />);
+
+  expect(screen.getByText('Project not found')).toBeInTheDocument();
+});
+  });
+
+  describe('404 Not Found', () => {
+    it('should render NotFound for deeply nested unknown routes', () => {
+  window.history.pushState({}, '', '/some/unknown/deep/route');
+  render(<App />);
+
+  expect(screen.getByTestId('not-found-page')).toBeInTheDocument();
+});
+
+    it('should render NotFound for deeply nested unknown routes', () => {
+      window.history.pushState({}, '', '/some/unknown/deep/route');
+      render(<App />);
+
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument();
+    });
+  });
+
+  describe('Protected Route Wrapper', () => {
+    it('should wrap protected routes with ProtectedRoute component', () => {
+      window.history.pushState({}, '', '/');
+      render(<App />);
+
       expect(screen.getByTestId('protected-route')).toBeInTheDocument();
+    });
+
+    it('should render PortalContainer inside ProtectedRoute', () => {
+      window.history.pushState({}, '', '/');
+      render(<App />);
+
       expect(screen.getByTestId('portal-container')).toBeInTheDocument();
+    });
+
+    it('should not wrap login page with ProtectedRoute', () => {
+      window.history.pushState({}, '', '/login');
+      render(<App />);
+
+      expect(screen.queryByTestId('portal-container')).not.toBeInTheDocument();
     });
   });
 
-  describe('Zustand Store Integration', () => {
-    it('uses projectsStore instead of ProjectsContext', () => {
-      const { useProjects } = require('@/stores/projectsStore');
-      
+  describe('Hooks Integration', () => {
+    it('should call useProjectsSync', () => {
       render(<App />);
-      
-      // Verify the store is being called
+
+      expect(useProjectsSync).toHaveBeenCalled();
+    });
+
+    it('should call useProjects in dynamic project wrapper', () => {
+      window.history.pushState({}, '', '/cis20');
+      render(<App />);
+
       expect(useProjects).toHaveBeenCalled();
     });
 
-    it('uses appStateStore instead of AppStateContext', () => {
-      const { useLandscapeFilter } = require('@/stores/appStateStore');
-      
+    it('should call useProjectsLoading in dynamic project wrapper', () => {
+      window.history.pushState({}, '', '/cis20');
       render(<App />);
-      
-      // Verify the store is available
-      expect(useLandscapeFilter).toBeDefined();
+
+      expect(useProjectsLoading).toHaveBeenCalled();
+    });
+
+    it('should call useProjectsError in dynamic project wrapper', () => {
+      window.history.pushState({}, '', '/cis20');
+      render(<App />);
+
+      expect(useProjectsError).toHaveBeenCalled();
     });
   });
 
-  describe('Route Structure', () => {
-    it('defines public routes correctly', () => {
-      render(<App />);
-      
-      // Verify the basic app structure
-      expect(screen.getByTestId('query-provider')).toBeInTheDocument();
-      expect(screen.getByTestId('auth-provider')).toBeInTheDocument();
-    });
+  describe('Plugin View Key Prop', () => {
+    it('should render PluginViewPage with key based on pathname', () => {
+      window.history.pushState({}, '', '/plugins/plugin-1');
+      const { rerender } = render(<App />);
 
-    it('defines protected routes with proper nesting', () => {
-      render(<App />);
-      
-      // Verify protected route structure
-      expect(screen.getByTestId('protected-route')).toBeInTheDocument();
-      expect(screen.getByTestId('portal-container')).toBeInTheDocument();
-    });
-  });
+      expect(screen.getByTestId('plugin-view-page')).toBeInTheDocument();
 
-  describe('Error Handling', () => {
-
-    it('handles missing projects gracefully', () => {
-      // Mock empty projects array
-      const { useProjects } = require('@/stores/projectsStore');
-      useProjects.mockReturnValue([]);
-
-    it('handles missing projects gracefully in wrappers', () => {
-      // Mock projects context to return empty projects
-      vi.doMock('@/contexts/ProjectsContext', () => ({
-        ProjectsProvider: ({ children }: { children: React.ReactNode }) => (
-          <div data-testid="projects-provider">{children}</div>
-        )
-      }));
-
-
-      render(<App />);
-      
-      // App should still render even with empty projects
-      expect(screen.getByTestId('query-provider')).toBeInTheDocument();
-    });
-
-
-    it('handles loading state in projectsStore', () => {
-      const { useProjectsLoading } = require('@/stores/projectsStore');
-      useProjectsLoading.mockReturnValue(true);
-
-    it('handles loading state in project context', () => {
-      vi.doMock('@/contexts/ProjectsContext', () => ({
-        ProjectsProvider: ({ children }: { children: React.ReactNode }) => (
-          <div data-testid="projects-provider">{children}</div>
-        )
-      }));
-
-    it('handles loading state in projectsStore', () => {
-      const { useProjectsLoading } = require('@/stores/projectsStore');
-      useProjectsLoading.mockReturnValue(true);
-
-
-      render(<App />);
-      
-      expect(screen.getByTestId('query-provider')).toBeInTheDocument();
-    });
-
-
-    it('handles error state in projectsStore', () => {
-      const { useProjectsError } = require('@/stores/projectsStore');
-      useProjectsError.mockReturnValue(new Error('Test error'));
-
-    it('handles error state in project context', () => {
-      vi.doMock('@/contexts/ProjectsContext', () => ({
-        ProjectsProvider: ({ children }: { children: React.ReactNode }) => (
-          <div data-testid="projects-provider">{children}</div>
-        )
-      }));
-
-    it('handles error state in projectsStore', () => {
-      const { useProjectsError } = require('@/stores/projectsStore');
-      useProjectsError.mockReturnValue(new Error('Test error'));
-
-
-      render(<App />);
-      
-      expect(screen.getByTestId('query-provider')).toBeInTheDocument();
-    });
-  });
-
-  describe('Component Integration', () => {
-    it('integrates with React Query properly', () => {
-      render(<App />);
-      
-      expect(screen.getByTestId('query-provider')).toBeInTheDocument();
-    });
-
-    it('integrates with React Router properly', () => {
-      render(<App />);
-      
-      // BrowserRouter is integrated at the top level
-      expect(screen.getByTestId('query-provider')).toBeInTheDocument();
-    });
-
-    it('integrates all UI providers correctly', () => {
-      render(<App />);
-      
-      expect(screen.getByTestId('tooltip-provider')).toBeInTheDocument();
-      expect(screen.getByTestId('toaster')).toBeInTheDocument();
-      expect(screen.getByTestId('sonner')).toBeInTheDocument();
-    });
-
-    it('integrates Zustand stores correctly', () => {
-      render(<App />);
-      
-      // Stores are used internally, verify app renders without errors
-      expect(screen.getByTestId('portal-container')).toBeInTheDocument();
-    });
-  });
-
-  describe('App Export', () => {
-    it('exports App component as default', () => {
-      expect(App).toBeDefined();
-      expect(typeof App).toBe('function');
-    });
-
-    it('renders without crashing', () => {
-      expect(() => render(<App />)).not.toThrow();
-    });
-  });
-
-  describe('Performance Considerations', () => {
-    it('creates QueryClient instance efficiently', () => {
-      const { unmount } = render(<App />);
-      unmount();
-      
-      render(<App />);
-      expect(screen.getByTestId('query-provider')).toBeInTheDocument();
-    });
-
-    it('handles multiple provider nesting without performance issues', () => {
-      const startTime = performance.now();
-      render(<App />);
-      const endTime = performance.now();
-      
-      // Basic performance check - should render quickly
-      expect(endTime - startTime).toBeLessThan(1000);
-      expect(screen.getByTestId('query-provider')).toBeInTheDocument();
-    });
-
-    it('Zustand stores perform efficiently', () => {
-      // Multiple renders should not cause performance issues with Zustand
-      const { unmount, rerender } = render(<App />);
-      
+      // Navigate to different plugin
+      window.history.pushState({}, '', '/plugins/plugin-2');
       rerender(<App />);
-      rerender(<App />);
-      
+
+      // Should still render plugin view page
+      expect(screen.getByTestId('plugin-view-page')).toBeInTheDocument();
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle empty projects array', () => {
+      vi.mocked(useProjects).mockReturnValue([]);
+
+      window.history.pushState({}, '', '/cis20');
+      render(<App />);
+
+      expect(screen.getByText('Project not found')).toBeInTheDocument();
+    });
+
+
+    it('should handle route with query parameters', () => {
+      window.history.pushState({}, '', '/teams?tab=overview');
+      render(<App />);
+
+      expect(screen.getByTestId('teams-page')).toBeInTheDocument();
+    });
+
+    it('should handle route with hash', () => {
+      window.history.pushState({}, '', '/links#section-1');
+      render(<App />);
+
+      expect(screen.getByTestId('links-page')).toBeInTheDocument();
+    });
+
+    it('should handle route with trailing slash', () => {
+      window.history.pushState({}, '', '/teams/');
+      render(<App />);
+
+      expect(screen.getByTestId('teams-page')).toBeInTheDocument();
+    });
+  });
+
+  describe('Route Nesting', () => {
+    it('should render nested routes within PortalContainer', () => {
+      window.history.pushState({}, '', '/');
+      render(<App />);
+
       expect(screen.getByTestId('portal-container')).toBeInTheDocument();
-      
-      unmount();
+      expect(screen.getByTestId('home-page')).toBeInTheDocument();
+    });
+
+    it('should support multiple levels of nesting', () => {
+      window.history.pushState({}, '', '/teams/team-alpha/overview');
+      render(<App />);
+
+      expect(screen.getByTestId('portal-container')).toBeInTheDocument();
+      expect(screen.getByTestId('teams-page')).toBeInTheDocument();
+    });
+
+  });
+
+  describe('Provider Hierarchy', () => {
+    it('should have correct provider nesting order', () => {
+      const { container } = render(<App />);
+
+      // QueryProvider should be outermost
+      const queryProvider = screen.getByTestId('query-provider');
+      expect(queryProvider).toBeInTheDocument();
+
+      // TooltipProvider should be inside
+      const tooltipProvider = screen.getByTestId('tooltip-provider');
+      expect(tooltipProvider).toBeInTheDocument();
+      expect(queryProvider).toContainElement(tooltipProvider);
+
+      // AuthProvider should be inside TooltipProvider
+      const authProvider = screen.getByTestId('auth-provider');
+      expect(authProvider).toBeInTheDocument();
+      expect(tooltipProvider).toContainElement(authProvider);
     });
   });
 });

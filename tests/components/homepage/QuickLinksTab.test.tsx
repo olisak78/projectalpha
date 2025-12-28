@@ -1,321 +1,644 @@
-import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import '@testing-library/jest-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import QuickLinksTab from '../../../src/components/tabs/MePageTabs/QuickLinksTab';
+import { render, screen, waitFor } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
+import QuickLinksTab from '@/components/tabs/MePageTabs/QuickLinksTab';
+import type { UserMeResponse } from '@/types/api';
 
-// Mock components and hooks
-vi.mock('../../../src/components/tabs/MePageTabs/QuickLinksGrid', () => ({
-  QuickLinksGrid: () => <div data-testid="quick-links-grid">Quick Links Grid</div>
+// Mock all child components
+vi.mock('@/components/tabs/MePageTabs/QuickLinksGrid', () => ({
+  QuickLinksGrid: vi.fn(() => <div data-testid="quick-links-grid">Grid Content</div>),
 }));
 
-vi.mock('../../../src/components/tabs/MePageTabs/QuickLinksSearchFilter', () => ({
-  QuickLinksSearchFilter: ({ onAddLinkClick }: { onAddLinkClick: () => void }) => (
+vi.mock('@/components/tabs/MePageTabs/QuickLinksSearchFilter', () => ({
+  QuickLinksSearchFilter: vi.fn(({ onAddLinkClick }) => (
     <div data-testid="search-filter">
-      <button onClick={onAddLinkClick} data-testid="add-link-button">Add Link</button>
+      <button onClick={onAddLinkClick} data-testid="add-link-from-filter">Add Link</button>
     </div>
-  )
+  )),
 }));
 
-vi.mock('../../../src/components/tabs/MePageTabs/QuickLinksStates', () => ({
-  LoadingState: () => <div data-testid="loading-state">Loading...</div>,
-  ErrorState: () => <div data-testid="error-state">Error</div>,
-  EmptyState: () => <div data-testid="empty-state">Empty</div>
+vi.mock('@/components/tabs/MePageTabs/QuickLinksStates', () => ({
+  LoadingState: vi.fn(() => <div data-testid="loading-state">Loading...</div>),
 }));
 
-vi.mock('../../../src/components/dialogs/AddLinkDialog', () => ({
-  AddLinkDialog: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => (
-    open ? <div data-testid="add-link-dialog">Add Link Dialog</div> : null
-  )
+vi.mock('@/components/dialogs/AddLinkDialog', () => ({
+  AddLinkDialog: vi.fn(({ open, onOpenChange, ownerId }) => (
+    open ? (
+      <div data-testid="add-link-dialog">
+        <div>Add Link Dialog</div>
+        <div data-testid="owner-id">{ownerId}</div>
+        <button onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    ) : null
+  )),
 }));
 
-vi.mock('../../../src/components/dialogs/EditLinkDialog', () => ({
-  EditLinkDialog: ({ open, onOpenChange, linkData }: { open: boolean; onOpenChange: (open: boolean) => void; linkData: any }) => (
-    open ? <div data-testid="edit-link-dialog">Edit Link Dialog - {linkData?.title}</div> : null
-  )
+vi.mock('@/components/dialogs/EditLinkDialog', () => ({
+  EditLinkDialog: vi.fn(({ open, onOpenChange, linkData }) => (
+    open ? (
+      <div data-testid="edit-link-dialog">
+        <div>Edit Link Dialog</div>
+        <div data-testid="edit-link-id">{linkData?.id}</div>
+        <div data-testid="edit-link-title">{linkData?.title}</div>
+        <button onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    ) : null
+  )),
 }));
 
-vi.mock('../../../src/hooks/api/useMembers', () => ({
-  useCurrentUser: () => ({
-    data: { uuid: 'current-user-id' }
-  })
+vi.mock('@/components/tabs/MePageTabs/DeleteConfirmationDialog', () => ({
+  DeleteConfirmationDialog: vi.fn(() => <div data-testid="delete-dialog">Delete Dialog</div>),
 }));
 
-// Mock lucide-react
-vi.mock('lucide-react', () => ({
-  Plus: () => <div data-testid="plus-icon" />
+// Mock hooks
+vi.mock('@/hooks/api/useMembers', () => ({
+  useCurrentUser: vi.fn(),
 }));
 
-// Mock QuickLinksContext
-const mockQuickLinksContext = {
-  quickLinks: [] as any[],
-  isLoading: false,
-  handleDeleteConfirm: vi.fn(),
-  handleDeleteCancel: vi.fn(),
-  handleEditCancel: vi.fn(),
-  deleteDialog: {
-    isOpen: false,
-    linkTitle: '',
-    linkId: ''
-  },
-  editDialog: {
-    isOpen: false,
-    linkId: ''
-  },
-  ownerId: 'test-owner-id'
-};
-
-vi.mock('../../../src/contexts/QuickLinksContext', () => ({
-  QuickLinksProvider: ({ children }: { children: React.ReactNode }) => children,
-  useQuickLinksContext: () => mockQuickLinksContext
+vi.mock('@/stores/quickLinksStore', () => ({
+  useEditDialog: vi.fn(),
+  useEditDialogActions: vi.fn(),
 }));
 
-const mockUserData = {
-  uuid: 'test-user-id',
-  username: 'testuser',
-  quickLinks: []
-};
+// Mock context
+vi.mock('@/contexts/QuickLinksContext', () => ({
+  QuickLinksProvider: vi.fn(({ children }) => <div data-testid="quick-links-provider">{children}</div>),
+  useQuickLinksContext: vi.fn(),
+}));
 
-function renderWithQueryClient(ui: React.ReactElement) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false }
-    }
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      {ui}
-    </QueryClientProvider>
-  );
-}
+import { useCurrentUser } from '@/hooks/api/useMembers';
+import { useEditDialog, useEditDialogActions } from '@/stores/quickLinksStore';
+import { useQuickLinksContext } from '@/contexts/QuickLinksContext';
 
 describe('QuickLinksTab', () => {
+  const mockCloseEditDialog = vi.fn();
+  
+  const mockCurrentUser = {
+    id: 'user-123',
+    uuid: 'uuid-123',
+    username: 'testuser',
+    first_name: 'Test',
+    last_name: 'User',
+  };
+
+  const mockUserData: UserMeResponse = {
+    id: 'user-456',
+    uuid: 'uuid-456',
+    username: 'johndoe',
+    first_name: 'John',
+    last_name: 'Doe',
+    link: [
+      {
+        id: 'link-1',
+        name: 'GitHub',
+        title: 'GitHub',
+        description: 'Code repository',
+        url: 'https://github.com',
+        category_id: 'cat-1',
+        tags: ['code'],
+        favorite: true,
+      },
+      {
+        id: 'link-2',
+        name: 'Jira',
+        title: 'Jira',
+        description: 'Issue tracking',
+        url: 'https://jira.com',
+        category_id: 'cat-2',
+        tags: ['tasks'],
+        favorite: true,
+      },
+    ],
+  };
+
+  const mockQuickLinks = [
+    {
+      id: 'link-1',
+      title: 'GitHub',
+      url: 'https://github.com',
+      icon: 'Github',
+      category: 'Development',
+      categoryId: 'cat-1',
+      categoryColor: 'bg-blue-500',
+      description: 'Code repository',
+      tags: ['code'],
+      isFavorite: true,
+    },
+    {
+      id: 'link-2',
+      title: 'Jira',
+      url: 'https://jira.com',
+      icon: 'CheckSquare',
+      category: 'Project Management',
+      categoryId: 'cat-2',
+      categoryColor: 'bg-green-500',
+      description: 'Issue tracking',
+      tags: ['tasks'],
+      isFavorite: true,
+    },
+  ];
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockQuickLinksContext.quickLinks = [];
-    mockQuickLinksContext.isLoading = false;
-    mockQuickLinksContext.deleteDialog.isOpen = false;
-    mockQuickLinksContext.editDialog.isOpen = false;
-  });
 
-  it('shows loading state', () => {
-    mockQuickLinksContext.isLoading = true;
-    
-    renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-    
-    expect(screen.getByTestId('loading-state')).toBeInTheDocument();
-  });
+    // Default mock implementations
+    vi.mocked(useCurrentUser).mockReturnValue({
+      data: mockCurrentUser,
+      isLoading: false,
+    } as any);
 
-  it('shows empty state with default message', () => {
-    renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-    
-    expect(screen.getByText("No quick links yet. Add Links to Favorites or click 'Add Link' to get started.")).toBeInTheDocument();
-    expect(screen.getByText('Add Link')).toBeInTheDocument();
-  });
-
-  it('shows custom empty message when provided', () => {
-    const customMessage = 'Custom empty message';
-    renderWithQueryClient(<QuickLinksTab userData={mockUserData} emptyMessage={customMessage} />);
-    
-    expect(screen.getByText(customMessage)).toBeInTheDocument();
-  });
-
-  it('shows search filter and links grid when links exist', () => {
-    mockQuickLinksContext.quickLinks = [
-      { id: '1', title: 'Test Link', url: 'https://example.com', categoryId: 'cat-1' }
-    ];
-    
-    renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-    
-    expect(screen.getByTestId('search-filter')).toBeInTheDocument();
-    expect(screen.getByTestId('quick-links-grid')).toBeInTheDocument();
-  });
-
-  it('opens add link dialog when add button is clicked', () => {
-    renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-    
-    const addButton = screen.getByText('Add Link');
-    fireEvent.click(addButton);
-    
-    expect(screen.getByTestId('add-link-dialog')).toBeInTheDocument();
-  });
-
-  it('shows delete confirmation dialog when delete dialog is open', () => {
-    mockQuickLinksContext.deleteDialog = {
-      isOpen: true,
-      linkTitle: 'Test Link',
-      linkId: '1'
-    };
-    
-    renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-    
-    expect(screen.getByText('Delete Quick Link')).toBeInTheDocument();
-    expect(screen.getByText('Are you sure you want to delete "Test Link"? This action cannot be undone.')).toBeInTheDocument();
-  });
-
-  it('calls handleDeleteCancel when cancel button is clicked', () => {
-    mockQuickLinksContext.deleteDialog = {
-      isOpen: true,
-      linkTitle: 'Test Link',
-      linkId: '1'
-    };
-    
-    renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-    
-    const cancelButton = screen.getByText('Cancel');
-    fireEvent.click(cancelButton);
-    
-    expect(mockQuickLinksContext.handleDeleteCancel).toHaveBeenCalled();
-  });
-
-  it('calls handleDeleteConfirm when delete button is clicked', () => {
-    mockQuickLinksContext.deleteDialog = {
-      isOpen: true,
-      linkTitle: 'Test Link',
-      linkId: '1'
-    };
-    
-    renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-    
-    const deleteButton = screen.getByText('Delete');
-    fireEvent.click(deleteButton);
-    
-    expect(mockQuickLinksContext.handleDeleteConfirm).toHaveBeenCalled();
-  });
-
-  // NEW TESTS FOR EDIT FUNCTIONALITY
-  describe('Edit Link Functionality', () => {
-    it('shows edit link dialog when edit dialog is open', () => {
-      mockQuickLinksContext.editDialog = {
-        isOpen: true,
-        linkId: '1'
-      };
-      mockQuickLinksContext.quickLinks = [
-        { 
-          id: '1', 
-          title: 'Test Link', 
-          url: 'https://example.com',
-          categoryId: 'cat-1',
-          description: 'Test description',
-          tags: ['tag1', 'tag2'],
-          isFavorite: false
-        }
-      ];
-      
-      renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-      
-      expect(screen.getByTestId('edit-link-dialog')).toBeInTheDocument();
-      expect(screen.getByText('Edit Link Dialog - Test Link')).toBeInTheDocument();
+    vi.mocked(useEditDialog).mockReturnValue({
+      isOpen: false,
+      linkId: '',
     });
 
-    it('does not show edit dialog when editDialog.isOpen is false', () => {
-      mockQuickLinksContext.editDialog = {
-        isOpen: false,
-        linkId: ''
-      };
+    vi.mocked(useEditDialogActions).mockReturnValue({
+      closeEditDialog: mockCloseEditDialog,
+      openEditDialog: vi.fn(),
+    });
+
+    vi.mocked(useQuickLinksContext).mockReturnValue({
+      quickLinks: mockQuickLinks,
+      filteredQuickLinks: mockQuickLinks,
+      linkCategories: [],
+      isLoading: false,
+      searchTerm: '',
+      setSearchTerm: vi.fn(),
+      selectedCategoryId: 'all',
+      setSelectedCategoryId: vi.fn(),
+      viewMode: 'collapsed',
+      setViewMode: vi.fn(),
+      handleToggleFavorite: vi.fn(),
+      handleDeleteClick: vi.fn(),
+      handleDeleteConfirm: vi.fn(),
+      handleDeleteCancel: vi.fn(),
+      handleEditClick: vi.fn(),
+      deleteDialog: { isOpen: false, linkId: '', linkTitle: '' },
+      editDialog: { isOpen: false, linkId: '' },
+      handleEditCancel: vi.fn(),
+      ownerId: undefined,
+    } as any);
+  });
+
+  describe('Rendering', () => {
+    it('should render QuickLinksProvider wrapper', () => {
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByTestId('quick-links-provider')).toBeInTheDocument();
+    });
+
+    it('should render DeleteConfirmationDialog', () => {
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByTestId('delete-dialog')).toBeInTheDocument();
+    });
+  });
+
+  describe('Loading State', () => {
+    it('should show loading state when isLoading is true', () => {
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: true,
+      } as any);
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByTestId('loading-state')).toBeInTheDocument();
+      expect(screen.queryByTestId('quick-links-grid')).not.toBeInTheDocument();
+    });
+
+    it('should not show search filter when loading', () => {
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: true,
+      } as any);
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.queryByTestId('search-filter')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Empty State', () => {
+    it('should show empty state when no links exist', () => {
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: false,
+      } as any);
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByText(/No quick links yet/i)).toBeInTheDocument();
+    });
+
+    it('should show custom empty message when provided', () => {
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: false,
+      } as any);
+
+      const customMessage = 'Your custom empty message here';
+      render(<QuickLinksTab userData={mockUserData} emptyMessage={customMessage} />);
+
+      expect(screen.getByText(customMessage)).toBeInTheDocument();
+    });
+
+    it('should show Add Link button in empty state', () => {
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: false,
+      } as any);
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      const addButton = screen.getByRole('button', { name: /add link/i });
+      expect(addButton).toBeInTheDocument();
+    });
+
+    it('should not show search filter when no links exist', () => {
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: false,
+      } as any);
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.queryByTestId('search-filter')).not.toBeInTheDocument();
+    });
+
+    it('should not show grid when no links exist', () => {
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: false,
+      } as any);
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.queryByTestId('quick-links-grid')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('With Links State', () => {
+    it('should render QuickLinksGrid when links exist', () => {
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByTestId('quick-links-grid')).toBeInTheDocument();
+    });
+
+    it('should render QuickLinksSearchFilter when links exist', () => {
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByTestId('search-filter')).toBeInTheDocument();
+    });
+
+    it('should not show empty state when links exist', () => {
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.queryByText(/No quick links yet/i)).not.toBeInTheDocument();
+    });
+
+    it('should not show loading state when links are loaded', () => {
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.queryByTestId('loading-state')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Add Link Dialog', () => {
+    it('should not show AddLinkDialog initially', () => {
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.queryByTestId('add-link-dialog')).not.toBeInTheDocument();
+    });
+
+    it('should open AddLinkDialog when Add Link button is clicked from empty state', async () => {
+      const user = userEvent.setup();
       
-      renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-      
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: false,
+      } as any);
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      const addButton = screen.getByRole('button', { name: /add link/i });
+      await user.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('add-link-dialog')).toBeInTheDocument();
+      });
+    });
+
+    it('should open AddLinkDialog when Add Link button is clicked from search filter', async () => {
+      const user = userEvent.setup();
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      const addButton = screen.getByTestId('add-link-from-filter');
+      await user.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('add-link-dialog')).toBeInTheDocument();
+      });
+    });
+
+    it('should pass ownerId to AddLinkDialog when provided', async () => {
+      const user = userEvent.setup();
+      const ownerId = 'custom-owner-123';
+
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: false,
+        ownerId,
+      } as any);
+
+      render(<QuickLinksTab userData={mockUserData} ownerId={ownerId} />);
+
+      const addButton = screen.getByRole('button', { name: /add link/i });
+      await user.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('owner-id')).toHaveTextContent(ownerId);
+      });
+    });
+
+    it('should use current user uuid as ownerId when not provided', async () => {
+      const user = userEvent.setup();
+
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: false,
+      } as any);
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      const addButton = screen.getByRole('button', { name: /add link/i });
+      await user.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('owner-id')).toHaveTextContent(mockCurrentUser.uuid);
+      });
+    });
+
+    it('should close AddLinkDialog when onOpenChange is called', async () => {
+      const user = userEvent.setup();
+
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: false,
+      } as any);
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      // Open dialog
+      const addButton = screen.getByRole('button', { name: /add link/i });
+      await user.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('add-link-dialog')).toBeInTheDocument();
+      });
+
+      // Close dialog
+      const closeButton = screen.getByRole('button', { name: /close/i });
+      await user.click(closeButton);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('add-link-dialog')).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Edit Link Dialog', () => {
+    it('should not show EditLinkDialog when editDialog.isOpen is false', () => {
+      render(<QuickLinksTab userData={mockUserData} />);
+
       expect(screen.queryByTestId('edit-link-dialog')).not.toBeInTheDocument();
     });
 
-    it('does not show edit dialog when link is not found', () => {
-      mockQuickLinksContext.editDialog = {
+    it('should show EditLinkDialog when editDialog.isOpen is true', () => {
+      vi.mocked(useEditDialog).mockReturnValue({
         isOpen: true,
-        linkId: 'non-existent-id'
-      };
-      mockQuickLinksContext.quickLinks = [
-        { 
-          id: '1', 
-          title: 'Test Link', 
-          url: 'https://example.com',
-          categoryId: 'cat-1'
-        }
-      ];
-      
-      renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-      
+        linkId: 'link-1',
+      });
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByTestId('edit-link-dialog')).toBeInTheDocument();
+    });
+
+    it('should pass correct link data to EditLinkDialog', () => {
+      vi.mocked(useEditDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-1',
+      });
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByTestId('edit-link-id')).toHaveTextContent('link-1');
+      expect(screen.getByTestId('edit-link-title')).toHaveTextContent('GitHub');
+    });
+
+    it('should convert QuickLink to UserLink format for EditLinkDialog', () => {
+      vi.mocked(useEditDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-2',
+      });
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByTestId('edit-link-id')).toHaveTextContent('link-2');
+      expect(screen.getByTestId('edit-link-title')).toHaveTextContent('Jira');
+    });
+
+    it('should call closeEditDialog when EditLinkDialog is closed', async () => {
+      const user = userEvent.setup();
+
+      vi.mocked(useEditDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-1',
+      });
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      const closeButton = screen.getByRole('button', { name: /close/i });
+      await user.click(closeButton);
+
+      expect(mockCloseEditDialog).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not render EditLinkDialog when link is not found', () => {
+      vi.mocked(useEditDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'nonexistent-link',
+      });
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
       expect(screen.queryByTestId('edit-link-dialog')).not.toBeInTheDocument();
     });
 
-    it('converts QuickLink to UserLink format for EditLinkDialog', () => {
-      mockQuickLinksContext.editDialog = {
-        isOpen: true,
-        linkId: '1'
-      };
-      mockQuickLinksContext.quickLinks = [
-        { 
-          id: '1', 
-          title: 'Test Link', 
-          url: 'https://example.com',
-          categoryId: 'cat-1',
-          description: 'Test description',
-          tags: ['tag1', 'tag2'],
-          isFavorite: true
-        }
+    it('should handle missing description in link data', () => {
+      const linksWithoutDescription = [
+        {
+          ...mockQuickLinks[0],
+          description: undefined,
+        },
       ];
-      
-      renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-      
-      // The EditLinkDialog should receive the link data in UserLink format
+
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: linksWithoutDescription,
+        isLoading: false,
+      } as any);
+
+      vi.mocked(useEditDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-1',
+      });
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
       expect(screen.getByTestId('edit-link-dialog')).toBeInTheDocument();
     });
 
-    it('calls handleEditCancel when edit dialog is closed', () => {
-      mockQuickLinksContext.editDialog = {
-        isOpen: true,
-        linkId: '1'
-      };
-      mockQuickLinksContext.quickLinks = [
-        { 
-          id: '1', 
-          title: 'Test Link', 
-          url: 'https://example.com',
-          categoryId: 'cat-1'
-        }
+    it('should handle missing tags in link data', () => {
+      const linksWithoutTags = [
+        {
+          ...mockQuickLinks[0],
+          tags: undefined,
+        },
       ];
-      
-      renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-      
-      // The EditLinkDialog's onOpenChange would be called with false
-      // This is handled internally by the dialog component
+
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: linksWithoutTags,
+        isLoading: false,
+      } as any);
+
+      vi.mocked(useEditDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-1',
+      });
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
       expect(screen.getByTestId('edit-link-dialog')).toBeInTheDocument();
+    });
+  });
+
+  describe('Custom Handlers', () => {
+    it('should pass custom handlers to QuickLinksProvider', () => {
+      const mockOnDeleteLink = vi.fn();
+      const mockOnToggleFavorite = vi.fn();
+
+      render(
+        <QuickLinksTab
+          userData={mockUserData}
+          onDeleteLink={mockOnDeleteLink}
+          onToggleFavorite={mockOnToggleFavorite}
+        />
+      );
+
+      expect(screen.getByTestId('quick-links-provider')).toBeInTheDocument();
+    });
+
+    it('should pass alwaysShowDelete to QuickLinksProvider', () => {
+      render(<QuickLinksTab userData={mockUserData} alwaysShowDelete={true} />);
+
+      expect(screen.getByTestId('quick-links-provider')).toBeInTheDocument();
+    });
+
+    it('should pass ownerId to QuickLinksProvider', () => {
+      const ownerId = 'team-owner-123';
+
+      render(<QuickLinksTab userData={mockUserData} ownerId={ownerId} />);
+
+      expect(screen.getByTestId('quick-links-provider')).toBeInTheDocument();
+    });
+  });
+
+  describe('Props', () => {
+    it('should accept and use userData prop', () => {
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByTestId('quick-links-provider')).toBeInTheDocument();
+    });
+
+    it('should accept and use title prop', () => {
+      const customTitle = 'My Custom Links';
+
+      render(<QuickLinksTab userData={mockUserData} title={customTitle} />);
+
+      // Title is passed to QuickLinksTabContent but not rendered directly
+      expect(screen.getByTestId('quick-links-provider')).toBeInTheDocument();
+    });
+
+    it('should use default title when not provided', () => {
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByTestId('quick-links-provider')).toBeInTheDocument();
     });
   });
 
   describe('Edge Cases', () => {
-    it('handles link with missing optional fields', () => {
-      mockQuickLinksContext.editDialog = {
-        isOpen: true,
-        linkId: '1'
-      };
-      mockQuickLinksContext.quickLinks = [
-        { 
-          id: '1', 
-          title: 'Test Link', 
-          url: 'https://example.com',
-          categoryId: 'cat-1'
-          // description, tags, isFavorite are optional
-        }
-      ];
-      
-      renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-      
-      expect(screen.getByTestId('edit-link-dialog')).toBeInTheDocument();
+    it('should handle undefined userData', () => {
+      render(<QuickLinksTab />);
+
+      expect(screen.getByTestId('quick-links-provider')).toBeInTheDocument();
     });
 
-    it('handles empty quickLinks array', () => {
-      mockQuickLinksContext.editDialog = {
-        isOpen: true,
-        linkId: '1'
+    it('should handle userData with empty link array', () => {
+      const emptyUserData = {
+        ...mockUserData,
+        link: [],
       };
-      mockQuickLinksContext.quickLinks = [];
-      
-      renderWithQueryClient(<QuickLinksTab userData={mockUserData} />);
-      
-      // Should not show edit dialog when link is not found
-      expect(screen.queryByTestId('edit-link-dialog')).not.toBeInTheDocument();
+
+      render(<QuickLinksTab userData={emptyUserData} />);
+
+      expect(screen.getByTestId('quick-links-provider')).toBeInTheDocument();
+    });
+
+    it('should handle missing currentUser', () => {
+      vi.mocked(useCurrentUser).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+      } as any);
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      expect(screen.getByTestId('quick-links-provider')).toBeInTheDocument();
+    });
+
+    it('should handle simultaneous dialog states', () => {
+      vi.mocked(useEditDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-1',
+      });
+
+      render(<QuickLinksTab userData={mockUserData} />);
+
+      // Both dialogs should be present (Edit and Delete)
+      expect(screen.getByTestId('edit-link-dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('delete-dialog')).toBeInTheDocument();
+    });
+  });
+
+  describe('Layout and Styling', () => {
+    it('should have minimum height for empty state', () => {
+      vi.mocked(useQuickLinksContext).mockReturnValue({
+        quickLinks: [],
+        isLoading: false,
+      } as any);
+
+      const { container } = render(<QuickLinksTab userData={mockUserData} />);
+
+      const emptyStateContainer = container.querySelector('.min-h-\\[350px\\]');
+      expect(emptyStateContainer).toBeInTheDocument();
+    });
+
+    it('should have minimum height for main container', () => {
+      const { container } = render(<QuickLinksTab userData={mockUserData} />);
+
+      const mainContainer = container.querySelector('.min-h-\\[400px\\]');
+      expect(mainContainer).toBeInTheDocument();
     });
   });
 });

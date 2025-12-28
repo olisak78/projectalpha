@@ -1,354 +1,552 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
+import { PortalContainer } from '@/components/PortalContainer';
 import { MemoryRouter } from 'react-router-dom';
-import '@testing-library/jest-dom/vitest';
 
-
-
-// ============================================================================
-// ZUSTAND STORE MOCKS - MUST BE DEFINED BEFORE IMPORTS
-// ============================================================================
-
-
-// ============================================================================
-// ZUSTAND STORE MOCKS - MUST BE DEFINED BEFORE IMPORTS
-// ============================================================================
-
-
-// Mock data that can be mutated by tests
-let currentMockProjects = [
-  { id: '1', name: 'project1', display_name: 'Project One' },
-  { id: '2', name: 'project2', display_name: 'Project Two' },
-  { id: '3', name: 'project3', display_name: null },
-];
-let currentMockLoading = false;
-let currentMockError = null;
-
-// Mock the store - define everything inline to avoid hoisting issues
+// Mock stores
 vi.mock('@/stores/projectsStore', () => ({
-  useProjects: vi.fn(() => currentMockProjects),
-  useProjectsLoading: vi.fn(() => currentMockLoading),
-  useProjectsError: vi.fn(() => currentMockError),
-  useSidebarItems: vi.fn(() => []), // Add this if it exists
+  useProjects: vi.fn(),
+  useSidebarItems: vi.fn(),
 }));
 
-
-// ============================================================================
-// COMPONENT MOCKS
-// ============================================================================
-
+// Mock contexts
 vi.mock('@/contexts/PortalProviders', () => ({
-  PortalProviders: ({ children }: { children: React.ReactNode }) => (
+  PortalProviders: vi.fn(({ children }) => (
     <div data-testid="portal-providers">{children}</div>
-  ),
+  )),
 }));
 
+// Mock components
 vi.mock('@/components/PortalContent', () => ({
-  PortalContent: ({ activeProject, projects, onProjectChange }: any) => (
+  PortalContent: vi.fn(({ activeProject, projects, onProjectChange }) => (
     <div data-testid="portal-content">
       <div data-testid="active-project">{activeProject}</div>
-      <div data-testid="projects">{JSON.stringify(projects)}</div>
-      <button 
-        data-testid="project-change-btn" 
-        onClick={() => onProjectChange('Teams')}
-      >
-        Change Project
+      <div data-testid="projects-count">{projects.length}</div>
+      <button onClick={() => onProjectChange('Teams')} data-testid="change-to-teams">
+        Teams
+      </button>
+      <button onClick={() => onProjectChange('plugins/test-plugin')} data-testid="change-to-plugin">
+        Plugin
+      </button>
+      <button onClick={() => onProjectChange('cis20')} data-testid="change-to-cis20">
+        CIS 2.0
       </button>
     </div>
-  ),
+  )),
 }));
 
-// ============================================================================
-// ROUTER MOCKS
-// ============================================================================
-
-let mockLocation = { pathname: '/' };
-const mockNavigate = vi.fn();
-
+// Mock react-router-dom
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
-    useNavigate: () => mockNavigate,
-    useLocation: () => mockLocation,
+    useNavigate: vi.fn(),
+    useLocation: vi.fn(),
   };
 });
 
+import { useProjects, useSidebarItems } from '@/stores/projectsStore';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { PortalProviders } from '@/contexts/PortalProviders';
+import { PortalContent } from '@/components/PortalContent';
 
-// ============================================================================
-// NOW SAFE TO IMPORT COMPONENT
-// ============================================================================
+describe('PortalContainer', () => {
+  const mockNavigate = vi.fn();
 
-import { PortalContainer } from '@/components/PortalContainer';
+  const mockProjects = [
+    {
+      id: 'proj-1',
+      name: 'cis20',
+      title: 'CIS 2.0',
+      description: 'CIS Project',
+    },
+    {
+      id: 'proj-2',
+      name: 'platform',
+      title: 'Platform Services',
+      description: 'Platform Project',
+    },
+  ];
 
-// ============================================================================
-// TESTS
-// ============================================================================
+  const mockSidebarItems = [
+    'Home',
+    'Teams',
+    'cis20',
+    'platform',
+    'Self Service',
+    'Links',
+  ];
 
+  beforeEach(() => {
+    vi.clearAllMocks();
 
-    
-    // Reset mock data to defaults
-    currentMockProjects = [
-      { id: '1', name: 'project1', display_name: 'Project One' },
-      { id: '2', name: 'project2', display_name: 'Project Two' },
-      { id: '3', name: 'project3', display_name: null },
-    ];
-    currentMockLoading = false;
-    currentMockError = null;
-    mockLocation = { pathname: '/' };
+    // Reset PortalContent mock to default implementation
+    vi.mocked(PortalContent).mockImplementation(({ activeProject, projects, onProjectChange }) => (
+      <div data-testid="portal-content">
+        <div data-testid="active-project">{activeProject}</div>
+        <div data-testid="projects-count">{projects.length}</div>
+        <button onClick={() => onProjectChange('Teams')} data-testid="change-to-teams">
+          Teams
+        </button>
+        <button onClick={() => onProjectChange('plugins/test-plugin')} data-testid="change-to-plugin">
+          Plugin
+        </button>
+        <button onClick={() => onProjectChange('cis20')} data-testid="change-to-cis20">
+          CIS 2.0
+        </button>
+      </div>
+    ));
 
+    vi.mocked(useProjects).mockReturnValue(mockProjects);
+    vi.mocked(useSidebarItems).mockReturnValue(mockSidebarItems);
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
+    vi.mocked(useLocation).mockReturnValue({
+      pathname: '/',
+      search: '',
+      hash: '',
+      state: null,
+      key: 'default',
+    });
   });
 
-  const renderWithRouter = (initialEntries = ['/']) => {
+  const renderWithRouter = (initialPath = '/') => {
+    vi.mocked(useLocation).mockReturnValue({
+      pathname: initialPath,
+      search: '',
+      hash: '',
+      state: null,
+      key: 'default',
+    });
+
     return render(
-      <MemoryRouter initialEntries={initialEntries}>
+      <MemoryRouter initialEntries={[initialPath]}>
         <PortalContainer />
       </MemoryRouter>
     );
   };
 
-  describe('Basic Rendering', () => {
-    it('should render PortalContainer with PortalProviders and PortalContent', () => {
+  describe('Rendering', () => {
+    it('should render PortalProviders', () => {
       renderWithRouter();
 
       expect(screen.getByTestId('portal-providers')).toBeInTheDocument();
+    });
+
+    it('should render PortalContent inside providers', () => {
+      renderWithRouter();
+
       expect(screen.getByTestId('portal-content')).toBeInTheDocument();
     });
 
-    it('should generate correct sidebar items including static pages and projects', () => {
+    it('should pass projects to PortalContent', () => {
       renderWithRouter();
 
-      const projectsElement = screen.getByTestId('projects');
-      const projects = JSON.parse(projectsElement.textContent || '[]');
-
-      expect(projects).toEqual([
-        'Home',
-        'Teams',
-        'Project One',
-        'Project Two',
-        'project3',
-        'Links',
-        'Self Service',
-        'AI Arena',
-      ]);
-    });
-
-hould handle projects with null display_name by using name', () => {
-
-      renderWithRouter();
-
-      const projectsElement = screen.getByTestId('projects');
-      const projects = JSON.parse(projectsElement.textContent || '[]');
-
-      expect(projects).toContain('project3');
+      expect(screen.getByTestId('projects-count')).toHaveTextContent('6');
     });
   });
 
-  describe('Active Project Detection', () => {
-    it('should set Home as active project for root path', () => {
-      mockLocation.pathname = '/';
-      renderWithRouter(['/']);
+  describe('Static Route Detection - Home', () => {
+    it('should set activeProject to Home for root path', () => {
+      renderWithRouter('/');
 
       expect(screen.getByTestId('active-project')).toHaveTextContent('Home');
     });
 
-    it('should set correct active project for static routes', () => {
-      mockLocation.pathname = '/teams';
-      renderWithRouter(['/teams']);
+    it('should set activeProject to Home initially', async () => {
+      renderWithRouter('/');
 
-      expect(screen.getByTestId('active-project')).toHaveTextContent('Teams');
-    });
-
-    it('should set correct active project for dynamic project routes', () => {
-      mockLocation.pathname = '/project1';
-      renderWithRouter(['/project1']);
-
-      expect(screen.getByTestId('active-project')).toHaveTextContent('Project One');
-    });
-
-    it('should handle sub-routes for static pages', () => {
-      mockLocation.pathname = '/teams/sub-page';
-      renderWithRouter(['/teams/sub-page']);
-
-      expect(screen.getByTestId('active-project')).toHaveTextContent('Teams');
-    });
-
-    it('should handle sub-routes for dynamic projects', () => {
-      mockLocation.pathname = '/project1/details';
-      renderWithRouter(['/project1/details']);
-
-      expect(screen.getByTestId('active-project')).toHaveTextContent('Project One');
-    });
-
-    it('should return empty string for unknown routes', () => {
-      mockLocation.pathname = '/unknown-route';
-      renderWithRouter(['/unknown-route']);
-
-      expect(screen.getByTestId('active-project')).toHaveTextContent('');
-    });
-
-    it('should prioritize exact matches over partial matches', () => {
-      currentMockProjects = [
-        { id: '1', name: 'test', display_name: 'Test Project' },
-        { id: '2', name: 'test-extended', display_name: 'Test Extended Project' },
-      ];
-
-      mockLocation.pathname = '/test';
-      renderWithRouter(['/test']);
-
-      expect(screen.getByTestId('active-project')).toHaveTextContent('Test Project');
+      await waitFor(() => {
+        expect(screen.getByTestId('active-project')).toHaveTextContent('Home');
+      });
     });
   });
 
-  describe('Project Navigation', () => {
-    it('should navigate to correct route when project changes to static page', () => {
-      renderWithRouter();
+  describe('Static Route Detection - Other Pages', () => {
+    it('should detect Teams page', () => {
+      renderWithRouter('/teams');
 
-      const changeButton = screen.getByTestId('project-change-btn');
-      fireEvent.click(changeButton);
+      expect(screen.getByTestId('active-project')).toHaveTextContent('Teams');
+    });
+
+    it('should detect Teams sub-routes', () => {
+      renderWithRouter('/teams/team-alpha');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('Teams');
+    });
+
+    it('should detect Links page', () => {
+      renderWithRouter('/links');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('Links');
+    });
+
+    it('should detect Self Service page', () => {
+      renderWithRouter('/self-service');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('Self Service');
+    });
+
+    it('should detect AI Arena page', () => {
+      renderWithRouter('/ai-arena');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('AI Arena');
+    });
+
+    it('should detect AI Arena sub-routes', () => {
+      renderWithRouter('/ai-arena/chat');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('AI Arena');
+    });
+  });
+
+  describe('Dynamic Project Route Detection', () => {
+    it('should detect dynamic project route', () => {
+      renderWithRouter('/cis20');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('CIS 2.0');
+    });
+
+    it('should detect dynamic project sub-routes', () => {
+      renderWithRouter('/cis20/components');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('CIS 2.0');
+    });
+
+    it('should detect another dynamic project', () => {
+      renderWithRouter('/platform');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('Platform Services');
+    });
+
+    it('should use project name if title is missing', () => {
+      vi.mocked(useProjects).mockReturnValue([
+        {
+          id: 'proj-1',
+          name: 'testproject',
+          title: '',
+          description: 'Test',
+        },
+      ]);
+
+      renderWithRouter('/testproject');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('testproject');
+    });
+  });
+
+  describe('Plugin Route Detection', () => {
+    it('should detect plugin route', () => {
+      renderWithRouter('/plugins/test-plugin');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('/plugins/test-plugin');
+    });
+
+    it('should detect different plugin routes', () => {
+      renderWithRouter('/plugins/another-plugin');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('/plugins/another-plugin');
+    });
+
+    it('should not treat /plugins index as plugin route', () => {
+      renderWithRouter('/plugins');
+
+      // Should not match as a plugin route
+      expect(screen.getByTestId('active-project')).not.toHaveTextContent('/plugins/');
+    });
+  });
+
+  describe('Project Change Handling - Static Routes', () => {
+    it('should navigate to Teams page', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter('/');
+
+      const teamsButton = screen.getByTestId('change-to-teams');
+      await user.click(teamsButton);
 
       expect(mockNavigate).toHaveBeenCalledWith('/teams');
     });
 
-    it('should navigate to project route when project changes to dynamic project', () => {
-      mockNavigate('/project1');
-      expect(mockNavigate).toHaveBeenCalledWith('/project1');
-    });
+    it('should update activeProject when navigating to Teams', async () => {
+      const user = userEvent.setup();
 
-    it('should default to root route for unknown projects', () => {
-      renderWithRouter();
-      expect(mockNavigate).not.toHaveBeenCalled();
+      renderWithRouter('/');
+
+      const teamsButton = screen.getByTestId('change-to-teams');
+      await user.click(teamsButton);
+
+      // The component would update activeProject in state
+      expect(mockNavigate).toHaveBeenCalledWith('/teams');
     });
   });
 
-  describe('Location Changes', () => {
-    it('should update active project when location changes', async () => {
-      const { rerender } = renderWithRouter(['/']);
+  describe('Project Change Handling - Dynamic Projects', () => {
+    it('should navigate to dynamic project', async () => {
+      const user = userEvent.setup();
+
+      // Update the PortalContent mock button to use the project title
+      vi.mocked(PortalContent).mockImplementation(({ activeProject, projects, onProjectChange }) => (
+        <div data-testid="portal-content">
+          <div data-testid="active-project">{activeProject}</div>
+          <div data-testid="projects-count">{projects.length}</div>
+          <button onClick={() => onProjectChange('Teams')} data-testid="change-to-teams">
+            Teams
+          </button>
+          <button onClick={() => onProjectChange('plugins/test-plugin')} data-testid="change-to-plugin">
+            Plugin
+          </button>
+          <button onClick={() => onProjectChange('CIS 2.0')} data-testid="change-to-cis20">
+            CIS 2.0
+          </button>
+        </div>
+      ));
+
+      renderWithRouter('/');
+
+      const cis20Button = screen.getByTestId('change-to-cis20');
+      await user.click(cis20Button);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/cis20');
+    });
+  });
+
+  describe('Project Change Handling - Plugins', () => {
+    it('should navigate to plugin route', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter('/');
+
+      const pluginButton = screen.getByTestId('change-to-plugin');
+      await user.click(pluginButton);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/plugins/test-plugin');
+    });
+
+    it('should handle plugin route format correctly', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter('/');
+
+      const pluginButton = screen.getByTestId('change-to-plugin');
+      await user.click(pluginButton);
+
+      // Should navigate with leading slash
+      expect(mockNavigate).toHaveBeenCalledWith('/plugins/test-plugin');
+    });
+  });
+
+  describe('Route Updates', () => {
+    it('should update activeProject when location changes', () => {
+      const { rerender } = renderWithRouter('/');
 
       expect(screen.getByTestId('active-project')).toHaveTextContent('Home');
 
-      mockLocation.pathname = '/teams';
-      
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/teams',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'new-key',
+      });
+
       rerender(
         <MemoryRouter initialEntries={['/teams']}>
           <PortalContainer />
         </MemoryRouter>
       );
 
-      await waitFor(() => {
-        expect(screen.getByTestId('active-project')).toHaveTextContent('Teams');
-      });
+      expect(screen.getByTestId('active-project')).toHaveTextContent('Teams');
     });
 
-    it('should update active project when projects list changes', async () => {
-      const { rerender } = renderWithRouter();
+    it('should update when projects array changes', () => {
+      const { rerender } = renderWithRouter('/cis20');
 
-      currentMockProjects = [
-        { id: '1', name: 'new-project', display_name: 'New Project' },
-      ];
-      mockLocation.pathname = '/new-project';
+      expect(screen.getByTestId('active-project')).toHaveTextContent('CIS 2.0');
+
+      vi.mocked(useProjects).mockReturnValue([
+        {
+          id: 'proj-1',
+          name: 'cis20',
+          title: 'CIS 3.0', // Changed title
+          description: 'CIS Project',
+        },
+      ]);
 
       rerender(
-        <MemoryRouter initialEntries={['/new-project']}>
+        <MemoryRouter initialEntries={['/cis20']}>
           <PortalContainer />
         </MemoryRouter>
       );
 
-      await waitFor(() => {
-        expect(screen.getByTestId('active-project')).toHaveTextContent('New Project');
-      });
+      expect(screen.getByTestId('active-project')).toHaveTextContent('CIS 3.0');
+    });
+  });
+
+  describe('Fallback Behavior', () => {
+    it('should return empty string for unknown route', () => {
+      renderWithRouter('/unknown-route');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('');
+    });
+
+    it('should navigate to home for unknown project', async () => {
+      const user = userEvent.setup();
+
+      // Mock PortalContent to allow changing to unknown project
+      vi.mocked(PortalContent).mockImplementation(({ onProjectChange }) => (
+        <div data-testid="portal-content">
+          <button onClick={() => onProjectChange('UnknownProject')} data-testid="unknown-project">
+            Unknown
+          </button>
+        </div>
+      ));
+
+      renderWithRouter('/');
+
+      const unknownButton = screen.getByTestId('unknown-project');
+      await user.click(unknownButton);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/');
+    });
+  });
+
+  describe('Integration', () => {
+    it('should call useProjects', () => {
+      renderWithRouter('/');
+
+      expect(useProjects).toHaveBeenCalled();
+    });
+
+    it('should call useSidebarItems', () => {
+      renderWithRouter('/');
+
+      expect(useSidebarItems).toHaveBeenCalled();
+    });
+
+    it('should call useNavigate', () => {
+      renderWithRouter('/');
+
+      expect(useNavigate).toHaveBeenCalled();
+    });
+
+    it('should call useLocation', () => {
+      renderWithRouter('/');
+
+      expect(useLocation).toHaveBeenCalled();
+    });
+
+    it('should call PortalProviders with children', () => {
+      renderWithRouter('/');
+
+      expect(PortalProviders).toHaveBeenCalledWith(
+        expect.objectContaining({
+          children: expect.anything(),
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should call PortalContent with correct props', () => {
+      renderWithRouter('/');
+
+      expect(PortalContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeProject: expect.any(String),
+          projects: mockSidebarItems,
+          onProjectChange: expect.any(Function),
+        }),
+        expect.anything()
+      );
     });
   });
 
   describe('Edge Cases', () => {
-    it('should handle empty projects list', () => {
-      currentMockProjects = [];
+    it('should handle empty projects array', () => {
+      vi.mocked(useProjects).mockReturnValue([]);
 
-      renderWithRouter();
+      renderWithRouter('/');
 
-      const projectsElement = screen.getByTestId('projects');
-      const projects = JSON.parse(projectsElement.textContent || '[]');
+      expect(screen.getByTestId('active-project')).toHaveTextContent('Home');
+    });
 
-      expect(projects).toEqual([
-        'Home',
-        'Teams',
-        'Links',
-        'Self Service',
-        'AI Arena',
+    it('should handle empty sidebar items', () => {
+      vi.mocked(useSidebarItems).mockReturnValue([]);
+
+      renderWithRouter('/');
+
+      expect(screen.getByTestId('projects-count')).toHaveTextContent('0');
+    });
+
+    it('should handle route with trailing slash', () => {
+      renderWithRouter('/teams/');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('Teams');
+    });
+
+    it('should handle deeply nested routes', () => {
+      renderWithRouter('/cis20/components/details/advanced');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('CIS 2.0');
+    });
+
+    it('should handle project with special characters in name', () => {
+      vi.mocked(useProjects).mockReturnValue([
+        {
+          id: 'proj-1',
+          name: 'test-project',
+          title: 'Test & Project <Special>',
+          description: 'Test',
+        },
       ]);
+
+      renderWithRouter('/test-project');
+
+      expect(screen.getByTestId('active-project')).toHaveTextContent('Test & Project <Special>');
     });
 
-    it('should handle projects without name or display_name', () => {
-      currentMockProjects = [
-        { id: '1', name: '', display_name: '' },
-        { id: '2', name: null, display_name: null },
-        { id: '3' },
-      ];
+    it('should handle plugin with dashes in slug', () => {
+      renderWithRouter('/plugins/my-awesome-plugin');
 
-      expect(() => renderWithRouter()).not.toThrow();
+      expect(screen.getByTestId('active-project')).toHaveTextContent('/plugins/my-awesome-plugin');
     });
 
-    it('should handle special characters in project names', () => {
-      currentMockProjects = [
-        { id: '1', name: 'project-with-dashes', display_name: 'Project With Dashes' },
-        { id: '2', name: 'project_with_underscores', display_name: 'Project With Underscores' },
-        { id: '3', name: 'project.with.dots', display_name: 'Project With Dots' },
-      ];
+    it('should handle plugin with underscores in slug', () => {
+      renderWithRouter('/plugins/my_plugin_name');
 
-      renderWithRouter();
-
-      const projectsElement = screen.getByTestId('projects');
-      const projects = JSON.parse(projectsElement.textContent || '[]');
-
-      expect(projects).toContain('Project With Dashes');
-      expect(projects).toContain('Project With Underscores');
-      expect(projects).toContain('Project With Dots');
+      expect(screen.getByTestId('active-project')).toHaveTextContent('/plugins/my_plugin_name');
     });
   });
 
-  describe('Loading and Error States', () => {
-    it('should handle loading state from projectsStore', () => {
-      currentMockLoading = true;
+  describe('Route Priority', () => {
+    it('should check plugin routes before dynamic projects', () => {
+      // If there's a project named "plugins", the plugin route should take priority
+      vi.mocked(useProjects).mockReturnValue([
+        ...mockProjects,
+        {
+          id: 'proj-3',
+          name: 'plugins',
+          title: 'Plugins Project',
+          description: 'Test',
+        },
+      ]);
 
-      renderWithRouter();
+      renderWithRouter('/plugins/test-plugin');
 
-      expect(screen.getByTestId('portal-providers')).toBeInTheDocument();
+      // Should detect as plugin route, not as "Plugins Project"
+      expect(screen.getByTestId('active-project')).toHaveTextContent('/plugins/test-plugin');
     });
 
-    it('should handle error state from projectsStore', () => {
-      currentMockError = new Error('Failed to load projects');
+    it('should check dynamic projects before static routes for exact matches', () => {
+      renderWithRouter('/cis20');
 
-      renderWithRouter();
-
-      expect(screen.getByTestId('portal-providers')).toBeInTheDocument();
-    });
-  });
-
-  describe('Zustand Integration', () => {
-    it('should read projects from Zustand store', () => {
-      renderWithRouter();
-      
-      // Component should render with mocked projects
-      expect(screen.getByTestId('portal-content')).toBeInTheDocument();
+      expect(screen.getByTestId('active-project')).toHaveTextContent('CIS 2.0');
     });
 
-    it('should handle projects store updates', () => {
-      const { rerender } = renderWithRouter();
+    it('should handle home route specially', () => {
+      renderWithRouter('/');
 
-      currentMockProjects = [
-        { id: '1', name: 'updated-project', display_name: 'Updated Project' },
-      ];
-
-      rerender(
-        <MemoryRouter initialEntries={['/']}>
-          <PortalContainer />
-        </MemoryRouter>
-      );
-
-      const projectsElement = screen.getByTestId('projects');
-      const projects = JSON.parse(projectsElement.textContent || '[]');
-
-      expect(projects).toContain('Updated Project');
+      expect(screen.getByTestId('active-project')).toHaveTextContent('Home');
     });
   });
 });

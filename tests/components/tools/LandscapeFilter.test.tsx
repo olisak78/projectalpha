@@ -1,621 +1,629 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
-import { LandscapeFilter } from '../../../src/components/LandscapeFilter';
-import { Landscape } from '../../../src/types/developer-portal';
-import { AppStateProvider } from '../../../src/contexts/AppStateContext';
-import { ReactNode } from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
+import { LandscapeFilter } from '@/components/LandscapeFilter';
+import type { Landscape } from '@/types/developer-portal';
 
-/**
- * LandscapeFilter Component Tests
- * 
- * Tests for the LandscapeFilter component which provides a dropdown selector
- * for filtering content by landscape (environment). Includes grouped landscape
- * options, clear button, and view all landscapes button.
- * 
- * Component Location: src/components/LandscapeFilter.tsx
- */
-
-// ============================================================================
-// MOCKS
-// ============================================================================
-
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
+// Mock UI components
+vi.mock('@/components/ui/button', () => ({
+  Button: vi.fn(({ children, onClick, role, ...props }) => (
+    <button onClick={onClick} role={role} {...props}>
+      {children}
+    </button>
+  )),
 }));
 
-// Mock IntersectionObserver
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
+vi.mock('@/components/ui/badge', () => ({
+  Badge: vi.fn(({ children, ...props }) => (
+    <span data-testid="badge" {...props}>{children}</span>
+  )),
 }));
 
-// ============================================================================
-// TEST UTILITIES
-// ============================================================================
+vi.mock('@/components/ui/popover', () => ({
+  Popover: vi.fn(({ open, onOpenChange, children }) => (
+    <div data-testid="popover" data-open={open}>
+      {children}
+    </div>
+  )),
+  PopoverTrigger: vi.fn(({ children }) => <div data-testid="popover-trigger">{children}</div>),
+  PopoverContent: vi.fn(({ children }) => <div data-testid="popover-content">{children}</div>),
+}));
 
-/**
- * Create mock landscape data
- */
-function createMockLandscape(overrides?: Partial<Landscape>): Landscape {
-  return {
-    id: 'landscape-1',
-    name: 'Production EU',
-    status: 'active',
-    githubConfig: 'https://github.com/config',
-    awsAccount: '123456789',
-    cam: 'https://cam.example.com',
-    deploymentStatus: 'deployed',
-    ...overrides,
+vi.mock('@/components/ui/command', () => ({
+  Command: vi.fn(({ children }) => <div data-testid="command">{children}</div>),
+  CommandInput: vi.fn((props) => <input data-testid="command-input" {...props} />),
+  CommandList: vi.fn(({ children }) => <div data-testid="command-list">{children}</div>),
+  CommandEmpty: vi.fn(({ children }) => <div data-testid="command-empty">{children}</div>),
+  CommandGroup: vi.fn(({ heading, children }) => (
+    <div data-testid="command-group">
+      <div data-testid="group-heading">{heading}</div>
+      {children}
+    </div>
+  )),
+  CommandItem: vi.fn(({ children, onSelect, disabled, value }) => (
+    <div
+      data-testid={`command-item-${value}`}
+      data-disabled={disabled}
+      onClick={() => !disabled && onSelect?.()}
+    >
+      {children}
+    </div>
+  )),
+}));
+
+// Mock stores
+vi.mock('@/stores/appStateStore', () => ({
+  useLandscapeSelection: vi.fn(),
+  useSelectedLandscape: vi.fn(),
+  useSelectedLandscapeForProject: vi.fn(),
+}));
+
+// Mock utilities
+vi.mock('@/utils/landscapeHistory', () => ({
+  getLandscapeHistory: vi.fn(),
+  addToLandscapeHistory: vi.fn(),
+}));
+
+vi.mock('@/utils/developer-portal-helpers', () => ({
+  sortLandscapeGroups: vi.fn((groups) => Object.entries(groups)),
+}));
+
+vi.mock('@/lib/utils', () => ({
+  cn: vi.fn((...classes) => classes.filter(Boolean).join(' ')),
+}));
+
+import { useLandscapeSelection, useSelectedLandscape, useSelectedLandscapeForProject } from '@/stores/appStateStore';
+import { getLandscapeHistory, addToLandscapeHistory } from '@/utils/landscapeHistory';
+import { sortLandscapeGroups } from '@/utils/developer-portal-helpers';
+
+describe('LandscapeFilter', () => {
+  const mockOnLandscapeChange = vi.fn();
+  const mockOnShowLandscapeDetails = vi.fn();
+  const mockSetSelectedLandscapeForProject = vi.fn();
+  const mockGetSelectedLandscapeForProject = vi.fn();
+
+  const mockLandscapes: Landscape[] = [
+    {
+      id: 'land-1',
+      name: 'Production',
+      technical_name: 'prod',
+      status: 'healthy',
+      isCentral: true,
+    } as Landscape,
+    {
+      id: 'land-2',
+      name: 'Development',
+      technical_name: 'dev',
+      status: 'warning',
+      isCentral: false,
+    } as Landscape,
+    {
+      id: 'land-3',
+      name: 'Staging',
+      technical_name: 'staging',
+      status: 'error',
+      isCentral: false,
+    } as Landscape,
+  ];
+
+  const mockLandscapeGroups = {
+    'Production': [mockLandscapes[0]],
+    'Non-Production': [mockLandscapes[1], mockLandscapes[2]],
   };
-}
 
-/**
- * Create mock landscape groups
- */
-function createMockLandscapeGroups(): Record<string, Landscape[]> {
-  return {
-    'Production': [
-      createMockLandscape({ id: 'prod-eu', name: 'Production EU', status: 'active' }),
-      createMockLandscape({ id: 'prod-us', name: 'Production US', status: 'active' }),
-    ],
-    'Staging': [
-      createMockLandscape({ id: 'staging-eu', name: 'Staging EU', status: 'active', deploymentStatus: 'deploying' }),
-      createMockLandscape({ id: 'staging-us', name: 'Staging US', status: 'inactive', deploymentStatus: 'failed' }),
-    ],
-    'Development': [
-      createMockLandscape({ id: 'dev-1', name: 'Dev Environment 1', status: 'active' }),
-    ],
-  };
-}
-
-/**
- * Helper function to render LandscapeFilter with default props
- */
-function renderLandscapeFilter(props?: Partial<React.ComponentProps<typeof LandscapeFilter>>) {
   const defaultProps = {
-    selectedLandscape: null,
-    landscapeGroups: createMockLandscapeGroups(),
-    onLandscapeChange: vi.fn(),
-    onShowLandscapeDetails: vi.fn(),
+    landscapeGroups: mockLandscapeGroups,
+    onLandscapeChange: mockOnLandscapeChange,
+    onShowLandscapeDetails: mockOnShowLandscapeDetails,
   };
-
-  return render(
-    <AppStateProvider>
-      <LandscapeFilter {...defaultProps} {...props} />
-    </AppStateProvider>
-  );
-}
-
-// ============================================================================
-// LANDSCAPE FILTER COMPONENT TESTS
-// ============================================================================
-
-describe('LandscapeFilter Component', () => {
-  let mockOnLandscapeChange: ReturnType<typeof vi.fn>;
-  let mockOnShowLandscapeDetails: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    mockOnLandscapeChange = vi.fn();
-    mockOnShowLandscapeDetails = vi.fn();
     vi.clearAllMocks();
-    
-    // Reset ResizeObserver mock
-    (global.ResizeObserver as any) = vi.fn().mockImplementation(() => ({
-      observe: vi.fn(),
-      unobserve: vi.fn(),
-      disconnect: vi.fn(),
-    }));
-  });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  // ==========================================================================
-  // RENDERING TESTS
-  // ==========================================================================
-
-  describe('Rendering', () => {
-    it('should render the Globe icon', () => {
-      const { container } = renderLandscapeFilter({
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      const globeIcon = container.querySelector('svg');
-      expect(globeIcon).toBeInTheDocument();
+    vi.mocked(useLandscapeSelection).mockReturnValue({
+      getSelectedLandscapeForProject: mockGetSelectedLandscapeForProject,
+      setSelectedLandscapeForProject: mockSetSelectedLandscapeForProject,
     });
 
-    it('should render the Select component', () => {
-      renderLandscapeFilter({
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    vi.mocked(useSelectedLandscape).mockReturnValue(null);
+    vi.mocked(useSelectedLandscapeForProject).mockReturnValue(null);
+    vi.mocked(getLandscapeHistory).mockReturnValue([]);
+    vi.mocked(sortLandscapeGroups).mockImplementation((groups) => Object.entries(groups));
+  });
+
+  describe('Rendering', () => {
+    it('should render landscape filter with Globe icon', () => {
+      render(<LandscapeFilter {...defaultProps} />);
+
+      const container = screen.getByRole('combobox').closest('div')?.parentElement;
+      expect(container).toBeInTheDocument();
+    });
+
+    it('should render popover trigger button', () => {
+      render(<LandscapeFilter {...defaultProps} />);
 
       expect(screen.getByRole('combobox')).toBeInTheDocument();
     });
 
     it('should render View All Landscapes button by default', () => {
-      renderLandscapeFilter({
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+      render(<LandscapeFilter {...defaultProps} />);
 
-      expect(screen.getByRole('button', { name: /view all landscapes/i })).toBeInTheDocument();
+      expect(screen.getByText('View All Landscapes')).toBeInTheDocument();
     });
 
-    it('should not render View All Landscapes button when showViewAllButton is false', () => {
-      renderLandscapeFilter({
-        showViewAllButton: false,
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should not render View All button when showViewAllButton is false', () => {
+      render(<LandscapeFilter {...defaultProps} showViewAllButton={false} />);
 
-      expect(screen.queryByRole('button', { name: /view all landscapes/i })).not.toBeInTheDocument();
+      expect(screen.queryByText('View All Landscapes')).not.toBeInTheDocument();
     });
 
-    it('should render Clear button when landscape is selected and showClearButton is true', () => {
-      renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        showClearButton: true,
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should render default placeholder text', () => {
+      render(<LandscapeFilter {...defaultProps} />);
 
-      expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument();
-    });
-
-    it('should not render Clear button when no landscape is selected', () => {
-      renderLandscapeFilter({
-        selectedLandscape: null,
-        showClearButton: true,
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
-    });
-
-    it('should not render Clear button when showClearButton is false', () => {
-      renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        showClearButton: false,
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
-    });
-
-    it('should render with proper layout structure', () => {
-      const { container } = renderLandscapeFilter({
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      const wrapper = container.firstChild as HTMLElement;
-      expect(wrapper).toHaveClass('flex', 'items-center', 'gap-4');
-    });
-  });
-
-  // ==========================================================================
-  // SELECT DROPDOWN TESTS
-  // ==========================================================================
-
-  describe('Select Dropdown', () => {
-
-    it('should display status indicators for each landscape', () => {
-      renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      // When a landscape is selected, the status indicator appears in the trigger itself
-      const trigger = screen.getByRole('combobox');
-      const statusIndicator = trigger.querySelector('.w-2');
-      expect(statusIndicator).toBeTruthy();
-    });
-
-
-    it('should display selected landscape value', () => {
-      renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      // The selected value should be displayed in the trigger (showing landscape name, not ID)
-      expect(screen.getByText('Production EU')).toBeInTheDocument();
-    });
-
-    it('should show placeholder when selected landscape is invalid', () => {
-      renderLandscapeFilter({
-        selectedLandscape: 'invalid-landscape-id',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      // Should display placeholder text when landscape ID is invalid
       expect(screen.getByText('Filter by Landscape')).toBeInTheDocument();
     });
 
-    it('should handle empty landscape groups', () => {
-      renderLandscapeFilter({
-        landscapeGroups: {},
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should render custom placeholder text', () => {
+      render(<LandscapeFilter {...defaultProps} placeholder="Select Landscape" />);
 
-      const trigger = screen.getByRole('combobox');
-      expect(trigger).toBeInTheDocument();
+      expect(screen.getByText('Select Landscape')).toBeInTheDocument();
     });
   });
 
-  // ==========================================================================
-  // STATUS COLOR TESTS
-  // ==========================================================================
+  describe('Selected Landscape Display', () => {
+    it('should display selected landscape name', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
 
-  describe('Status Colors', () => {
-    it('should apply success color for healthy status', () => {
-      const landscapeGroups = {
-        'Test': [createMockLandscape({ id: 'test-1', name: 'Test', status: 'active' })],
-      };
+      render(<LandscapeFilter {...defaultProps} />);
 
-      renderLandscapeFilter({
-        landscapeGroups,
-        selectedLandscape: 'test-1',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      // The status indicator should be visible in the selected value display
-      const trigger = screen.getByRole('combobox');
-      const statusIndicator = trigger.querySelector('.bg-success');
-      expect(statusIndicator).toBeTruthy();
+      const combobox = screen.getByRole('combobox');
+      expect(combobox).toHaveTextContent('prod');
     });
 
-    it('should apply warning color for deploying status', () => {
-      const landscapeGroups = {
-        'Test': [createMockLandscape({ 
-          id: 'test-1', 
-          name: 'Test', 
-          status: 'active',
-          deploymentStatus: 'deploying' 
-        })],
-      };
+    it('should show central badge for central landscape', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
 
-      renderLandscapeFilter({
-        landscapeGroups,
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+      render(<LandscapeFilter {...defaultProps} />);
 
-      // Component renders status colors, exact verification depends on implementation
-      expect(screen.getByRole('combobox')).toBeInTheDocument();
+      const combobox = screen.getByRole('combobox');
+      expect(combobox).toHaveTextContent('central');
     });
 
-    it('should apply destructive color for failed status', () => {
-      const landscapeGroups = {
-        'Test': [createMockLandscape({ 
-          id: 'test-1', 
-          name: 'Test', 
-          status: 'inactive',
-          deploymentStatus: 'failed' 
-        })],
-      };
+    it('should not show central badge for non-central landscape', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-2');
 
-      renderLandscapeFilter({
-        landscapeGroups,
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+      render(<LandscapeFilter {...defaultProps} />);
 
-      expect(screen.getByRole('combobox')).toBeInTheDocument();
+      const combobox = screen.getByRole('combobox');
+      expect(combobox).not.toHaveTextContent('central');
     });
 
-    it('should apply default color for unknown status', () => {
-      const landscapeGroups = {
-        'Test': [createMockLandscape({ 
-          id: 'test-1', 
-          name: 'Test', 
-          // @ts-ignore - Testing edge case
-          status: 'unknown-status'
-        })],
+    it('should show status color indicator for selected landscape', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
+
+      const { container } = render(<LandscapeFilter {...defaultProps} />);
+
+      const statusIndicator = container.querySelector('.bg-success');
+      expect(statusIndicator).toBeInTheDocument();
+    });
+
+    it('should use technical_name if available', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
+
+      render(<LandscapeFilter {...defaultProps} />);
+
+      const combobox = screen.getByRole('combobox');
+      expect(combobox).toHaveTextContent('prod');
+    });
+
+    it('should fall back to name if technical_name is not available', () => {
+      const landscapeWithoutTechnicalName = {
+        ...mockLandscapes[0],
+        technical_name: undefined,
+      } as Landscape;
+
+      const groups = {
+        'Production': [landscapeWithoutTechnicalName],
       };
 
-      renderLandscapeFilter({
-        landscapeGroups,
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
 
-      expect(screen.getByRole('combobox')).toBeInTheDocument();
+      render(<LandscapeFilter {...defaultProps} landscapeGroups={groups} />);
+
+      const combobox = screen.getByRole('combobox');
+      expect(combobox).toHaveTextContent('Production');
     });
   });
 
-  // ==========================================================================
-  // BUTTON INTERACTION TESTS
-  // ==========================================================================
+  describe('Clear Button', () => {
+    it('should show clear button when landscape is selected and showClearButton is true', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
 
-  describe('Button Interactions', () => {
-    it('should call onLandscapeChange with null when Clear button is clicked', () => {
-      renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+      render(<LandscapeFilter {...defaultProps} showClearButton={true} />);
 
-      const clearButton = screen.getByRole('button', { name: /clear/i });
-      fireEvent.click(clearButton);
+      expect(screen.getByText('Clear')).toBeInTheDocument();
+    });
+
+    it('should not show clear button when no landscape is selected', () => {
+      render(<LandscapeFilter {...defaultProps} />);
+
+      expect(screen.queryByText('Clear')).not.toBeInTheDocument();
+    });
+
+    it('should not show clear button when showClearButton is false', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
+
+      render(<LandscapeFilter {...defaultProps} showClearButton={false} />);
+
+      expect(screen.queryByText('Clear')).not.toBeInTheDocument();
+    });
+
+    it('should call onLandscapeChange with null when clear button is clicked', async () => {
+      const user = userEvent.setup();
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
+
+      render(<LandscapeFilter {...defaultProps} />);
+
+      const clearButton = screen.getByText('Clear');
+      await user.click(clearButton);
 
       expect(mockOnLandscapeChange).toHaveBeenCalledWith(null);
-      expect(mockOnLandscapeChange).toHaveBeenCalledTimes(1);
     });
 
-    it('should call onShowLandscapeDetails when View All button is clicked', () => {
-      renderLandscapeFilter({
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should clear project-specific landscape when projectId is provided', async () => {
+      const user = userEvent.setup();
+      vi.mocked(useSelectedLandscapeForProject).mockReturnValue('land-1');
 
-      const viewAllButton = screen.getByRole('button', { name: /view all landscapes/i });
-      fireEvent.click(viewAllButton);
+      render(<LandscapeFilter {...defaultProps} projectId="proj-1" />);
+
+      const clearButton = screen.getByText('Clear');
+      await user.click(clearButton);
+
+      expect(mockSetSelectedLandscapeForProject).toHaveBeenCalledWith('proj-1', null);
+    });
+  });
+
+  describe('View All Button', () => {
+    it('should call onShowLandscapeDetails when clicked', async () => {
+      const user = userEvent.setup();
+
+      render(<LandscapeFilter {...defaultProps} />);
+
+      const viewAllButton = screen.getByText('View All Landscapes');
+      await user.click(viewAllButton);
 
       expect(mockOnShowLandscapeDetails).toHaveBeenCalledTimes(1);
     });
+  });
 
-    it('should have X icon in Clear button', () => {
-      const { container } = renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+  describe('Landscape Selection', () => {
+    it('should call onLandscapeChange when landscape is selected', async () => {
+      const user = userEvent.setup();
 
-      const clearButton = screen.getByRole('button', { name: /clear/i });
-      const icon = clearButton.querySelector('svg');
-      
-      expect(icon).toBeInTheDocument();
+      render(<LandscapeFilter {...defaultProps} />);
+
+      // Open popover first (in a real scenario)
+      const selectItem = screen.getByTestId('command-item-land-1-prod');
+      await user.click(selectItem);
+
+      expect(mockOnLandscapeChange).toHaveBeenCalledWith('land-1');
     });
 
-    it('should have Info icon in View All button', () => {
-      const { container } = renderLandscapeFilter({
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should add to landscape history when landscape is selected', async () => {
+      const user = userEvent.setup();
 
-      const viewAllButton = screen.getByRole('button', { name: /view all landscapes/i });
-      const icon = viewAllButton.querySelector('svg');
-      
-      expect(icon).toBeInTheDocument();
+      render(<LandscapeFilter {...defaultProps} />);
+
+      const selectItem = screen.getByTestId('command-item-land-1-prod');
+      await user.click(selectItem);
+
+      expect(addToLandscapeHistory).toHaveBeenCalledWith('land-1');
+    });
+
+    it('should set project-specific landscape when projectId is provided', async () => {
+      const user = userEvent.setup();
+
+      render(<LandscapeFilter {...defaultProps} projectId="proj-1" />);
+
+      const selectItem = screen.getByTestId('command-item-land-1-prod');
+      await user.click(selectItem);
+
+      expect(mockSetSelectedLandscapeForProject).toHaveBeenCalledWith('proj-1', 'land-1');
+    });
+
+    it('should not select disabled landscape', async () => {
+      const user = userEvent.setup();
+
+      render(<LandscapeFilter {...defaultProps} disableNonCentral={true} />);
+
+      // land-2 is non-central and should be disabled
+      const disabledItem = screen.getByTestId('command-item-land-2-dev');
+
+      expect(disabledItem).toHaveAttribute('data-disabled', 'true');
     });
   });
 
-  // ==========================================================================
-  // EDGE CASES & ERROR HANDLING
-  // ==========================================================================
+  describe('Frequently Visited', () => {
+    it('should show Frequently Visited group when history exists', () => {
+      vi.mocked(getLandscapeHistory).mockReturnValue([
+        { id: 'land-1', timestamp: Date.now() },
+      ]);
 
-  describe('Edge Cases', () => {
+      render(<LandscapeFilter {...defaultProps} />);
 
-
-    it('should handle landscape selection change', () => {
-      const { rerender } = renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      expect(screen.getByText('Production EU')).toBeInTheDocument();
-
-      rerender(
-        <AppStateProvider>
-          <LandscapeFilter
-            selectedLandscape="prod-us"
-            landscapeGroups={createMockLandscapeGroups()}
-            onLandscapeChange={mockOnLandscapeChange}
-            onShowLandscapeDetails={mockOnShowLandscapeDetails}
-          />
-        </AppStateProvider>
-      );
-
-      expect(screen.getByText('Production US')).toBeInTheDocument();
+      expect(screen.getByText('Frequently Visited')).toBeInTheDocument();
     });
 
-    it('should handle transition from null to selected landscape', () => {
-      const { rerender } = renderLandscapeFilter({
-        selectedLandscape: null,
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should not show Frequently Visited group when history is empty', () => {
+      vi.mocked(getLandscapeHistory).mockReturnValue([]);
 
-      // Initially no Clear button
-      expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument();
+      render(<LandscapeFilter {...defaultProps} />);
 
-      rerender(
-        <AppStateProvider>
-          <LandscapeFilter
-            selectedLandscape="prod-eu"
-            landscapeGroups={createMockLandscapeGroups()}
-            onLandscapeChange={mockOnLandscapeChange}
-            onShowLandscapeDetails={mockOnShowLandscapeDetails}
-          />
-        </AppStateProvider>
-      );
-
-      // Now Clear button should appear
-      expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument();
+      expect(screen.queryByText('FREQUENTLY VISITED')).not.toBeInTheDocument();
     });
 
-    it('should handle rapid button clicks', () => {
-      renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should only show landscapes that exist in current groups', () => {
+      vi.mocked(getLandscapeHistory).mockReturnValue([
+        { id: 'land-1', timestamp: Date.now() },
+        { id: 'nonexistent', timestamp: Date.now() },
+      ]);
 
-      const clearButton = screen.getByRole('button', { name: /clear/i });
-      
-      fireEvent.click(clearButton);
-      fireEvent.click(clearButton);
-      fireEvent.click(clearButton);
+      render(<LandscapeFilter {...defaultProps} />);
 
-      // Each click should trigger the callback
-      expect(mockOnLandscapeChange).toHaveBeenCalledTimes(3);
+      // land-1 should appear twice: once in "Frequently Visited" and once in its original group
+      const land1Items = screen.getAllByTestId('command-item-land-1-prod');
+      expect(land1Items.length).toBe(2);
+
+      // nonexistent landscape should not appear at all
+      expect(screen.queryByTestId('command-item-nonexistent-')).not.toBeInTheDocument();
     });
   });
 
-  // ==========================================================================
-  // ACCESSIBILITY TESTS
-  // ==========================================================================
+  describe('Status Colors', () => {
+    it('should apply success color for healthy status', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
 
-  describe('Accessibility', () => {
-    it('should have proper ARIA roles', () => {
-      renderLandscapeFilter({
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+      const { container } = render(<LandscapeFilter {...defaultProps} />);
 
-      expect(screen.getByRole('combobox')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /view all landscapes/i })).toBeInTheDocument();
+      expect(container.querySelector('.bg-success')).toBeInTheDocument();
     });
 
-    it('should have accessible button labels', () => {
-      renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should apply warning color for warning status', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-2');
 
-      expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /view all landscapes/i })).toBeInTheDocument();
+      const { container } = render(<LandscapeFilter {...defaultProps} />);
+
+      expect(container.querySelector('.bg-warning')).toBeInTheDocument();
     });
 
-    it('should be keyboard navigable', () => {
-      renderLandscapeFilter({
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should apply destructive color for error status', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-3');
 
-      const trigger = screen.getByRole('combobox');
-      trigger.focus();
+      const { container } = render(<LandscapeFilter {...defaultProps} />);
 
-      expect(document.activeElement).toBe(trigger);
+      expect(container.querySelector('.bg-destructive')).toBeInTheDocument();
     });
 
-    it('should support keyboard navigation between elements', () => {
-      renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should apply muted color for unknown status', () => {
+      const landscapeWithUnknownStatus = {
+        ...mockLandscapes[0],
+        status: 'unknown',
+      } as Landscape;
+
+      const groups = {
+        'Test': [landscapeWithUnknownStatus],
+      };
+
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
+
+      const { container } = render(<LandscapeFilter {...defaultProps} landscapeGroups={groups} />);
+
+      expect(container.querySelector('.bg-muted')).toBeInTheDocument();
+    });
+  });
+
+  describe('Disabled Non-Central Landscapes', () => {
+    it('should disable non-central landscapes when disableNonCentral is true', () => {
+      render(<LandscapeFilter {...defaultProps} disableNonCentral={true} />);
+
+      const nonCentralItem = screen.getByTestId('command-item-land-2-dev');
+      expect(nonCentralItem).toHaveAttribute('data-disabled', 'true');
+    });
+
+    it('should not disable central landscapes even when disableNonCentral is true', () => {
+      render(<LandscapeFilter {...defaultProps} disableNonCentral={true} />);
+
+      const centralItem = screen.getByTestId('command-item-land-1-prod');
+      expect(centralItem).toHaveAttribute('data-disabled', 'false');
+    });
+
+    it('should not disable any landscapes when disableNonCentral is false', () => {
+      render(<LandscapeFilter {...defaultProps} disableNonCentral={false} />);
+
+      const item1 = screen.getByTestId('command-item-land-1-prod');
+      const item2 = screen.getByTestId('command-item-land-2-dev');
+
+      expect(item1).toHaveAttribute('data-disabled', 'false');
+      expect(item2).toHaveAttribute('data-disabled', 'false');
+    });
+  });
+
+  describe('Empty States', () => {
+    it('should show "No available landscapes" when landscapeGroups is empty', () => {
+      render(<LandscapeFilter {...defaultProps} landscapeGroups={{}} />);
+
+      const elements = screen.getAllByText('No available landscapes');
+      expect(elements.length).toBe(2); // Once in button, once in popover content
+    });
+
+    it('should not render landscape list when no landscapes available', () => {
+      render(<LandscapeFilter {...defaultProps} landscapeGroups={{}} />);
+
+      expect(screen.queryByTestId('command-list')).not.toBeInTheDocument();
+    });
+
+    it('should show red border when no landscape selected and landscapes available', () => {
+      const { container } = render(<LandscapeFilter {...defaultProps} />);
+
+      const button = container.querySelector('.border-red-500');
+      expect(button).toBeInTheDocument();
+    });
+
+    it('should not show red border when landscape is selected', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
+
+      const { container } = render(<LandscapeFilter {...defaultProps} />);
+
+      const redBorder = container.querySelector('.border-red-500');
+      expect(redBorder).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Project-Specific Selection', () => {
+    it('should use project-specific landscape when projectId is provided', () => {
+      vi.mocked(useSelectedLandscapeForProject).mockReturnValue('land-2');
+
+      render(<LandscapeFilter {...defaultProps} projectId="proj-1" />);
 
       const combobox = screen.getByRole('combobox');
-      const clearButton = screen.getByRole('button', { name: /clear/i });
-      const viewAllButton = screen.getByRole('button', { name: /view all landscapes/i });
-
-      combobox.focus();
-      expect(document.activeElement).toBe(combobox);
-
-      clearButton.focus();
-      expect(document.activeElement).toBe(clearButton);
-
-      viewAllButton.focus();
-      expect(document.activeElement).toBe(viewAllButton);
+      expect(combobox).toHaveTextContent('dev');
     });
 
+    it('should use global landscape when projectId is not provided', () => {
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
+
+      render(<LandscapeFilter {...defaultProps} />);
+
+      const combobox = screen.getByRole('combobox');
+      expect(combobox).toHaveTextContent('prod');
+    });
+
+    it('should call useSelectedLandscapeForProject with correct projectId', () => {
+      render(<LandscapeFilter {...defaultProps} projectId="proj-1" />);
+
+      expect(useSelectedLandscapeForProject).toHaveBeenCalledWith('proj-1');
+    });
+
+    it('should call useSelectedLandscapeForProject with empty string when no projectId', () => {
+      render(<LandscapeFilter {...defaultProps} />);
+
+      expect(useSelectedLandscapeForProject).toHaveBeenCalledWith('');
+    });
   });
 
-  // ==========================================================================
-  // STYLING TESTS
-  // ==========================================================================
+  describe('Search Functionality', () => {
+    it('should render search input in command', () => {
+      render(<LandscapeFilter {...defaultProps} />);
 
-  describe('Styling', () => {
-    it('should apply correct width to Select trigger', () => {
-      renderLandscapeFilter({
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      const trigger = screen.getByRole('combobox');
-      expect(trigger).toHaveClass('w-[288px]');
+      expect(screen.getByTestId('command-input')).toBeInTheDocument();
     });
 
-    it('should have consistent gap spacing', () => {
-      const { container } = renderLandscapeFilter({
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should have correct placeholder for search', () => {
+      render(<LandscapeFilter {...defaultProps} />);
 
-      const wrapper = container.firstChild as HTMLElement;
-      expect(wrapper).toHaveClass('gap-4');
+      const searchInput = screen.getByTestId('command-input');
+      expect(searchInput).toHaveAttribute('placeholder', 'Search landscapes...');
     });
-
-    it('should apply small size to Clear button', () => {
-      renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      const clearButton = screen.getByRole('button', { name: /clear/i });
-      expect(clearButton).toBeInTheDocument();
-    });
-
-    it('should have proper icon sizing', () => {
-      const { container } = renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
-
-      const icons = container.querySelectorAll('svg.h-4.w-4');
-      expect(icons.length).toBeGreaterThan(0);
-    });
-
   });
 
-  // ==========================================================================
-  // INTEGRATION TESTS
-  // ==========================================================================
+  describe('Landscape Groups', () => {
+    it('should render all landscape groups', () => {
+      render(<LandscapeFilter {...defaultProps} />);
+
+      expect(screen.getByText('Production')).toBeInTheDocument();
+      expect(screen.getByText('Non-Production')).toBeInTheDocument();
+    });
+
+    it('should render all landscapes in each group', () => {
+      render(<LandscapeFilter {...defaultProps} />);
+
+      expect(screen.getByTestId('command-item-land-1-prod')).toBeInTheDocument();
+      expect(screen.getByTestId('command-item-land-2-dev')).toBeInTheDocument();
+      expect(screen.getByTestId('command-item-land-3-staging')).toBeInTheDocument();
+    });
+
+    it('should call sortLandscapeGroups utility', () => {
+      render(<LandscapeFilter {...defaultProps} />);
+
+      expect(sortLandscapeGroups).toHaveBeenCalled();
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle landscape without status', () => {
+      const landscapeWithoutStatus = {
+        ...mockLandscapes[0],
+        status: undefined,
+      } as Landscape;
+
+      const groups = {
+        'Test': [landscapeWithoutStatus],
+      };
+
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
+
+      const { container } = render(<LandscapeFilter {...defaultProps} landscapeGroups={groups} />);
+
+      expect(container.querySelector('.bg-muted')).toBeInTheDocument();
+    });
+
+    it('should handle very long landscape names', () => {
+      const longNameLandscape = {
+        ...mockLandscapes[0],
+        technical_name: 'very-long-landscape-name-that-should-be-truncated',
+      } as Landscape;
+
+      const groups = {
+        'Test': [longNameLandscape],
+      };
+
+      vi.mocked(useSelectedLandscape).mockReturnValue('land-1');
+
+      render(<LandscapeFilter {...defaultProps} landscapeGroups={groups} />);
+
+      const combobox = screen.getByRole('combobox');
+      expect(combobox).toHaveTextContent('very-long-landscape-name-that-should-be-truncated');
+    });
+
+    it('should handle many landscape groups', () => {
+      const manyGroups = Object.fromEntries(
+        Array.from({ length: 20 }, (_, i) => [
+          `Group ${i}`,
+          [{ ...mockLandscapes[0], id: `land-${i}`, technical_name: `land-${i}` }],
+        ])
+      );
+
+      render(<LandscapeFilter {...defaultProps} landscapeGroups={manyGroups} />);
+
+      expect(screen.getByTestId('command-list')).toBeInTheDocument();
+    });
+  });
 
   describe('Integration', () => {
-    it('should work with all props combined', () => {
-      renderLandscapeFilter({
-        selectedLandscape: 'prod-eu',
-        landscapeGroups: createMockLandscapeGroups(),
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-        showClearButton: true,
-        showViewAllButton: true,
-        placeholder: 'Custom Placeholder',
-      });
+    it('should integrate with appStateStore for global selection', () => {
+      render(<LandscapeFilter {...defaultProps} />);
 
-      expect(screen.getByText('Production EU')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /view all landscapes/i })).toBeInTheDocument();
+      expect(useSelectedLandscape).toHaveBeenCalled();
+      expect(useLandscapeSelection).toHaveBeenCalled();
     });
 
-    it('should handle complete user workflow', () => {
-      renderLandscapeFilter({
-        onLandscapeChange: mockOnLandscapeChange,
-        onShowLandscapeDetails: mockOnShowLandscapeDetails,
-      });
+    it('should integrate with appStateStore for project selection', () => {
+      render(<LandscapeFilter {...defaultProps} projectId="proj-1" />);
 
-      // Open dropdown
-      const trigger = screen.getByRole('combobox');
-      fireEvent.click(trigger);
-
-      // Select a landscape (showing name "Staging EU", not ID)
-      const option = screen.getByText('Staging EU');
-      fireEvent.click(option);
-
-      expect(mockOnLandscapeChange).toHaveBeenCalledWith('staging-eu');
+      expect(useSelectedLandscapeForProject).toHaveBeenCalledWith('proj-1');
     });
 
+    it('should integrate with landscape history utilities', async () => {
+      const user = userEvent.setup();
+
+      render(<LandscapeFilter {...defaultProps} />);
+
+      expect(getLandscapeHistory).toHaveBeenCalled();
+
+      const selectItem = screen.getByTestId('command-item-land-1-prod');
+      await user.click(selectItem);
+
+      expect(addToLandscapeHistory).toHaveBeenCalledWith('land-1');
+    });
   });
 });

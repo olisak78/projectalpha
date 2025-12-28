@@ -1,384 +1,552 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import { PortalContent } from '@/components/PortalContent';
-import { useNotifications } from '@/hooks/useNotifications';
-import { usePortalState } from '@/contexts/hooks';
-import { useHeaderNavigation } from '@/contexts/HeaderNavigationContext';
-import { useSidebarState } from '@/contexts/SidebarContext';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { MemoryRouter } from 'react-router-dom';
 
-// Mock all the hooks and contexts
-vi.mock('@/hooks/useNotifications');
-vi.mock('@/contexts/hooks');
-vi.mock('@/contexts/HeaderNavigationContext');
-vi.mock('@/contexts/SidebarContext');
-vi.mock('@/hooks/use-mobile');
+// Mock hooks
+vi.mock('@/hooks/useNotifications', () => ({
+  useNotifications: vi.fn(),
+}));
+
+vi.mock('@/contexts/hooks', () => ({
+  usePortalState: vi.fn(),
+}));
+
+vi.mock('@/contexts/HeaderNavigationContext', () => ({
+  useHeaderNavigation: vi.fn(),
+}));
+
+vi.mock('@/stores/sidebarStore', () => ({
+  useSidebarWidth: vi.fn(),
+}));
+
+vi.mock('@/hooks/use-mobile', () => ({
+  useIsMobile: vi.fn(),
+}));
 
 // Mock child components
 vi.mock('@/components/DeveloperPortalHeader/DeveloperPortalHeader', () => ({
-  DeveloperPortalHeader: ({ unreadCount, onNotificationClick }: any) => (
+  DeveloperPortalHeader: vi.fn(({ unreadCount, onNotificationClick }) => (
     <div data-testid="developer-portal-header">
-      <span data-testid="unread-count">{unreadCount}</span>
-      <button data-testid="notification-button" onClick={onNotificationClick}>
+      <div data-testid="unread-count">{unreadCount}</div>
+      <button onClick={onNotificationClick} data-testid="notification-button">
         Notifications
       </button>
     </div>
-  )
+  )),
 }));
 
 vi.mock('@/components/DeveloperPortalHeader/HeaderNavigation', () => ({
-  HeaderNavigation: ({ tabs, activeTab, onTabClick, isDropdown }: any) => (
+  HeaderNavigation: vi.fn(({ tabs, activeTab, onTabClick, isDropdown }) => (
     <div data-testid="header-navigation">
-      <span data-testid="active-tab">{activeTab || ''}</span>
-      <span data-testid="is-dropdown">{String(isDropdown)}</span>
-      {tabs.map((tab: any) => (
-        <button key={tab.id} data-testid={`tab-${tab.id}`} onClick={() => onTabClick(tab.id)}>
-          {tab.label}
-        </button>
-      ))}
+      <div data-testid="nav-tabs-count">{tabs.length}</div>
+      <div data-testid="nav-active-tab">{activeTab || 'none'}</div>
+      <div data-testid="nav-is-dropdown">{String(isDropdown)}</div>
+      <button onClick={() => onTabClick('tab-1')} data-testid="nav-tab-button">
+        Tab Click
+      </button>
     </div>
-  )
+  )),
 }));
 
 vi.mock('@/components/Sidebar/SideBar', () => ({
-  SideBar: ({ activeProject, projects, onProjectChange }: any) => (
+  SideBar: vi.fn(({ activeProject, projects, onProjectChange }) => (
     <div data-testid="sidebar">
-      <span data-testid="active-project">{activeProject}</span>
-      <span data-testid="projects-count">{projects.length}</span>
-      {projects.map((project: string) => (
-        <button key={project} data-testid={`project-${project}`} onClick={() => onProjectChange(project)}>
-          {project}
-        </button>
-      ))}
+      <div data-testid="sidebar-active-project">{activeProject}</div>
+      <div data-testid="sidebar-projects-count">{projects.length}</div>
+      <button onClick={() => onProjectChange('new-project')} data-testid="sidebar-project-button">
+        Change Project
+      </button>
     </div>
-  )
+  )),
 }));
 
 vi.mock('@/components/NotificationPopup', () => ({
-  NotificationPopup: ({ isOpen, onClose, notifications, currentId, markAllRead, unreadCount }: any) => (
-    <div data-testid="notification-popup" style={{ display: isOpen ? 'block' : 'none' }}>
-      <span data-testid="popup-unread-count">{unreadCount}</span>
-      <span data-testid="popup-current-id">{currentId}</span>
-      <span data-testid="popup-notifications-count">{notifications.length}</span>
-      <button data-testid="close-popup" onClick={onClose}>Close</button>
-      <button data-testid="mark-all-read" onClick={() => markAllRead(currentId)}>Mark All Read</button>
+  NotificationPopup: vi.fn(({ isOpen, onClose, notifications, currentId, markAllRead, unreadCount }) => (
+    <div data-testid="notification-popup" data-is-open={isOpen}>
+      <div data-testid="popup-notifications-count">{notifications.length}</div>
+      <div data-testid="popup-current-id">{currentId}</div>
+      <div data-testid="popup-unread-count">{unreadCount}</div>
+      <button onClick={onClose} data-testid="popup-close-button">Close</button>
+      <button onClick={markAllRead} data-testid="popup-mark-read-button">Mark All Read</button>
     </div>
-  )
+  )),
 }));
 
-// Mock Outlet from react-router-dom
+// Mock Outlet
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
-    Outlet: () => <div data-testid="outlet">Page Content</div>,
-    useLocation: vi.fn()
+    Outlet: vi.fn(() => <div data-testid="outlet">Main Content</div>),
+    useLocation: vi.fn(),
   };
 });
 
-// Test wrapper
-const TestWrapper = ({ children }: { children: React.ReactNode }) => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
-  });
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        {children}
-      </MemoryRouter>
-    </QueryClientProvider>
-  );
-};
-
-// Default test data
-const defaultProps = {
-  activeProject: 'project-1',
-  projects: ['project-1', 'project-2', 'project-3'],
-  onProjectChange: vi.fn()
-};
-
-const defaultMocks = {
-  notifications: {
-    notifications: [
-      { id: '1', title: 'Test Notification', message: 'Test message', createdAt: new Date().toISOString(), readBy: [] }
-    ],
-    unreadCount: 1,
-    markAllRead: vi.fn()
-  },
-  portalState: {
-    currentDevId: 'dev-123',
-    setMeHighlightNotifications: vi.fn()
-  },
-  headerNavigation: {
-    tabs: [
-      { id: 'tab1', label: 'Tab 1' },
-      { id: 'tab2', label: 'Tab 2' }
-    ],
-    activeTab: 'tab1',
-    setActiveTab: vi.fn(),
-    isDropdown: false
-  },
-  sidebarState: {
-    sidebarWidth: 208
-  }
-};
-
+import { useNotifications } from '@/hooks/useNotifications';
+import { usePortalState } from '@/contexts/hooks';
+import { useHeaderNavigation } from '@/contexts/HeaderNavigationContext';
+import { useSidebarWidth } from '@/stores/sidebarStore';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useLocation } from 'react-router-dom';
+import { DeveloperPortalHeader } from '@/components/DeveloperPortalHeader/DeveloperPortalHeader';
+import { HeaderNavigation } from '@/components/DeveloperPortalHeader/HeaderNavigation';
+import { SideBar } from '@/components/Sidebar/SideBar';
+import { NotificationPopup } from '@/components/NotificationPopup';
 
 describe('PortalContent', () => {
+  const mockSetMeHighlightNotifications = vi.fn();
+  const mockMarkAllRead = vi.fn();
+  const mockSetActiveTab = vi.fn();
+  const mockOnProjectChange = vi.fn();
+
+  const mockNotifications = [
+    { id: '1', message: 'Notification 1', read: false },
+    { id: '2', message: 'Notification 2', read: false },
+    { id: '3', message: 'Notification 3', read: true },
+  ];
+
+  const mockTabs = [
+    { id: 'tab-1', label: 'Tab 1' },
+    { id: 'tab-2', label: 'Tab 2' },
+  ];
+
+  const defaultProps = {
+    activeProject: 'home',
+    projects: ['home', 'teams', 'links'],
+    onProjectChange: mockOnProjectChange,
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    // Set up default mock returns using vi.mocked
-    vi.mocked(useNotifications).mockReturnValue(defaultMocks.notifications);
-    vi.mocked(usePortalState).mockReturnValue(defaultMocks.portalState);
-    vi.mocked(useHeaderNavigation).mockReturnValue(defaultMocks.headerNavigation);
-    vi.mocked(useSidebarState).mockReturnValue(defaultMocks.sidebarState);
+
+    vi.mocked(useNotifications).mockReturnValue({
+      notifications: mockNotifications,
+      unreadCount: 2,
+      markAllRead: mockMarkAllRead,
+    } as any);
+
+    vi.mocked(usePortalState).mockReturnValue({
+      currentDevId: 'dev-1',
+      setMeHighlightNotifications: mockSetMeHighlightNotifications,
+    } as any);
+
+    vi.mocked(useHeaderNavigation).mockReturnValue({
+      tabs: mockTabs,
+      activeTab: 'tab-1',
+      setActiveTab: mockSetActiveTab,
+      isDropdown: false,
+      setIsDropdown: vi.fn(),
+      setTabs: vi.fn(),
+    });
+
+    vi.mocked(useSidebarWidth).mockReturnValue(208);
     vi.mocked(useIsMobile).mockReturnValue(false);
-    
-    // Set up default useLocation mock
     vi.mocked(useLocation).mockReturnValue({
-      pathname: '/',
+      pathname: '/home',
       search: '',
       hash: '',
       state: null,
-      key: 'default-key'
+      key: 'default',
     });
   });
 
-  describe('Component Rendering', () => {
-    it('renders all main sections with correct props', () => {
-      render(
-        <TestWrapper>
-          <PortalContent {...defaultProps} />
-        </TestWrapper>
-      );
+  const renderWithRouter = (ui: React.ReactElement) => {
+    return render(<MemoryRouter>{ui}</MemoryRouter>);
+  };
 
-      // All main sections are rendered
+  describe('Rendering', () => {
+    it('should render all main components', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
       expect(screen.getByTestId('developer-portal-header')).toBeInTheDocument();
       expect(screen.getByTestId('header-navigation')).toBeInTheDocument();
       expect(screen.getByTestId('sidebar')).toBeInTheDocument();
       expect(screen.getByTestId('outlet')).toBeInTheDocument();
       expect(screen.getByTestId('notification-popup')).toBeInTheDocument();
-
-      // Props are passed correctly
-      expect(screen.getByTestId('unread-count')).toHaveTextContent('1');
-      expect(screen.getByTestId('active-tab')).toHaveTextContent('tab1');
-      expect(screen.getByTestId('active-project')).toHaveTextContent('project-1');
-      expect(screen.getByTestId('projects-count')).toHaveTextContent('3');
     });
 
-    it('handles empty data gracefully', () => {
-      vi.mocked(useNotifications).mockReturnValue({
-        notifications: [],
-        unreadCount: 0,
-        markAllRead: vi.fn()
-      });
-      
-      vi.mocked(useHeaderNavigation).mockReturnValue({
-        ...defaultMocks.headerNavigation,
-        tabs: [],
-        activeTab: null
-      });
+    it('should render main content outlet', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
 
-      render(
-        <TestWrapper>
-          <PortalContent {...defaultProps} projects={[]} />
-        </TestWrapper>
-      );
-
-      expect(screen.getByTestId('popup-notifications-count')).toHaveTextContent('0');
-      expect(screen.getByTestId('projects-count')).toHaveTextContent('0');
-      expect(screen.getByTestId('active-tab')).toHaveTextContent('');
+      expect(screen.getByTestId('outlet')).toHaveTextContent('Main Content');
     });
   });
 
-  describe('Responsive Behavior', () => {
-    it('applies correct padding for desktop and mobile views', () => {
-      // Desktop view
-      vi.mocked(useIsMobile).mockReturnValue(false);
-      vi.mocked(useSidebarState).mockReturnValue({ sidebarWidth: 208 });
+  describe('Header Integration', () => {
+    it('should pass unreadCount to DeveloperPortalHeader', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
 
-      const { rerender } = render(
-        <TestWrapper>
-          <PortalContent {...defaultProps} />
-        </TestWrapper>
-      );
+      expect(screen.getByTestId('unread-count')).toHaveTextContent('2');
+    });
 
-      const headerContainer = screen.getByTestId('developer-portal-header').parentElement;
-      expect(headerContainer).toHaveStyle({ paddingLeft: '208px' });
+    it('should handle notification click', async () => {
+      const user = userEvent.setup();
 
-      // Mobile view
-      vi.mocked(useIsMobile).mockReturnValue(true);
+      renderWithRouter(<PortalContent {...defaultProps} />);
 
-      rerender(
-        <TestWrapper>
-          <PortalContent {...defaultProps} />
-        </TestWrapper>
-      );
+      const notificationButton = screen.getByTestId('notification-button');
+      await user.click(notificationButton);
 
-      expect(headerContainer).not.toHaveStyle({ paddingLeft: '208px' });
+      expect(mockSetMeHighlightNotifications).toHaveBeenCalledWith(false);
+    });
+
+    it('should open notification popup on notification click', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      const popup = screen.getByTestId('notification-popup');
+      expect(popup).toHaveAttribute('data-is-open', 'false');
+
+      const notificationButton = screen.getByTestId('notification-button');
+      await user.click(notificationButton);
+
+      expect(popup).toHaveAttribute('data-is-open', 'true');
     });
   });
 
-  describe('AI Arena Chat Detection', () => {
-    it('applies correct overflow styles based on page type', () => {
-      // AI Arena chat page
-      vi.mocked(useLocation).mockReturnValue({ pathname: '/ai-arena/chat' });
+  describe('Navigation Integration', () => {
+    it('should pass tabs to HeaderNavigation', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
 
-      const { rerender } = render(
-        <TestWrapper>
-          <PortalContent {...defaultProps} />
-        </TestWrapper>
-      );
+      expect(screen.getByTestId('nav-tabs-count')).toHaveTextContent('2');
+    });
 
-      let mainContent = screen.getByRole('main');
+    it('should pass activeTab to HeaderNavigation', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(screen.getByTestId('nav-active-tab')).toHaveTextContent('tab-1');
+    });
+
+    it('should pass isDropdown to HeaderNavigation', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(screen.getByTestId('nav-is-dropdown')).toHaveTextContent('false');
+    });
+
+    it('should handle tab click', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      const tabButton = screen.getByTestId('nav-tab-button');
+      await user.click(tabButton);
+
+      expect(mockSetActiveTab).toHaveBeenCalledWith('tab-1');
+    });
+  });
+
+  describe('Sidebar Integration', () => {
+    it('should pass activeProject to SideBar', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(screen.getByTestId('sidebar-active-project')).toHaveTextContent('home');
+    });
+
+    it('should pass projects to SideBar', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(screen.getByTestId('sidebar-projects-count')).toHaveTextContent('3');
+    });
+
+    it('should handle project change', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      const projectButton = screen.getByTestId('sidebar-project-button');
+      await user.click(projectButton);
+
+      expect(mockOnProjectChange).toHaveBeenCalledWith('new-project');
+    });
+  });
+
+  describe('Notification Popup', () => {
+    it('should pass notifications to NotificationPopup', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(screen.getByTestId('popup-notifications-count')).toHaveTextContent('3');
+    });
+
+    it('should pass currentId to NotificationPopup', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(screen.getByTestId('popup-current-id')).toHaveTextContent('dev-1');
+    });
+
+    it('should pass unreadCount to NotificationPopup', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(screen.getByTestId('popup-unread-count')).toHaveTextContent('2');
+    });
+
+    it('should close popup when close button is clicked', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      // Open popup
+      const notificationButton = screen.getByTestId('notification-button');
+      await user.click(notificationButton);
+
+      const popup = screen.getByTestId('notification-popup');
+      expect(popup).toHaveAttribute('data-is-open', 'true');
+
+      // Close popup
+      const closeButton = screen.getByTestId('popup-close-button');
+      await user.click(closeButton);
+
+      expect(popup).toHaveAttribute('data-is-open', 'false');
+    });
+
+    it('should call markAllRead from popup', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      const markReadButton = screen.getByTestId('popup-mark-read-button');
+      await user.click(markReadButton);
+
+      expect(mockMarkAllRead).toHaveBeenCalledTimes(1);
+    });
+
+    it('should start with popup closed', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      const popup = screen.getByTestId('notification-popup');
+      expect(popup).toHaveAttribute('data-is-open', 'false');
+    });
+  });
+
+  describe('AI Arena Chat Page', () => {
+    it('should detect AI Arena chat page', () => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/ai-arena/chat',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
+      });
+
+      const { container } = renderWithRouter(<PortalContent {...defaultProps} />);
+
+      const mainContent = container.querySelector('main');
       expect(mainContent).toHaveClass('overflow-hidden');
       expect(mainContent).not.toHaveClass('overflow-auto');
+    });
 
-      // Non-AI Arena page
-      vi.mocked(useLocation).mockReturnValue({ pathname: '/some-other-page' });
+    it('should detect AI Arena deployments when activeTab is chat', () => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/ai-arena/deployments',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
+      });
 
-      rerender(
-        <TestWrapper>
-          <PortalContent {...defaultProps} />
-        </TestWrapper>
-      );
+      vi.mocked(useHeaderNavigation).mockReturnValue({
+        tabs: mockTabs,
+        activeTab: 'chat',
+        setActiveTab: mockSetActiveTab,
+        isDropdown: false,
+        setIsDropdown: vi.fn(),
+        setTabs: vi.fn(),
+      });
 
-      mainContent = screen.getByRole('main');
+      const { container } = renderWithRouter(<PortalContent {...defaultProps} />);
+
+      const mainContent = container.querySelector('main');
+      expect(mainContent).toHaveClass('overflow-hidden');
+    });
+
+    it('should not detect AI Arena when on deployments tab', () => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/ai-arena/deployments',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
+      });
+
+      vi.mocked(useHeaderNavigation).mockReturnValue({
+        tabs: mockTabs,
+        activeTab: 'deployments',
+        setActiveTab: mockSetActiveTab,
+        isDropdown: false,
+        setIsDropdown: vi.fn(),
+        setTabs: vi.fn(),
+      });
+
+      const { container } = renderWithRouter(<PortalContent {...defaultProps} />);
+
+      const mainContent = container.querySelector('main');
       expect(mainContent).toHaveClass('overflow-auto');
       expect(mainContent).not.toHaveClass('overflow-hidden');
     });
 
-    it('handles AI Arena deployments page with chat tab', () => {
-      vi.mocked(useLocation).mockReturnValue({ pathname: '/ai-arena/deployments' });
-      
-      vi.mocked(useHeaderNavigation).mockReturnValue({
-        ...defaultMocks.headerNavigation,
-        activeTab: 'chat'
+    it('should use overflow-auto for non-AI Arena pages', () => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/home',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
       });
 
-      render(
-        <TestWrapper>
-          <PortalContent {...defaultProps} />
-        </TestWrapper>
-      );
+      const { container } = renderWithRouter(<PortalContent {...defaultProps} />);
 
-      const mainContent = screen.getByRole('main');
-      expect(mainContent).toHaveClass('overflow-hidden');
+      const mainContent = container.querySelector('main');
+      expect(mainContent).toHaveClass('overflow-auto');
     });
   });
 
-  describe('Notification System', () => {
-    it('manages notification popup state correctly', () => {
-      render(
-        <TestWrapper>
-          <PortalContent {...defaultProps} />
-        </TestWrapper>
-      );
+  describe('Responsive Behavior', () => {
+    it('should apply sidebar padding on desktop', () => {
+      vi.mocked(useIsMobile).mockReturnValue(false);
+      vi.mocked(useSidebarWidth).mockReturnValue(208);
 
-      const notificationPopup = screen.getByTestId('notification-popup');
-      const notificationButton = screen.getByTestId('notification-button');
-      const closeButton = screen.getByTestId('close-popup');
+      const { container } = renderWithRouter(<PortalContent {...defaultProps} />);
 
-      // Initially closed
-      expect(notificationPopup.style.display).toBe('none');
-
-      // Open popup
-      fireEvent.click(notificationButton);
-      expect(notificationPopup.style.display).toBe('block');
-
-      // Close popup
-      fireEvent.click(closeButton);
-      expect(notificationPopup.style.display).toBe('none');
+      const header = container.querySelector('.border-b');
+      expect(header).toHaveStyle({ paddingLeft: '208px' });
     });
 
-    it('calls correct functions when notification interactions occur', () => {
-      const mockSetMeHighlightNotifications = vi.fn();
-      const mockMarkAllRead = vi.fn();
-      
-      vi.mocked(usePortalState).mockReturnValue({
-        ...defaultMocks.portalState,
-        setMeHighlightNotifications: mockSetMeHighlightNotifications
-      });
-      
+
+    it('should update padding when sidebar width changes', () => {
+      const { container, rerender } = renderWithRouter(<PortalContent {...defaultProps} />);
+
+      let header = container.querySelector('.border-b');
+      expect(header).toHaveStyle({ paddingLeft: '208px' });
+
+      vi.mocked(useSidebarWidth).mockReturnValue(64);
+
+      rerender(
+        <MemoryRouter>
+          <PortalContent {...defaultProps} />
+        </MemoryRouter>
+      );
+
+      header = container.querySelector('.border-b');
+      expect(header).toHaveStyle({ paddingLeft: '64px' });
+    });
+  });
+
+  describe('Layout Structure', () => {
+    it('should have flex column layout', () => {
+      const { container } = renderWithRouter(<PortalContent {...defaultProps} />);
+
+      const root = container.firstChild;
+      expect(root).toHaveClass('flex', 'flex-col', 'h-screen', 'overflow-hidden');
+    });
+
+    it('should have header with border-bottom', () => {
+      const { container } = renderWithRouter(<PortalContent {...defaultProps} />);
+
+      const header = container.querySelector('.border-b');
+      expect(header).toBeInTheDocument();
+      expect(header).toHaveClass('bg-background', 'z-30');
+    });
+
+    it('should have main content area', () => {
+      const { container } = renderWithRouter(<PortalContent {...defaultProps} />);
+
+      const main = container.querySelector('main');
+      expect(main).toBeInTheDocument();
+      expect(main).toHaveClass('flex-1', 'bg-background');
+    });
+  });
+
+  describe('Integration with Hooks', () => {
+    it('should call useNotifications with currentDevId', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(useNotifications).toHaveBeenCalledWith('dev-1');
+    });
+
+    it('should use portal state from usePortalState', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(usePortalState).toHaveBeenCalled();
+    });
+
+    it('should use header navigation context', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(useHeaderNavigation).toHaveBeenCalled();
+    });
+
+    it('should use sidebar width from store', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(useSidebarWidth).toHaveBeenCalled();
+    });
+
+    it('should check if mobile', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(useIsMobile).toHaveBeenCalled();
+    });
+
+    it('should use location for routing', () => {
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(useLocation).toHaveBeenCalled();
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle zero unread notifications', () => {
       vi.mocked(useNotifications).mockReturnValue({
-        ...defaultMocks.notifications,
-        markAllRead: mockMarkAllRead
-      });
+        notifications: [],
+        unreadCount: 0,
+        markAllRead: mockMarkAllRead,
+      } as any);
 
-      render(
-        <TestWrapper>
-          <PortalContent {...defaultProps} />
-        </TestWrapper>
-      );
+      renderWithRouter(<PortalContent {...defaultProps} />);
 
-      // Click notification button
-      fireEvent.click(screen.getByTestId('notification-button'));
-      expect(mockSetMeHighlightNotifications).toHaveBeenCalledWith(false);
-
-      // Click mark all read
-      fireEvent.click(screen.getByTestId('mark-all-read'));
-      expect(mockMarkAllRead).toHaveBeenCalledWith('dev-123');
+      expect(screen.getByTestId('unread-count')).toHaveTextContent('0');
     });
-  });
 
-  describe('User Interactions', () => {
-    it('handles project and tab changes', () => {
-      const mockOnProjectChange = vi.fn();
-      const mockSetActiveTab = vi.fn();
-      
+    it('should handle empty tabs array', () => {
       vi.mocked(useHeaderNavigation).mockReturnValue({
-        ...defaultMocks.headerNavigation,
-        setActiveTab: mockSetActiveTab
+        tabs: [],
+        activeTab: null,
+        setActiveTab: mockSetActiveTab,
+        isDropdown: false,
+        setIsDropdown: vi.fn(),
+        setTabs: vi.fn(),
       });
 
-      render(
-        <TestWrapper>
-          <PortalContent {...defaultProps} onProjectChange={mockOnProjectChange} />
-        </TestWrapper>
-      );
+      renderWithRouter(<PortalContent {...defaultProps} />);
 
-      // Change project
-      fireEvent.click(screen.getByTestId('project-project-2'));
-      expect(mockOnProjectChange).toHaveBeenCalledWith('project-2');
-
-      // Change tab
-      fireEvent.click(screen.getByTestId('tab-tab2'));
-      expect(mockSetActiveTab).toHaveBeenCalledWith('tab2');
-    });
-  });
-
-  describe('Hook Integration', () => {
-    it('calls hooks with correct parameters', () => {
-      render(
-        <TestWrapper>
-          <PortalContent {...defaultProps} />
-        </TestWrapper>
-      );
-
-      expect(vi.mocked(useNotifications)).toHaveBeenCalledWith('dev-123');
+      expect(screen.getByTestId('nav-tabs-count')).toHaveTextContent('0');
     });
 
-    it('handles undefined currentDevId', () => {
-      vi.mocked(usePortalState).mockReturnValue({
-        ...defaultMocks.portalState,
-        currentDevId: undefined
-      });
+    it('should handle empty projects array', () => {
+      renderWithRouter(<PortalContent {...defaultProps} projects={[]} />);
 
-      render(
-        <TestWrapper>
-          <PortalContent {...defaultProps} />
-        </TestWrapper>
-      );
+      expect(screen.getByTestId('sidebar-projects-count')).toHaveTextContent('0');
+    });
 
-      expect(vi.mocked(useNotifications)).toHaveBeenCalledWith(undefined);
+    it('should handle many notifications', () => {
+      const manyNotifications = Array.from({ length: 100 }, (_, i) => ({
+        id: `${i}`,
+        message: `Notification ${i}`,
+        read: false,
+      }));
+
+      vi.mocked(useNotifications).mockReturnValue({
+        notifications: manyNotifications,
+        unreadCount: 100,
+        markAllRead: mockMarkAllRead,
+      } as any);
+
+      renderWithRouter(<PortalContent {...defaultProps} />);
+
+      expect(screen.getByTestId('popup-notifications-count')).toHaveTextContent('100');
+      expect(screen.getByTestId('unread-count')).toHaveTextContent('100');
     });
   });
 });

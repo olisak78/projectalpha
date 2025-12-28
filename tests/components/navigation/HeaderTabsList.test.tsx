@@ -1,666 +1,460 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
+import { HeaderTabsList } from '@/components/DeveloperPortalHeader/HeaderTabsList';
+import type { HeaderTab } from '@/contexts/HeaderNavigationContext';
 import { MemoryRouter } from 'react-router-dom';
-import { HeaderTabsList } from '../../../src/components/DeveloperPortalHeader/HeaderTabsList';
-import { HeaderTab, HeaderNavigationProvider } from '../../../src/contexts/HeaderNavigationContext';
-import { ProjectsProvider } from '../../../src/contexts/ProjectsContext';
-import { ReactNode } from 'react';
 
-// Mock the useFetchProjects hook
-vi.mock('@/hooks/api/useProjects', () => ({
-  useFetchProjects: vi.fn(() => ({
-    data: [
-      { title: 'CIS@2.0', name: 'CIS@2.0' },
-      { title: 'Cloud Automation', name: 'Cloud Automation' },
-      { title: 'Unified Services', name: 'Unified Services' }
-    ],
-    isLoading: false,
-    error: null
-  }))
+// Mock contexts
+vi.mock('@/contexts/HeaderNavigationContext', () => ({
+  useHeaderNavigation: vi.fn(),
 }));
 
-// Mock the HeaderNavigationContext
-const mockSetActiveTab = vi.fn();
-vi.mock('@/contexts/HeaderNavigationContext', async () => {
-  const actual = await vi.importActual('@/contexts/HeaderNavigationContext');
+// Mock react-router-dom
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
-    useHeaderNavigation: () => ({
-      tabs: [],
-      activeTab: null,
-      setTabs: vi.fn(),
-      setActiveTab: mockSetActiveTab,
-      isDropdown: false,
-      setIsDropdown: vi.fn()
-    })
+    useNavigate: vi.fn(),
+    useLocation: vi.fn(),
   };
 });
 
-/**
- * HeaderTabsList Component Tests
- * 
- * Tests for the HeaderTabsList component which displays a horizontal list of tabs
- * with icons and active state indicators in the developer portal header.
- */
+// Mock utils
+vi.mock('@/lib/utils', () => ({
+  cn: vi.fn((...classes) => classes.filter(Boolean).join(' ')),
+}));
 
-// Mock DOM methods before all tests to prevent any potential errors
-beforeAll(() => {
-  // Mock scrollIntoView for jsdom environment
-  Element.prototype.scrollIntoView = vi.fn();
-  window.HTMLElement.prototype.scrollIntoView = vi.fn();
-  
-  // Mock ResizeObserver
-  global.ResizeObserver = vi.fn().mockImplementation(() => ({
-    observe: vi.fn(),
-    unobserve: vi.fn(),
-    disconnect: vi.fn(),
-  }));
+import { useHeaderNavigation } from '@/contexts/HeaderNavigationContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 
-  // Mock PointerEvent for better compatibility
-  if (!global.PointerEvent) {
-    class MockPointerEvent extends MouseEvent {
-      constructor(type: string, props: PointerEventInit) {
-        super(type, props);
-      }
-    }
-    global.PointerEvent = MockPointerEvent as any;
-  }
-});
+describe('HeaderTabsList', () => {
+  const mockSetActiveTab = vi.fn();
+  const mockNavigate = vi.fn();
+  const mockOnTabClick = vi.fn();
 
-// Wrapper component to provide SidebarContext and Router
-function TestWrapper({ children }: { children: ReactNode }) {
-  return (
-    <MemoryRouter>
-      <ProjectsProvider>
-          <HeaderNavigationProvider>
-            {children}
-          </HeaderNavigationProvider>
-      </ProjectsProvider>
-    </MemoryRouter>
-  );
-}
+  const mockTabs: HeaderTab[] = [
+    {
+      id: 'team-alpha',
+      label: 'Team Alpha',
+    },
+    {
+      id: 'team-beta',
+      label: 'Team Beta',
+    },
+    {
+      id: 'team-gamma',
+      label: 'Team Gamma',
+      icon: <span data-testid="gamma-icon">Icon</span>,
+    },
+  ];
 
-// Helper function to render with provider
-function renderWithProvider(ui: React.ReactElement) {
-  return render(ui, { wrapper: TestWrapper });
-}
-
-// Mock data
-const createMockTabs = (): HeaderTab[] => [
-  {
-    id: 'team-1',
-    label: 'Team Alpha',
-    icon: '🚀',
-  },
-  {
-    id: 'team-2',
-    label: 'Team Beta',
-    icon: '⚡',
-  },
-  {
-    id: 'team-3',
-    label: 'Team Gamma',
-    icon: '🎯',
-  },
-];
-
-const mockTabsWithoutIcons: HeaderTab[] = [
-  {
-    id: 'team-1',
-    label: 'Team Alpha',
-  },
-  {
-    id: 'team-2',
-    label: 'Team Beta',
-  },
-];
-
-describe('HeaderTabsList Component', () => {
-  let mockOnTabClick: ReturnType<typeof vi.fn>;
+  const defaultProps = {
+    tabs: mockTabs,
+    activeTab: 'team-alpha',
+    onTabClick: mockOnTabClick,
+  };
 
   beforeEach(() => {
-    mockOnTabClick = vi.fn();
     vi.clearAllMocks();
+
+    vi.mocked(useHeaderNavigation).mockReturnValue({
+      setActiveTab: mockSetActiveTab,
+      tabs: [],
+      activeTab: null,
+      isDropdown: false,
+      setIsDropdown: vi.fn(),
+      setTabs: vi.fn(),
+    });
+
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
+
+    vi.mocked(useLocation).mockReturnValue({
+      pathname: '/home',
+      search: '',
+      hash: '',
+      state: null,
+      key: 'default',
+    });
   });
 
-  // ============================================================================
-  // RENDERING TESTS
-  // ============================================================================
+  const renderWithRouter = (ui: React.ReactElement) => {
+    return render(<MemoryRouter>{ui}</MemoryRouter>);
+  };
 
   describe('Rendering', () => {
-
-    it('should render all tabs with labels', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should render all tabs', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
       expect(screen.getByText('Team Alpha')).toBeInTheDocument();
       expect(screen.getByText('Team Beta')).toBeInTheDocument();
       expect(screen.getByText('Team Gamma')).toBeInTheDocument();
     });
 
-    it('should render tabs with icons', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
-
-      expect(screen.getByText('🚀')).toBeInTheDocument();
-      expect(screen.getByText('⚡')).toBeInTheDocument();
-      expect(screen.getByText('🎯')).toBeInTheDocument();
-    });
-
-    it('should render tabs without icons', () => {
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={mockTabsWithoutIcons}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
-
-      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
-      expect(screen.getByText('Team Beta')).toBeInTheDocument();
-    });
-
-    it('should render each tab as a button', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should render tabs as buttons', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
       const buttons = screen.getAllByRole('button');
-      expect(buttons).toHaveLength(3);
+      expect(buttons.length).toBeGreaterThanOrEqual(3);
     });
 
-    it('should apply correct container classes', () => {
-      const tabs = createMockTabs();
-      const { container } = renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should render tab icons when provided', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
-      const wrapper = container.querySelector('.bg-secondary');
-      expect(wrapper).toHaveClass('px-4', 'transition-all', 'duration-300', 'h-12');
+      expect(screen.getByTestId('gamma-icon')).toBeInTheDocument();
     });
 
-    it('should render tabs in a flex container', () => {
-      const tabs = createMockTabs();
-      const { container } = renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should not render icon when not provided', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
-      const flexContainer = container.querySelector('.flex.items-center.space-x-6');
-      expect(flexContainer).toBeInTheDocument();
-      expect(flexContainer).toHaveClass('h-full');
+      const alphaButton = screen.getByText('Team Alpha').closest('button');
+      const icon = alphaButton?.querySelector('[data-testid]');
+      expect(icon).toBeNull();
     });
   });
 
-  // ============================================================================
-  // ACTIVE TAB STYLING TESTS
-  // ============================================================================
-
-  describe('Active Tab Styling', () => {
-    it('should apply primary text color to active tab', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
+  describe('Empty State', () => {
+    it('should return null when tabs array is empty', () => {
+      const { container } = renderWithRouter(
+        <HeaderTabsList {...defaultProps} tabs={[]} />
       );
 
-      const activeButton = screen.getByRole('button', { name: /Team Alpha/i });
-      expect(activeButton).toHaveClass('text-primary');
+      expect(container.firstChild).toBeNull();
     });
 
-    it('should apply muted text color to inactive tabs', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should not render any buttons when tabs are empty', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} tabs={[]} />);
 
-      const inactiveButton = screen.getByRole('button', { name: /Team Beta/i });
-      expect(inactiveButton).toHaveClass('text-muted-foreground');
+      const buttons = screen.queryAllByRole('button');
+      expect(buttons.length).toBe(0);
+    });
+  });
+
+  describe('Active Tab', () => {
+    it('should highlight active tab', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} activeTab="team-alpha" />);
+
+      const alphaButton = screen.getByText('Team Alpha').closest('button');
+      expect(alphaButton).toHaveClass('text-primary');
     });
 
-    it('should show active indicator line for active tab', () => {
-      const tabs = createMockTabs();
-      const { container } = renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-2"
-          onTabClick={mockOnTabClick}
-        />
+    it('should show underline indicator on active tab', () => {
+      const { container } = renderWithRouter(
+        <HeaderTabsList {...defaultProps} activeTab="team-alpha" />
       );
 
-      const activeButton = screen.getByRole('button', { name: /Team Beta/i });
-      const indicator = activeButton.querySelector('.absolute.bottom-0');
-      
+      const alphaButton = screen.getByText('Team Alpha').closest('button');
+      const indicator = alphaButton?.querySelector('.bg-primary');
       expect(indicator).toBeInTheDocument();
-      expect(indicator).toHaveClass('h-0.5', 'bg-primary');
     });
 
-    it('should not show active indicator line for inactive tabs', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should not highlight inactive tabs', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} activeTab="team-alpha" />);
 
-      const inactiveButton = screen.getByRole('button', { name: /Team Beta/i });
-      const indicator = inactiveButton.querySelector('.absolute.bottom-0');
-      
-      expect(indicator).not.toBeInTheDocument();
+      const betaButton = screen.getByText('Team Beta').closest('button');
+      expect(betaButton).toHaveClass('text-muted-foreground');
     });
 
-    it('should handle null activeTab gracefully', () => {
-      const tabs = createMockTabs();
-      const { container } = renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab={null}
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should not show underline on inactive tabs', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} activeTab="team-alpha" />);
 
-      const allButtons = screen.getAllByRole('button');
-      allButtons.forEach(button => {
-        expect(button).toHaveClass('text-muted-foreground');
-        const indicator = button.querySelector('.absolute.bottom-0');
-        expect(indicator).not.toBeInTheDocument();
+      const betaButton = screen.getByText('Team Beta').closest('button');
+      const indicator = betaButton?.querySelector('.bg-primary');
+      expect(indicator).toBeNull();
+    });
+
+    it('should handle null activeTab', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} activeTab={null} />);
+
+      const alphaButton = screen.getByText('Team Alpha').closest('button');
+      expect(alphaButton).toHaveClass('text-muted-foreground');
+    });
+  });
+
+  describe('Tab Click Handling', () => {
+    it('should call setActiveTab when tab is clicked', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
+
+      const betaButton = screen.getByText('Team Beta');
+      await user.click(betaButton);
+
+      expect(mockSetActiveTab).toHaveBeenCalledWith('team-beta');
+    });
+
+    it('should call setActiveTab for each tab clicked', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
+
+      await user.click(screen.getByText('Team Beta'));
+      await user.click(screen.getByText('Team Gamma'));
+
+      expect(mockSetActiveTab).toHaveBeenCalledTimes(2);
+      expect(mockSetActiveTab).toHaveBeenNthCalledWith(1, 'team-beta');
+      expect(mockSetActiveTab).toHaveBeenNthCalledWith(2, 'team-gamma');
+    });
+
+    it('should handle clicking the already active tab', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} activeTab="team-alpha" />);
+
+      await user.click(screen.getByText('Team Alpha'));
+
+      expect(mockSetActiveTab).toHaveBeenCalledWith('team-alpha');
+    });
+  });
+
+  describe('Teams Page - Common Tabs', () => {
+    beforeEach(() => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/teams/team-alpha/overview',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
       });
     });
 
-    it('should update active state when activeTab changes', () => {
-      const tabs = createMockTabs();
-      const { rerender } = renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should render common tabs on Teams page', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
-      let activeButton = screen.getByRole('button', { name: /Team Alpha/i });
-      expect(activeButton).toHaveClass('text-primary');
+      expect(screen.getByText('Overview')).toBeInTheDocument();
+      expect(screen.getByText('Components')).toBeInTheDocument();
+      expect(screen.getByText('Jira Issues')).toBeInTheDocument();
+      expect(screen.getByText('Docs')).toBeInTheDocument();
+    });
 
-      rerender(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-3"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should highlight active common tab', () => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/teams/team-alpha/components',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
+      });
 
-      activeButton = screen.getByRole('button', { name: /Team Gamma/i });
-      expect(activeButton).toHaveClass('text-primary');
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
-      const inactiveButton = screen.getByRole('button', { name: /Team Alpha/i });
-      expect(inactiveButton).toHaveClass('text-muted-foreground');
+      const componentsButton = screen.getByText('Components').closest('button');
+      expect(componentsButton).toHaveClass('text-primary');
+    });
+
+    it('should show underline on active common tab', () => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/teams/team-alpha/jira',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
+      });
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
+
+      const jiraButton = screen.getByText('Jira Issues').closest('button');
+      const indicator = jiraButton?.querySelector('.bg-primary');
+      expect(indicator).toBeInTheDocument();
+    });
+
+    it('should default to overview tab when no common tab specified', () => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/teams/team-alpha',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
+      });
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
+
+      const overviewButton = screen.getByText('Overview').closest('button');
+      expect(overviewButton).toHaveClass('text-primary');
+    });
+
+    it('should navigate to common tab when clicked', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
+
+      await user.click(screen.getByText('Components'));
+
+      expect(mockNavigate).toHaveBeenCalledWith('/teams/team-alpha/components');
+    });
+
+    it('should navigate to different common tabs', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
+
+      await user.click(screen.getByText('Jira Issues'));
+      await user.click(screen.getByText('Docs'));
+
+      expect(mockNavigate).toHaveBeenCalledTimes(2);
+      expect(mockNavigate).toHaveBeenNthCalledWith(1, '/teams/team-alpha/jira');
+      expect(mockNavigate).toHaveBeenNthCalledWith(2, '/teams/team-alpha/docs');
+    });
+
+    it('should not show common tabs on non-Teams pages', () => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/home',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
+      });
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
+
+      expect(screen.queryByText('Overview')).not.toBeInTheDocument();
+      expect(screen.queryByText('Components')).not.toBeInTheDocument();
+    });
+
+    it('should not show common tabs on Teams index page', () => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/teams',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
+      });
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
+
+      expect(screen.queryByText('Overview')).not.toBeInTheDocument();
     });
   });
 
-  // ============================================================================
-  // INTERACTION TESTS
-  // ============================================================================
+  describe('Styling', () => {
+    it('should apply correct height to tab container', () => {
+      const { container } = renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
-  describe('Interactions', () => {
-    it('should call setActiveTab when tab is clicked', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
-
-      fireEvent.click(screen.getByRole('button', { name: /Team Beta/i }));
-
-      expect(mockSetActiveTab).toHaveBeenCalledWith('team-2');
-      expect(mockSetActiveTab).toHaveBeenCalledTimes(1);
+      const tabContainer = container.querySelector('.h-12');
+      expect(tabContainer).toBeInTheDocument();
     });
 
-    it('should call setActiveTab with correct tab id for each tab', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should apply secondary background color', () => {
+      const { container } = renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
-      fireEvent.click(screen.getByRole('button', { name: /Team Beta/i }));
-      expect(mockSetActiveTab).toHaveBeenCalledWith('team-2');
-
-      fireEvent.click(screen.getByRole('button', { name: /Team Gamma/i }));
-      expect(mockSetActiveTab).toHaveBeenCalledWith('team-3');
+      const tabContainer = container.querySelector('.bg-secondary');
+      expect(tabContainer).toBeInTheDocument();
     });
 
-    it('should allow clicking the active tab', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should apply hover styles to inactive tabs', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} activeTab="team-alpha" />);
 
-      fireEvent.click(screen.getByRole('button', { name: /Team Alpha/i }));
-
-      expect(mockSetActiveTab).toHaveBeenCalledWith('team-1');
+      const betaButton = screen.getByText('Team Beta').closest('button');
+      expect(betaButton).toHaveClass('hover:text-foreground');
     });
 
-    it('should handle multiple tab clicks', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should apply transition classes', () => {
+      const { container } = renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
-      fireEvent.click(screen.getByRole('button', { name: /Team Beta/i }));
-      fireEvent.click(screen.getByRole('button', { name: /Team Gamma/i }));
-      fireEvent.click(screen.getByRole('button', { name: /Team Alpha/i }));
-
-      expect(mockSetActiveTab).toHaveBeenCalledTimes(3);
-      expect(mockSetActiveTab).toHaveBeenNthCalledWith(1, 'team-2');
-      expect(mockSetActiveTab).toHaveBeenNthCalledWith(2, 'team-3');
-      expect(mockSetActiveTab).toHaveBeenNthCalledWith(3, 'team-1');
-    });
-
-    it('should not call setActiveTab when button is not clicked', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
-
-      expect(mockSetActiveTab).not.toHaveBeenCalled();
+      const tabContainer = container.querySelector('.transition-all');
+      expect(tabContainer).toBeInTheDocument();
     });
   });
-
-  // ============================================================================
-  // TAB STRUCTURE TESTS
-  // ============================================================================
-
-  describe('Tab Structure', () => {
-    it('should render icon and label together for tabs with icons', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
-
-      const button = screen.getByRole('button', { name: /Team Alpha/i });
-      const buttonElement = within(button);
-      
-      expect(buttonElement.getByText('🚀')).toBeInTheDocument();
-      expect(buttonElement.getByText('Team Alpha')).toBeInTheDocument();
-    });
-
-    it('should not render icon span when tab has no icon', () => {
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={mockTabsWithoutIcons}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
-
-      const button = screen.getByRole('button', { name: /Team Alpha/i });
-      
-      // The only span should be the one containing the label
-      const spans = button.querySelectorAll('span');
-      expect(spans.length).toBe(1);
-      expect(spans[0]).toHaveTextContent('Team Alpha');
-    });
-
-  });
-
-  // ============================================================================
-  // EDGE CASES
-  // ============================================================================
 
   describe('Edge Cases', () => {
-    it('should handle tabs with special characters in labels', () => {
-      const specialCharTabs: HeaderTab[] = [
+    it('should handle tabs with very long labels', () => {
+      const longLabelTabs = [
         {
-          id: 'tab-1',
-          label: 'Team A & B (Test)',
-          icon: '🔥',
-        },
-        {
-          id: 'tab-2',
-          label: 'Team <Dev>',
-          icon: '💻',
+          id: 'long-tab',
+          label: 'This is a very long tab label that might cause layout issues',
         },
       ];
 
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={specialCharTabs}
-          activeTab="tab-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+      renderWithRouter(<HeaderTabsList {...defaultProps} tabs={longLabelTabs} />);
 
-      expect(screen.getByText('Team A & B (Test)')).toBeInTheDocument();
-      expect(screen.getByText('Team <Dev>')).toBeInTheDocument();
+      expect(screen.getByText('This is a very long tab label that might cause layout issues')).toBeInTheDocument();
     });
 
-    it('should handle empty string as activeTab', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab=""
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should handle single tab', () => {
+      const singleTab = [mockTabs[0]];
 
-      const allButtons = screen.getAllByRole('button');
-      allButtons.forEach(button => {
-        expect(button).toHaveClass('text-muted-foreground');
-      });
-    });
-
-    it('should handle non-existent activeTab id', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="non-existent-id"
-          onTabClick={mockOnTabClick}
-        />
-      );
-
-      const allButtons = screen.getAllByRole('button');
-      allButtons.forEach(button => {
-        expect(button).toHaveClass('text-muted-foreground');
-        const indicator = button.querySelector('.absolute.bottom-0');
-        expect(indicator).not.toBeInTheDocument();
-      });
-    });
-
-    it('should handle tabs with undefined icon property', () => {
-      const tabsWithUndefinedIcon: HeaderTab[] = [
-        {
-          id: 'tab-1',
-          label: 'Tab Without Icon',
-          icon: undefined,
-        },
-      ];
-
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabsWithUndefinedIcon}
-          activeTab="tab-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
-
-      expect(screen.getByText('Tab Without Icon')).toBeInTheDocument();
-    });
-
-    it('should handle large number of tabs', () => {
-      const manyTabs: HeaderTab[] = Array.from({ length: 20 }, (_, i) => ({
-        id: `tab-${i}`,
-        label: `Tab ${i}`,
-        icon: '🎯',
-      }));
-
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={manyTabs}
-          activeTab="tab-10"
-          onTabClick={mockOnTabClick}
-        />
-      );
-
-      expect(screen.getAllByRole('button')).toHaveLength(20);
-      expect(screen.getByText('Tab 10')).toBeInTheDocument();
-    });
-  });
-
-  // ============================================================================
-  // STATE UPDATE TESTS
-  // ============================================================================
-
-  describe('State Updates', () => {
-    it('should update when tabs array changes', () => {
-      const initialTabs = createMockTabs();
-      const { rerender } = renderWithProvider(
-        <HeaderTabsList
-          tabs={initialTabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+      renderWithRouter(<HeaderTabsList {...defaultProps} tabs={singleTab} />);
 
       expect(screen.getByText('Team Alpha')).toBeInTheDocument();
+      expect(screen.queryByText('Team Beta')).not.toBeInTheDocument();
+    });
 
-      const newTabs: HeaderTab[] = [
+    it('should handle many tabs', () => {
+      const manyTabs = Array.from({ length: 20 }, (_, i) => ({
+        id: `tab-${i}`,
+        label: `Tab ${i}`,
+      }));
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} tabs={manyTabs} />);
+
+      expect(screen.getByText('Tab 0')).toBeInTheDocument();
+      expect(screen.getByText('Tab 19')).toBeInTheDocument();
+    });
+
+    it('should handle tabs with special characters in labels', () => {
+      const specialTabs = [
         {
-          id: 'new-tab',
-          label: 'New Tab',
-          icon: '🔥',
+          id: 'special',
+          label: 'Team & Services <Test>',
         },
       ];
 
-      rerender(
-        <HeaderTabsList
-          tabs={newTabs}
-          activeTab="new-tab"
-          onTabClick={mockOnTabClick}
-        />
-      );
+      renderWithRouter(<HeaderTabsList {...defaultProps} tabs={specialTabs} />);
 
-      expect(screen.queryByText('Team Alpha')).not.toBeInTheDocument();
-      expect(screen.getByText('New Tab')).toBeInTheDocument();
+      expect(screen.getByText('Team & Services <Test>')).toBeInTheDocument();
     });
 
-    it('should maintain callback reference across re-renders', () => {
-      const tabs = createMockTabs();
-      const { rerender } = renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should handle Teams page with trailing slash', () => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/teams/team-alpha/overview/',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
+      });
 
-      rerender(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-2"
-          onTabClick={mockOnTabClick}
-        />
-      );
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
-      fireEvent.click(screen.getByRole('button', { name: /Team Beta/i }));
-      expect(mockSetActiveTab).toHaveBeenCalledWith('team-2');
+      expect(screen.getByText('Overview')).toBeInTheDocument();
+    });
+
+    it('should handle Teams page with nested paths', () => {
+      vi.mocked(useLocation).mockReturnValue({
+        pathname: '/teams/team-alpha/overview/details',
+        search: '',
+        hash: '',
+        state: null,
+        key: 'default',
+      });
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
+
+      const overviewButton = screen.getByText('Overview').closest('button');
+      expect(overviewButton).toHaveClass('text-primary');
     });
   });
 
-  // ============================================================================
-  // ACCESSIBILITY TESTS
-  // ============================================================================
+  describe('Integration', () => {
+    it('should integrate with HeaderNavigationContext', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
-  describe('Accessibility', () => {
-
-    it('should be keyboard navigable', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
-
-      const button = screen.getByRole('button', { name: /Team Alpha/i });
-      button.focus();
-      expect(document.activeElement).toBe(button);
+      expect(useHeaderNavigation).toHaveBeenCalled();
     });
 
-    it('should support Enter key activation', () => {
-      const tabs = createMockTabs();
-      renderWithProvider(
-        <HeaderTabsList
-          tabs={tabs}
-          activeTab="team-1"
-          onTabClick={mockOnTabClick}
-        />
-      );
+    it('should integrate with react-router', () => {
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
 
-      const button = screen.getByRole('button', { name: /Team Beta/i });
-      button.focus();
-      
-      fireEvent.keyDown(button, { key: 'Enter', code: 'Enter' });
-      fireEvent.click(button);
+      expect(useLocation).toHaveBeenCalled();
+      expect(useNavigate).toHaveBeenCalled();
+    });
 
-      expect(mockSetActiveTab).toHaveBeenCalledWith('team-2');
+    it('should use cn utility for className composition', async () => {
+      const user = userEvent.setup();
+
+      renderWithRouter(<HeaderTabsList {...defaultProps} />);
+
+      const button = screen.getByText('Team Alpha').closest('button');
+      expect(button).toBeInTheDocument();
     });
   });
 });

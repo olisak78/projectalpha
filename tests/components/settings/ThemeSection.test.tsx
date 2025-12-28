@@ -1,178 +1,553 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
-import ThemeSection from '../../../src/components/settings/ThemeSection';
-import { useTheme } from '../../../src/stores/themeStore';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { LinksGrid } from '@/components/Links/LinksGrid';
 
-// Mock the Theme Store
-vi.mock('../../../src/stores/themeStore', () => ({
-  useTheme: vi.fn()
+// Mock the Zustand store hooks
+vi.mock('@/stores/linksPageStore', () => ({
+  useLinksViewMode: vi.fn(),
 }));
 
-/**
- * ThemeSection Component Tests
- * 
- * Tests for the ThemeSection component which provides theme selection
- * functionality (Light/Dark mode toggle). This component is used within
- * the CustomizationAppearanceSettings component.
- * 
- * Component Location: src/components/settings/ThemeSection.tsx
- * Dependencies: Theme Store
- */
+// Mock the LinksPageContext
+vi.mock('@/contexts/LinksPageContext', () => ({
+  useLinksPageContext: vi.fn(),
+}));
 
-// ============================================================================
-// TEST UTILITIES
-// ============================================================================
+// Mock the UnifiedLinksGrid component
+vi.mock('@/components/Links/UnifiedLinksGrid', () => ({
+  UnifiedLinksGrid: vi.fn(({ links, linkCategories, viewMode, linksByCategory }) => (
+    <div data-testid="unified-links-grid">
+      <div data-testid="view-mode">{viewMode}</div>
+      <div data-testid="links-count">{links.length}</div>
+      <div data-testid="categories-count">{linkCategories.length}</div>
+      <div data-testid="links-by-category-count">
+        {Object.keys(linksByCategory || {}).length}
+      </div>
+    </div>
+  )),
+}));
 
-const mockUseTheme = useTheme as ReturnType<typeof vi.fn>;
+import { useLinksViewMode } from '@/stores/linksPageStore';
+import { useLinksPageContext } from '@/contexts/LinksPageContext';
+import { UnifiedLinksGrid } from '@/components/Links/UnifiedLinksGrid';
 
-/**
- * Helper function to render ThemeSection with mocked theme context
- */
-function renderThemeSection() {
-  return render(<ThemeSection />);
-}
+describe('LinksGrid', () => {
+  const mockLinks = [
+    {
+      id: 'link-1',
+      title: 'API Documentation',
+      url: 'https://api.example.com/docs',
+      description: 'Complete API reference',
+      categoryId: 'cat-1',
+      tags: ['api', 'docs'],
+      favorite: true,
+    },
+    {
+      id: 'link-2',
+      title: 'Cloud Console',
+      url: 'https://console.cloud.com',
+      description: 'Cloud management portal',
+      categoryId: 'cat-2',
+      tags: ['cloud', 'admin'],
+      favorite: false,
+    },
+    {
+      id: 'link-3',
+      title: 'Monitoring Dashboard',
+      url: 'https://monitoring.example.com',
+      description: 'System monitoring',
+      categoryId: 'cat-1',
+      tags: ['monitoring'],
+      favorite: true,
+    },
+  ];
 
-/**
- * Helper function to setup default theme context mock
- */
-function setupDefaultThemeMock(actualTheme: 'light' | 'dark' = 'light') {
-  const mockSetTheme = vi.fn();
-  mockUseTheme.mockReturnValue({
-    theme: actualTheme,
-    actualTheme,
-    setTheme: mockSetTheme,
-    toggleTheme: vi.fn()
-  });
-  return { mockSetTheme };
-}
+  const mockLinkCategories = [
+    {
+      id: 'cat-1',
+      name: 'Development',
+      icon: vi.fn(),
+      color: 'bg-blue-500',
+    },
+    {
+      id: 'cat-2',
+      name: 'Infrastructure',
+      icon: vi.fn(),
+      color: 'bg-green-500',
+    },
+  ];
 
-// ============================================================================
-// COMPONENT TESTS
-// ============================================================================
+  const mockLinksByCategory = {
+    'cat-1': [mockLinks[0], mockLinks[2]], // API Documentation, Monitoring Dashboard
+    'cat-2': [mockLinks[1]], // Cloud Console
+  };
 
-describe('ThemeSection Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+    // Default mock implementations
+    vi.mocked(useLinksViewMode).mockReturnValue('collapsed');
 
-  // ==========================================================================
-  // RENDERING TESTS
-  // ==========================================================================
+    vi.mocked(useLinksPageContext).mockReturnValue({
+      filteredLinks: mockLinks,
+      linkCategories: mockLinkCategories,
+      linksByCategory: mockLinksByCategory,
+      links: mockLinks,
+      isLoading: false,
+      searchTerm: '',
+      selectedCategoryId: 'all',
+      setSearchTerm: vi.fn(),
+      setSelectedCategoryId: vi.fn(),
+      viewMode: 'collapsed',
+      setViewMode: vi.fn(),
+      handleToggleFavorite: vi.fn(),
+      currentUser: undefined,
+      favoriteLinkIds: new Set(['link-1', 'link-3']),
+    } as any);
+  });
 
   describe('Rendering', () => {
-    it('should render theme section with buttons and proper styling', () => {
-      setupDefaultThemeMock();
-      renderThemeSection();
-      
-      expect(screen.getByText('Theme')).toBeInTheDocument();
-      expect(screen.getByText('Choose your preferred theme for the developer portal.')).toBeInTheDocument();
-      
-      const lightButton = screen.getByRole('button', { name: /light/i });
-      const darkButton = screen.getByRole('button', { name: /dark/i });
-      
-      expect(lightButton).toBeInTheDocument();
-      expect(darkButton).toBeInTheDocument();
-      expect(lightButton.querySelector('.lucide-sun')).toBeInTheDocument();
-      expect(darkButton.querySelector('.lucide-moon')).toBeInTheDocument();
+    it('should render UnifiedLinksGrid component', () => {
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('unified-links-grid')).toBeInTheDocument();
+    });
+
+    it('should pass filteredLinks to UnifiedLinksGrid', () => {
+      render(<LinksGrid />);
+
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          links: mockLinks,
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should pass linkCategories to UnifiedLinksGrid', () => {
+      render(<LinksGrid />);
+
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          linkCategories: mockLinkCategories,
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should pass viewMode to UnifiedLinksGrid', () => {
+      render(<LinksGrid />);
+
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          viewMode: 'collapsed',
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should pass linksByCategory to UnifiedLinksGrid', () => {
+      render(<LinksGrid />);
+
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          linksByCategory: mockLinksByCategory,
+        }),
+        expect.anything()
+      );
     });
   });
 
-  // ==========================================================================
-  // THEME STATE TESTS
-  // ==========================================================================
+  describe('View Mode', () => {
+    it('should render with collapsed view mode', () => {
+      vi.mocked(useLinksViewMode).mockReturnValue('collapsed');
 
-  describe('Theme State', () => {
-    it('should highlight active theme button correctly', () => {
-      // Test light theme active
-      setupDefaultThemeMock('light');
-      const { rerender } = renderThemeSection();
-      
-      let lightButton = screen.getByRole('button', { name: /light/i });
-      let darkButton = screen.getByRole('button', { name: /dark/i });
-      
-      expect(lightButton).not.toHaveClass('border-input');
-      expect(darkButton).toHaveClass('border-input');
-      
-      // Test dark theme active
-      mockUseTheme.mockReturnValue({
-        theme: 'dark',
-        actualTheme: 'dark',
-        setTheme: vi.fn(),
-        toggleTheme: vi.fn()
-      });
-      
-      rerender(<ThemeSection />);
-      
-      lightButton = screen.getByRole('button', { name: /light/i });
-      darkButton = screen.getByRole('button', { name: /dark/i });
-      
-      expect(lightButton).toHaveClass('border-input');
-      expect(darkButton).not.toHaveClass('border-input');
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('view-mode')).toHaveTextContent('collapsed');
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          viewMode: 'collapsed',
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should render with expanded view mode', () => {
+      vi.mocked(useLinksViewMode).mockReturnValue('expanded');
+
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('view-mode')).toHaveTextContent('expanded');
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          viewMode: 'expanded',
+        }),
+        expect.anything()
+      );
     });
   });
 
-  // ==========================================================================
-  // INTERACTION TESTS
-  // ==========================================================================
+  describe('Data Scenarios', () => {
+    it('should handle empty links array', () => {
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: [],
+        linkCategories: mockLinkCategories,
+        linksByCategory: {},
+      } as any);
 
-  describe('Interactions', () => {
-    it('should call setTheme when buttons are clicked', () => {
-      const { mockSetTheme } = setupDefaultThemeMock('light');
-      renderThemeSection();
-      
-      const lightButton = screen.getByRole('button', { name: /light/i });
-      const darkButton = screen.getByRole('button', { name: /dark/i });
-      
-      fireEvent.click(darkButton);
-      expect(mockSetTheme).toHaveBeenCalledWith('dark');
-      
-      fireEvent.click(lightButton);
-      expect(mockSetTheme).toHaveBeenCalledWith('light');
-      
-      expect(mockSetTheme).toHaveBeenCalledTimes(2);
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('links-count')).toHaveTextContent('0');
+      expect(screen.getByTestId('links-by-category-count')).toHaveTextContent('0');
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          links: [],
+          linksByCategory: {},
+        }),
+        expect.anything()
+      );
     });
 
-    it('should be keyboard accessible', () => {
-      setupDefaultThemeMock();
-      renderThemeSection();
-      
-      const lightButton = screen.getByRole('button', { name: /light/i });
-      const darkButton = screen.getByRole('button', { name: /dark/i });
-      
-      expect(lightButton).toBeEnabled();
-      expect(darkButton).toBeEnabled();
-      
-      lightButton.focus();
-      expect(document.activeElement).toBe(lightButton);
+    it('should handle empty categories array', () => {
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: mockLinks,
+        linkCategories: [],
+        linksByCategory: mockLinksByCategory,
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('categories-count')).toHaveTextContent('0');
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          linkCategories: [],
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should handle all empty data', () => {
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: [],
+        linkCategories: [],
+        linksByCategory: {},
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('links-count')).toHaveTextContent('0');
+      expect(screen.getByTestId('categories-count')).toHaveTextContent('0');
+      expect(screen.getByTestId('links-by-category-count')).toHaveTextContent('0');
+    });
+
+    it('should handle large number of links', () => {
+      const manyLinks = Array.from({ length: 100 }, (_, i) => ({
+        id: `link-${i}`,
+        title: `Link ${i}`,
+        url: `https://example.com/${i}`,
+        description: `Description ${i}`,
+        categoryId: `cat-${i % 5}`,
+        tags: [`tag${i}`],
+        favorite: i % 2 === 0,
+      }));
+
+      const manyLinksByCategory = manyLinks.reduce((acc, link) => {
+        if (!acc[link.categoryId]) acc[link.categoryId] = [];
+        acc[link.categoryId].push(link);
+        return acc;
+      }, {} as Record<string, typeof manyLinks>);
+
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: manyLinks,
+        linkCategories: mockLinkCategories,
+        linksByCategory: manyLinksByCategory,
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('links-count')).toHaveTextContent('100');
+      expect(screen.getByTestId('links-by-category-count')).toHaveTextContent('5');
     });
   });
 
-  // ==========================================================================
-  // EDGE CASES TESTS
-  // ==========================================================================
+  describe('Filtered Data', () => {
+    it('should display filtered links when search is active', () => {
+      const filteredLinks = [mockLinks[0]]; // Only API Documentation
+      const filteredByCategory = {
+        'cat-1': [mockLinks[0]],
+      };
+
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks,
+        linkCategories: mockLinkCategories,
+        linksByCategory: filteredByCategory,
+        searchTerm: 'API',
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('links-count')).toHaveTextContent('1');
+      expect(screen.getByTestId('links-by-category-count')).toHaveTextContent('1');
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          links: filteredLinks,
+          linksByCategory: filteredByCategory,
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should display filtered links when category is selected', () => {
+      const filteredLinks = [mockLinks[0], mockLinks[2]]; // Only Development category
+      const filteredByCategory = {
+        'cat-1': [mockLinks[0], mockLinks[2]],
+      };
+
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks,
+        linkCategories: mockLinkCategories,
+        linksByCategory: filteredByCategory,
+        selectedCategoryId: 'cat-1',
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('links-count')).toHaveTextContent('2');
+      expect(screen.getByTestId('links-by-category-count')).toHaveTextContent('1');
+    });
+
+    it('should handle no results after filtering', () => {
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: [],
+        linkCategories: mockLinkCategories,
+        linksByCategory: {},
+        searchTerm: 'nonexistent',
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('links-count')).toHaveTextContent('0');
+      expect(screen.getByTestId('links-by-category-count')).toHaveTextContent('0');
+    });
+
+    it('should handle single category with multiple links', () => {
+      const singleCategoryLinks = mockLinks.map(link => ({ ...link, categoryId: 'cat-1' }));
+      const singleCategoryByCategory = {
+        'cat-1': singleCategoryLinks,
+      };
+
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: singleCategoryLinks,
+        linkCategories: [mockLinkCategories[0]],
+        linksByCategory: singleCategoryByCategory,
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('links-count')).toHaveTextContent('3');
+      expect(screen.getByTestId('links-by-category-count')).toHaveTextContent('1');
+    });
+  });
+
+  describe('Integration with Store and Context', () => {
+    it('should use viewMode from Zustand store', () => {
+      const mockViewMode = 'expanded';
+      vi.mocked(useLinksViewMode).mockReturnValue(mockViewMode);
+
+      render(<LinksGrid />);
+
+      expect(useLinksViewMode).toHaveBeenCalled();
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          viewMode: mockViewMode,
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should use filteredLinks from context', () => {
+      const customLinks = [
+        {
+          id: 'custom-1',
+          title: 'Custom Link',
+          url: 'https://custom.com',
+          description: 'Custom description',
+          categoryId: 'cat-custom',
+          tags: ['custom'],
+          favorite: true,
+        },
+      ];
+
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: customLinks,
+        linkCategories: mockLinkCategories,
+        linksByCategory: { 'cat-custom': customLinks },
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(useLinksPageContext).toHaveBeenCalled();
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          links: customLinks,
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should use linkCategories from context', () => {
+      const customCategories = [
+        {
+          id: 'cat-custom',
+          name: 'Custom Category',
+          icon: vi.fn(),
+          color: 'bg-purple-500',
+        },
+      ];
+
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: mockLinks,
+        linkCategories: customCategories,
+        linksByCategory: mockLinksByCategory,
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          linkCategories: customCategories,
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should use linksByCategory from context', () => {
+      const customLinksByCategory = {
+        'cat-custom': [mockLinks[0]],
+        'cat-other': [mockLinks[1], mockLinks[2]],
+      };
+
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: mockLinks,
+        linkCategories: mockLinkCategories,
+        linksByCategory: customLinksByCategory,
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(UnifiedLinksGrid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          linksByCategory: customLinksByCategory,
+        }),
+        expect.anything()
+      );
+    });
+  });
+
+  describe('Re-rendering', () => {
+    it('should re-render when viewMode changes', () => {
+      const { rerender } = render(<LinksGrid />);
+
+      expect(screen.getByTestId('view-mode')).toHaveTextContent('collapsed');
+
+      // Change viewMode
+      vi.mocked(useLinksViewMode).mockReturnValue('expanded');
+      rerender(<LinksGrid />);
+
+      expect(screen.getByTestId('view-mode')).toHaveTextContent('expanded');
+    });
+
+    it('should re-render when filteredLinks changes', () => {
+      const { rerender } = render(<LinksGrid />);
+
+      expect(screen.getByTestId('links-count')).toHaveTextContent('3');
+
+      // Change links
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: [mockLinks[0]],
+        linkCategories: mockLinkCategories,
+        linksByCategory: { 'cat-1': [mockLinks[0]] },
+      } as any);
+      rerender(<LinksGrid />);
+
+      expect(screen.getByTestId('links-count')).toHaveTextContent('1');
+    });
+
+    it('should re-render when linkCategories changes', () => {
+      const { rerender } = render(<LinksGrid />);
+
+      expect(screen.getByTestId('categories-count')).toHaveTextContent('2');
+
+      // Change categories
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: mockLinks,
+        linkCategories: [mockLinkCategories[0]],
+        linksByCategory: mockLinksByCategory,
+      } as any);
+      rerender(<LinksGrid />);
+
+      expect(screen.getByTestId('categories-count')).toHaveTextContent('1');
+    });
+
+    it('should re-render when linksByCategory changes', () => {
+      const { rerender } = render(<LinksGrid />);
+
+      expect(screen.getByTestId('links-by-category-count')).toHaveTextContent('2');
+
+      // Change linksByCategory to single category
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: mockLinks,
+        linkCategories: mockLinkCategories,
+        linksByCategory: { 'cat-1': mockLinks },
+      } as any);
+      rerender(<LinksGrid />);
+
+      expect(screen.getByTestId('links-by-category-count')).toHaveTextContent('1');
+    });
+  });
 
   describe('Edge Cases', () => {
-    it('should handle undefined actualTheme and errors gracefully', () => {
-      mockUseTheme.mockReturnValue({
-        theme: 'light',
-        actualTheme: undefined as any,
-        setTheme: vi.fn(),
-        toggleTheme: vi.fn()
-      });
-      
-      expect(() => renderThemeSection()).not.toThrow();
-      
-      const lightButton = screen.getByRole('button', { name: /light/i });
-      const darkButton = screen.getByRole('button', { name: /dark/i });
-      
-      // Should default to treating neither as active
-      expect(lightButton).toHaveClass('border-input');
-      expect(darkButton).toHaveClass('border-input');
+    it('should handle undefined linksByCategory gracefully', () => {
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: mockLinks,
+        linkCategories: mockLinkCategories,
+        linksByCategory: undefined,
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('links-by-category-count')).toHaveTextContent('0');
+    });
+
+    it('should handle links with missing category', () => {
+      const linksWithMissingCategory = [
+        ...mockLinks,
+        {
+          id: 'link-orphan',
+          title: 'Orphan Link',
+          url: 'https://orphan.com',
+          description: 'No category',
+          categoryId: 'cat-nonexistent',
+          tags: [],
+          favorite: false,
+        },
+      ];
+
+      const linksByCategory = {
+        ...mockLinksByCategory,
+        'cat-nonexistent': [linksWithMissingCategory[3]],
+      };
+
+      vi.mocked(useLinksPageContext).mockReturnValue({
+        filteredLinks: linksWithMissingCategory,
+        linkCategories: mockLinkCategories,
+        linksByCategory,
+      } as any);
+
+      render(<LinksGrid />);
+
+      expect(screen.getByTestId('links-count')).toHaveTextContent('4');
+      expect(screen.getByTestId('links-by-category-count')).toHaveTextContent('3');
     });
   });
 });

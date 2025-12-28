@@ -1,458 +1,347 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { HeaderNavigation } from '@/components/DeveloperPortalHeader/HeaderNavigation';
+import type { HeaderTab } from '@/contexts/HeaderNavigationContext';
 
-
-// Mock only external services, not internal logic
-vi.mock('../../src/services/ProjectsApi', () => ({
-  fetchProjects: vi.fn()
+// Mock child components
+vi.mock('@/components/DeveloperPortalHeader/HeaderDropdown', () => ({
+  HeaderDropdown: vi.fn(({ tabs, activeTab, onTabClick }) => (
+    <div data-testid="header-dropdown">
+      <div data-testid="dropdown-tabs-count">{tabs.length}</div>
+      <div data-testid="dropdown-active-tab">{activeTab || 'none'}</div>
+      <button onClick={() => onTabClick(tabs[0]?.id)}>Dropdown Click</button>
+    </div>
+  )),
 }));
 
-vi.mock('../../src/services/ComponentsApi', () => ({
-  fetchComponentsByProject: vi.fn()
+vi.mock('@/components/DeveloperPortalHeader/HeaderTabsList', () => ({
+  HeaderTabsList: vi.fn(({ tabs, activeTab, onTabClick }) => (
+    <div data-testid="header-tabs-list">
+      <div data-testid="tabs-list-count">{tabs.length}</div>
+      <div data-testid="tabs-list-active-tab">{activeTab || 'none'}</div>
+      <button onClick={() => onTabClick(tabs[0]?.id)}>Tabs List Click</button>
+    </div>
+  )),
 }));
 
-vi.mock('../../src/services/LandscapesApi', () => ({
-  fetchLandscapesByProject: vi.fn(),
-  getDefaultLandscapeId: vi.fn()
-}));
+import { HeaderDropdown } from '@/components/DeveloperPortalHeader/HeaderDropdown';
+import { HeaderTabsList } from '@/components/DeveloperPortalHeader/HeaderTabsList';
 
-// Mock API client for teams
-vi.mock('../../src/services/ApiClient', () => ({
-  apiClient: {
-    get: vi.fn()
-  }
-}));
+describe('HeaderNavigation', () => {
+  const mockOnTabClick = vi.fn();
 
-// Mock health API
-vi.mock('../../src/services/healthApi', () => ({
-  fetchHealthStatus: vi.fn(),
-  buildHealthEndpoint: vi.fn()
-}));
-
-// Mock feature toggles data
-vi.mock('../../src/data/mockFeatureToggles', () => ({
-  mockFeatureToggles: []
-}));
-
-// Import mocked services
-import { fetchProjects } from '../../src/services/ProjectsApi';
-import { fetchComponentsByProject } from '../../src/services/ComponentsApi';
-import { fetchLandscapesByProject, getDefaultLandscapeId } from '../../src/services/LandscapesApi';
-import { apiClient } from '../../src/services/ApiClient';
-import { fetchHealthStatus, buildHealthEndpoint } from '../../src/services/healthApi';
-import { Component, Landscape, Project, Team, LandscapeType, LandscapeStatus, DeploymentStatus } from '../../src/types/api';
-import { ProjectsProvider } from '../../src/contexts/ProjectsContext';
-import { PortalProviders } from '../../src/contexts/PortalProviders';
-import { ProjectLayout } from '../../src/components/ProjectLayout';
-
-// Test data
-const mockProjects: Project[] = [
-  {
-    id: 'project-1',
-    name: 'test-project',
-    title: 'Test Project',
-    description: 'A test project',
-    isVisible: true,
-    health: {
-      endpoint: '/health'
+  const mockTabs: HeaderTab[] = [
+    {
+      id: 'tab-1',
+      label: 'Tab 1',
     },
-    alerts: {
-      repo: 'test-repo'
-    }
-  },
-  {
-    id: 'project-2',
-    name: 'simple-project',
-    title: 'Simple Project',
-    description: 'A simple project without health or alerts',
-    isVisible: true
-  }
-];
+    {
+      id: 'tab-2',
+      label: 'Tab 2',
+    },
+    {
+      id: 'tab-3',
+      label: 'Tab 3',
+    },
+  ];
 
-const mockComponents: Component[] = [
-  {
-    id: 'comp-1',
-    name: 'test-service',
-    title: 'Test Service',
-    description: 'A test service',
-    project_id: 'project-1',
-    owner_id: 'team-1',
-    github: 'https://github.com/test/test-service',
-    sonar: 'https://sonar.test.com/dashboard?id=test-service'
-  },
-  {
-    id: 'comp-2',
-    name: 'another-service',
-    title: 'Another Service',
-    description: 'Another test service',
-    project_id: 'project-1',
-    owner_id: 'team-2'
-  }
-];
+  const defaultProps = {
+    tabs: mockTabs,
+    activeTab: 'tab-1',
+    onTabClick: mockOnTabClick,
+  };
 
-const mockLandscapes: Landscape[] = [
-  {
-    id: 'landscape-1',
-    name: 'DEFAULT',
-    display_name: 'Default Environment',
-    description: 'Default test environment',
-    organization_id: 'org-1',
-    landscape_type: LandscapeType.Development,
-    status: LandscapeStatus.Active,
-    deployment_status: DeploymentStatus.Healthy,
-    environment: 'development',
-    created_at: '2023-01-01T00:00:00Z',
-    updated_at: '2023-01-01T00:00:00Z'
-  },
-  {
-    id: 'landscape-2',
-    name: 'PROD',
-    display_name: 'Production Environment',
-    description: 'Production environment',
-    organization_id: 'org-1',
-    landscape_type: LandscapeType.Production,
-    status: LandscapeStatus.Active,
-    deployment_status: DeploymentStatus.Healthy,
-    environment: 'production',
-    created_at: '2023-01-01T00:00:00Z',
-    updated_at: '2023-01-01T00:00:00Z'
-  }
-];
-
-const mockTeams: Team[] = [
-  {
-    id: 'team-1',
-    name: 'team-alpha',
-    title: 'Team Alpha',
-    description: 'Alpha team',
-    email: 'alpha@test.com',
-    group_id: 'group-1',
-    organization_id: 'org-1',
-    owner: 'user-1',
-    picture_url: '',
-    created_at: '2023-01-01T00:00:00Z',
-    updated_at: '2023-01-01T00:00:00Z',
-    links: [],
-    members: [],
-    metadata: { color: '#ff0000' }
-  }
-];
-
-const mockHealthResponse = {
-  status: 'success' as const,
-  data: {
-    status: 'UP',
-    components: {
-      db: { status: 'UP', details: { database: 'postgresql' } }
-    }
-  },
-  responseTime: 150
-};
-
-// Helper to render with all providers
-const renderWithProviders = (component: React.ReactElement, initialRoute = '/') => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: 0 },
-      mutations: { retry: false }
-    }
-  });
-
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[initialRoute]}>
-        <ProjectsProvider>
-          <PortalProviders activeProject="test-project">
-            {component}
-          </PortalProviders>
-        </ProjectsProvider>
-      </MemoryRouter>
-    </QueryClientProvider>
-  );
-};
-
-describe('ProjectLayout Integration Tests - Dynamic Tab Building', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
-    // Setup default API responses
-    vi.mocked(fetchProjects).mockResolvedValue(mockProjects);
-    vi.mocked(fetchComponentsByProject).mockResolvedValue(mockComponents);
-    vi.mocked(fetchLandscapesByProject).mockResolvedValue(mockLandscapes);
-    vi.mocked(getDefaultLandscapeId).mockReturnValue('landscape-1'); // Return first landscape ID
-    vi.mocked(apiClient.get).mockResolvedValue({ teams: mockTeams, total: 1, page: 1, page_size: 20 });
-    vi.mocked(buildHealthEndpoint).mockReturnValue('https://test-service.example.com/health');
-    vi.mocked(fetchHealthStatus).mockResolvedValue(mockHealthResponse);
   });
 
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
+  describe('Rendering', () => {
+    it('should render HeaderTabsList by default', () => {
+      render(<HeaderNavigation {...defaultProps} />);
 
-  describe('Dynamic Tab Configuration', () => {
-    it('should render only components tab when project has no health or alerts metadata', async () => {
-      const tabsWithoutHealthOrAlerts = ['components'];
-      
-      renderWithProviders(
-        <ProjectLayout
-          projectName="Simple Project"
-          projectId="simple-project"
-          defaultTab="components"
-          tabs={tabsWithoutHealthOrAlerts}
-          componentsTitle="Simple Project Components"
-          emptyStateMessage="No components found"
-          system="services"
-          showLandscapeFilter={true}
-        />
-      );
-
-      // Wait for initial render - look for landscape links section which always renders
-      await waitFor(() => {
-        expect(screen.getByText('Landscape Links')).toBeInTheDocument();
-      });
-
-      // Should only have components tab content visible
-      expect(screen.queryByRole('tab', { name: /health/i })).not.toBeInTheDocument();
-      expect(screen.queryByRole('tab', { name: /alerts/i })).not.toBeInTheDocument();
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-dropdown')).not.toBeInTheDocument();
     });
 
-    it('should render components, health, and alerts tabs when project has both metadata', async () => {
-      const tabsWithHealthAndAlerts = ['components', 'health', 'alerts'];
-      
-      renderWithProviders(
-        <ProjectLayout
-          projectName="Test Project"
-          projectId="test-project"
-          defaultTab="components"
-          tabs={tabsWithHealthAndAlerts}
-          componentsTitle="Test Project Components"
-          emptyStateMessage="No components found"
-          system="services"
-          showLandscapeFilter={true}
-        />
-      );
+    it('should render HeaderDropdown when isDropdown is true', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
 
-      // Wait for components to load - look for landscape links section
-      await waitFor(() => {
-        expect(screen.getByText('Landscape Links')).toBeInTheDocument();
-      });
-
-      // Should be able to see components data
-      await waitFor(() => {
-        expect(screen.getByText('Test Service')).toBeInTheDocument();
-        expect(screen.getByText('Another Service')).toBeInTheDocument();
-      });
+      expect(screen.getByTestId('header-dropdown')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-tabs-list')).not.toBeInTheDocument();
     });
 
-    it('should dynamically switch between tabs and load appropriate content', async () => {
-      const tabsWithHealthAndAlerts = ['components', 'health', 'alerts'];
-      
-      renderWithProviders(
-        <ProjectLayout
-          projectName="Test Project"
-          projectId="test-project"
-          defaultTab="components"
-          tabs={tabsWithHealthAndAlerts}
-          componentsTitle="Test Project Components"
-          emptyStateMessage="No components found"
-          system="services"
-          showLandscapeFilter={true}
-        />
-      );
+    it('should render HeaderTabsList when isDropdown is false', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={false} />);
 
-      // Wait for initial components load
-      await waitFor(() => {
-        expect(screen.getByText('Landscape Links')).toBeInTheDocument();
-      });
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-dropdown')).not.toBeInTheDocument();
+    });
 
-      // Verify components are loaded
-      await waitFor(() => {
-        expect(screen.getByText('Test Service')).toBeInTheDocument();
-      });
+    it('should render HeaderTabsList when isDropdown is undefined', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={undefined} />);
+
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
     });
   });
 
-  describe('Data Integration Flow', () => {
-    it('should render and display component data correctly', async () => {
-      renderWithProviders(
-        <ProjectLayout
-          projectName="Test Project"
-          projectId="test-project"
-          defaultTab="components"
-          tabs={['components']}
-          componentsTitle="Test Project Components"
-          emptyStateMessage="No components found"
-          system="services"
-          showLandscapeFilter={true}
-        />
-      );
+  describe('Empty State', () => {
+    it('should return null when tabs array is empty', () => {
+      const { container } = render(<HeaderNavigation {...defaultProps} tabs={[]} />);
 
-      // Wait for layout to render
-      await waitFor(() => {
-        expect(screen.getByText('Landscape Links')).toBeInTheDocument();
-      });
-
-      // Verify components are displayed
-      await waitFor(() => {
-        expect(screen.getByText('Test Service')).toBeInTheDocument();
-        expect(screen.getByText('Another Service')).toBeInTheDocument();
-      });
+      expect(container.firstChild).toBeNull();
     });
 
-    it('should handle landscape selection and display', async () => {
-      renderWithProviders(
-        <ProjectLayout
-          projectName="Test Project"
-          projectId="test-project"
-          defaultTab="components"
-          tabs={['components']}
-          componentsTitle="Test Project Components"
-          emptyStateMessage="No components found"
-          system="services"
-          showLandscapeFilter={true}
-        />
-      );
+    it('should not render HeaderTabsList when tabs are empty', () => {
+      render(<HeaderNavigation {...defaultProps} tabs={[]} />);
 
-      // Wait for landscapes to load and render
-      await waitFor(() => {
-        expect(screen.getByText('Landscape Links')).toBeInTheDocument();
-      });
-
-      // Should automatically select DEFAULT landscape (displayed as "DEFAULT")
-      // await waitFor(() => {
-      //   expect(screen.getByText('DEFAULT')).toBeInTheDocument();
-      // });
+      expect(screen.queryByTestId('header-tabs-list')).not.toBeInTheDocument();
     });
 
-    it('should handle component search and filtering', async () => {
-      renderWithProviders(
-        <ProjectLayout
-          projectName="Test Project"
-          projectId="test-project"
-          defaultTab="components"
-          tabs={['components']}
-          componentsTitle="Test Project Components"
-          emptyStateMessage="No components found"
-          system="services"
-          showLandscapeFilter={true}
-        />
-      );
+    it('should not render HeaderDropdown when tabs are empty', () => {
+      render(<HeaderNavigation {...defaultProps} tabs={[]} isDropdown={true} />);
 
-      // Wait for components to load
-      await waitFor(() => {
-        expect(screen.getByText('Test Service')).toBeInTheDocument();
-        expect(screen.getByText('Another Service')).toBeInTheDocument();
-      });
-
-      // Verify components are rendered and accessible for search functionality
-      expect(screen.getByText('Test Service')).toBeInTheDocument();
-      expect(screen.getByText('Another Service')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-dropdown')).not.toBeInTheDocument();
     });
   });
 
-  describe('State Management Integration', () => {
-    it('should maintain component expansion state across re-renders', async () => {
-      renderWithProviders(
-        <ProjectLayout
-          projectName="Test Project"
-          projectId="test-project"
-          defaultTab="components"
-          tabs={['components']}
-          componentsTitle="Test Project Components"
-          emptyStateMessage="No components found"
-          system="services"
-          showLandscapeFilter={true}
-        />
-      );
+  describe('Props Passing - HeaderTabsList', () => {
+    it('should pass tabs prop to HeaderTabsList', () => {
+      render(<HeaderNavigation {...defaultProps} />);
 
-      // Wait for components to load
-      await waitFor(() => {
-        expect(screen.getByText('Test Service')).toBeInTheDocument();
-      });
-
-      // Component expansion state should be managed internally
-      // This tests that the state management hooks are working
-      expect(screen.getByText('Test Service')).toBeInTheDocument();
+      expect(screen.getByTestId('tabs-list-count')).toHaveTextContent('3');
     });
 
-    it('should handle sort order changes', async () => {
-      renderWithProviders(
-        <ProjectLayout
-          projectName="Test Project"
-          projectId="test-project"
-          defaultTab="components"
-          tabs={['components']}
-          componentsTitle="Test Project Components"
-          emptyStateMessage="No components found"
-          system="services"
-          showLandscapeFilter={true}
-        />
+    it('should pass activeTab prop to HeaderTabsList', () => {
+      render(<HeaderNavigation {...defaultProps} activeTab="tab-2" />);
+
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('tab-2');
+    });
+
+    it('should pass null activeTab to HeaderTabsList', () => {
+      render(<HeaderNavigation {...defaultProps} activeTab={null} />);
+
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('none');
+    });
+
+    it('should pass onTabClick prop to HeaderTabsList', async () => {
+      const user = await import('@testing-library/user-event').then(m => m.userEvent.setup());
+
+      render(<HeaderNavigation {...defaultProps} />);
+
+      const button = screen.getByText('Tabs List Click');
+      await user.click(button);
+
+      expect(mockOnTabClick).toHaveBeenCalledWith('tab-1');
+    });
+
+    it('should call HeaderTabsList with correct props', () => {
+      render(<HeaderNavigation {...defaultProps} />);
+
+      expect(HeaderTabsList).toHaveBeenCalledWith(
+        {
+          tabs: mockTabs,
+          activeTab: 'tab-1',
+          onTabClick: mockOnTabClick,
+        },
+        expect.anything()
       );
-
-      // Wait for components to load
-      await waitFor(() => {
-        expect(screen.getByText('Test Service')).toBeInTheDocument();
-        expect(screen.getByText('Another Service')).toBeInTheDocument();
-      });
-
-      // Both components should be visible regardless of sort order
-      expect(screen.getByText('Test Service')).toBeInTheDocument();
-      expect(screen.getByText('Another Service')).toBeInTheDocument();
     });
   });
 
-  describe('UI Rendering and Layout', () => {
-    it('should render layout with landscape filter when enabled', async () => {
-      renderWithProviders(
-        <ProjectLayout
-          projectName="Test Project"
-          projectId="test-project"
-          defaultTab="components"
-          tabs={['components']}
-          componentsTitle="Test Project Components"
-          emptyStateMessage="No components found"
-          system="services"
-          showLandscapeFilter={true}
-        />
-      );
+  describe('Props Passing - HeaderDropdown', () => {
+    it('should pass tabs prop to HeaderDropdown', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
 
-      // Should render landscape links section
-      await waitFor(() => {
-        expect(screen.getByText('Landscape Links')).toBeInTheDocument();
-      });
-
-      // Should display landscape selection
-      // await waitFor(() => {
-      //   expect(screen.getByText('DEFAULT')).toBeInTheDocument();
-      // });
+      expect(screen.getByTestId('dropdown-tabs-count')).toHaveTextContent('3');
     });
 
-    it('should handle error states gracefully', async () => {
-      renderWithProviders(
-        <ProjectLayout
-          projectName="Test Project"
-          projectId="test-project"
-          defaultTab="components"
-          tabs={['components']}
-          componentsTitle="Test Project Components"
-          emptyStateMessage="No components found"
-          system="services"
-          showLandscapeFilter={true}
-        />
+    it('should pass activeTab prop to HeaderDropdown', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} activeTab="tab-3" />);
+
+      expect(screen.getByTestId('dropdown-active-tab')).toHaveTextContent('tab-3');
+    });
+
+    it('should pass null activeTab to HeaderDropdown', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} activeTab={null} />);
+
+      expect(screen.getByTestId('dropdown-active-tab')).toHaveTextContent('none');
+    });
+
+    it('should pass onTabClick prop to HeaderDropdown', async () => {
+      const user = await import('@testing-library/user-event').then(m => m.userEvent.setup());
+
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      const button = screen.getByText('Dropdown Click');
+      await user.click(button);
+
+      expect(mockOnTabClick).toHaveBeenCalledWith('tab-1');
+    });
+
+    it('should call HeaderDropdown with correct props', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(HeaderDropdown).toHaveBeenCalledWith(
+        {
+          tabs: mockTabs,
+          activeTab: 'tab-1',
+          onTabClick: mockOnTabClick,
+        },
+        expect.anything()
       );
+    });
+  });
 
-      // Should still render the layout even if data loading fails
-      await waitFor(() => {
-        expect(screen.getByText('Landscape Links')).toBeInTheDocument();
-      });
+  describe('Conditional Rendering', () => {
+    it('should switch from tabs list to dropdown', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} isDropdown={false} />);
 
-      // Should display components when available
-      await waitFor(() => {
-        expect(screen.getByText('Test Service')).toBeInTheDocument();
-      });
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
+
+      rerender(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(screen.getByTestId('header-dropdown')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-tabs-list')).not.toBeInTheDocument();
+    });
+
+    it('should switch from dropdown to tabs list', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(screen.getByTestId('header-dropdown')).toBeInTheDocument();
+
+      rerender(<HeaderNavigation {...defaultProps} isDropdown={false} />);
+
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
+      expect(screen.queryByTestId('header-dropdown')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle single tab', () => {
+      const singleTab = [mockTabs[0]];
+
+      render(<HeaderNavigation {...defaultProps} tabs={singleTab} />);
+
+      expect(screen.getByTestId('tabs-list-count')).toHaveTextContent('1');
+    });
+
+    it('should handle many tabs', () => {
+      const manyTabs = Array.from({ length: 20 }, (_, i) => ({
+        id: `tab-${i}`,
+        label: `Tab ${i}`,
+      }));
+
+      render(<HeaderNavigation {...defaultProps} tabs={manyTabs} />);
+
+      expect(screen.getByTestId('tabs-list-count')).toHaveTextContent('20');
+    });
+
+    it('should handle tabs with icons', () => {
+      const tabsWithIcons = mockTabs.map(tab => ({
+        ...tab,
+        icon: <span>Icon</span>,
+      }));
+
+      render(<HeaderNavigation {...defaultProps} tabs={tabsWithIcons} />);
+
+      expect(screen.getByTestId('header-tabs-list')).toBeInTheDocument();
+    });
+
+    it('should handle changing activeTab', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} activeTab="tab-1" />);
+
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('tab-1');
+
+      rerender(<HeaderNavigation {...defaultProps} activeTab="tab-2" />);
+
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('tab-2');
+    });
+
+    it('should handle changing tabs array', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} />);
+
+      expect(screen.getByTestId('tabs-list-count')).toHaveTextContent('3');
+
+      const newTabs = [mockTabs[0], mockTabs[1]];
+      rerender(<HeaderNavigation {...defaultProps} tabs={newTabs} />);
+
+      expect(screen.getByTestId('tabs-list-count')).toHaveTextContent('2');
+    });
+  });
+
+  describe('Component Calls', () => {
+    it('should not call HeaderDropdown when isDropdown is false', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={false} />);
+
+      expect(HeaderDropdown).not.toHaveBeenCalled();
+    });
+
+    it('should not call HeaderTabsList when isDropdown is true', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(HeaderTabsList).not.toHaveBeenCalled();
+    });
+
+    it('should call HeaderTabsList exactly once by default', () => {
+      render(<HeaderNavigation {...defaultProps} />);
+
+      expect(HeaderTabsList).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call HeaderDropdown exactly once when isDropdown is true', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(HeaderDropdown).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Integration', () => {
+    it('should integrate with HeaderTabsList component', () => {
+      render(<HeaderNavigation {...defaultProps} />);
+
+      expect(HeaderTabsList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tabs: mockTabs,
+          activeTab: 'tab-1',
+          onTabClick: mockOnTabClick,
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should integrate with HeaderDropdown component', () => {
+      render(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(HeaderDropdown).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tabs: mockTabs,
+          activeTab: 'tab-1',
+          onTabClick: mockOnTabClick,
+        }),
+        expect.anything()
+      );
+    });
+  });
+
+  describe('Re-rendering', () => {
+    it('should update when props change', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} />);
+
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('tab-1');
+
+      rerender(<HeaderNavigation {...defaultProps} activeTab="tab-3" />);
+
+      expect(screen.getByTestId('tabs-list-active-tab')).toHaveTextContent('tab-3');
+    });
+
+    it('should handle multiple re-renders', () => {
+      const { rerender } = render(<HeaderNavigation {...defaultProps} />);
+
+      rerender(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+      rerender(<HeaderNavigation {...defaultProps} isDropdown={false} />);
+      rerender(<HeaderNavigation {...defaultProps} isDropdown={true} />);
+
+      expect(screen.getByTestId('header-dropdown')).toBeInTheDocument();
     });
   });
 });

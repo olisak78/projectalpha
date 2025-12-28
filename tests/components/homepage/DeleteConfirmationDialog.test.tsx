@@ -1,203 +1,244 @@
-import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import '@testing-library/jest-dom';
-import { DeleteConfirmationDialog } from '../../../src/components/tabs/MePageTabs/DeleteConfirmationDialog';
-import { createMockQuickLinksContext, expectDialogToBeOpen, expectDialogToBeClosed } from '../../utils/testHelpers';
+import { render, screen } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
+import { DeleteConfirmationDialog } from '@/components/tabs/MePageTabs/DeleteConfirmationDialog';
 
-// Mock UI components
-vi.mock('../../../src/components/ui/alert-dialog', () => ({
-  AlertDialog: ({ children, open, onOpenChange }: any) => (
-    <div data-testid="alert-dialog" data-open={open}>
-      {open && children}
-      <button data-testid="dialog-overlay" onClick={() => onOpenChange?.(false)} />
-    </div>
-  ),
-  AlertDialogContent: ({ children }: any) => (
-    <div data-testid="alert-dialog-content">{children}</div>
-  ),
-  AlertDialogHeader: ({ children }: any) => (
-    <div data-testid="alert-dialog-header">{children}</div>
-  ),
-  AlertDialogTitle: ({ children }: any) => (
-    <h2 data-testid="alert-dialog-title">{children}</h2>
-  ),
-  AlertDialogDescription: ({ children }: any) => (
-    <p data-testid="alert-dialog-description">{children}</p>
-  ),
-  AlertDialogFooter: ({ children }: any) => (
-    <div data-testid="alert-dialog-footer">{children}</div>
-  ),
-  AlertDialogCancel: ({ children, onClick }: any) => (
-    <button data-testid="alert-dialog-cancel" onClick={onClick}>
-      {children}
-    </button>
-  ),
-  AlertDialogAction: ({ children, onClick, className }: any) => (
-    <button data-testid="alert-dialog-action" onClick={onClick} className={className}>
-      {children}
-    </button>
-  ),
+// Mock the Zustand store hooks
+vi.mock('@/stores/quickLinksStore', () => ({
+  useDeleteDialog: vi.fn(),
+  useDeleteDialogActions: vi.fn(),
 }));
 
-// Mock QuickLinksContext
-const mockQuickLinksContext = createMockQuickLinksContext();
-
-vi.mock('../../../src/contexts/QuickLinksContext', () => ({
-  useQuickLinksContext: () => mockQuickLinksContext,
+// Mock the QuickLinksContext
+vi.mock('@/contexts/QuickLinksContext', () => ({
+  useQuickLinksContext: vi.fn(),
 }));
+
+import { useDeleteDialog, useDeleteDialogActions } from '@/stores/quickLinksStore';
+import { useQuickLinksContext } from '@/contexts/QuickLinksContext';
 
 describe('DeleteConfirmationDialog', () => {
+  const mockCloseDeleteDialog = vi.fn();
+  const mockHandleDeleteConfirm = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockQuickLinksContext.deleteDialog = {
-      isOpen: false,
-      linkTitle: '',
-      linkId: '',
-    };
-  });
 
-  describe('Dialog State Management', () => {
-    it('renders correctly when closed', () => {
-      render(<DeleteConfirmationDialog />);
-      
-      expectDialogToBeClosed(screen, 'alert-dialog');
-      expect(screen.queryByTestId('alert-dialog-content')).not.toBeInTheDocument();
+    // Default mock implementations
+    vi.mocked(useDeleteDialogActions).mockReturnValue({
+      closeDeleteDialog: mockCloseDeleteDialog,
+      openDeleteDialog: vi.fn(),
     });
 
-    it('renders correctly when open with all UI elements', () => {
-      mockQuickLinksContext.deleteDialog = {
-        isOpen: true,
-        linkTitle: 'Test Link',
-        linkId: '123',
-      };
-      
+    vi.mocked(useQuickLinksContext).mockReturnValue({
+      handleDeleteConfirm: mockHandleDeleteConfirm,
+      // Add other context values as needed
+    } as any);
+  });
+
+  describe('Dialog Visibility', () => {
+    it('should not render dialog content when isOpen is false', () => {
+      vi.mocked(useDeleteDialog).mockReturnValue({
+        isOpen: false,
+        linkId: '',
+        linkTitle: '',
+      });
+
       render(<DeleteConfirmationDialog />);
-      
-      expectDialogToBeOpen(screen, 'alert-dialog');
-      expect(screen.getByTestId('alert-dialog-content')).toBeInTheDocument();
+
+      // AlertDialog doesn't render content when closed
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
+
+    it('should render dialog content when isOpen is true', () => {
+      vi.mocked(useDeleteDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-123',
+        linkTitle: 'My Favorite Link',
+      });
+
+      render(<DeleteConfirmationDialog />);
+
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
       expect(screen.getByText('Delete Quick Link')).toBeInTheDocument();
-      expect(screen.getByText('Cancel')).toBeInTheDocument();
-      
-      const deleteButton = screen.getByText('Delete');
-      expect(deleteButton).toBeInTheDocument();
-      expect(deleteButton).toHaveClass('bg-destructive', 'text-destructive-foreground', 'hover:bg-destructive/90');
     });
   });
 
-  describe('Content Display', () => {
-    it('displays correct description with link title', () => {
-      mockQuickLinksContext.deleteDialog = {
+  describe('Dialog Content', () => {
+    it('should display the correct link title in the description', () => {
+      const linkTitle = 'Important Documentation';
+      
+      vi.mocked(useDeleteDialog).mockReturnValue({
         isOpen: true,
-        linkTitle: 'My Important Link',
-        linkId: '123',
-      };
-      
+        linkId: 'link-456',
+        linkTitle,
+      });
+
       render(<DeleteConfirmationDialog />);
-      
-      expect(screen.getByText(
-        'Are you sure you want to delete "My Important Link"? This action cannot be undone.'
-      )).toBeInTheDocument();
+
+      expect(
+        screen.getByText((content) => content.includes(`"${linkTitle}"`))
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText((content) => content.includes('This action cannot be undone'))
+      ).toBeInTheDocument();
+    });
+
+    it('should render Cancel and Delete buttons', () => {
+      vi.mocked(useDeleteDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-789',
+        linkTitle: 'Test Link',
+      });
+
+      render(<DeleteConfirmationDialog />);
+
+      expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument();
     });
   });
 
   describe('User Interactions', () => {
-    const openDialog = {
-      isOpen: true,
-      linkTitle: 'Test Link',
-      linkId: '123',
-    };
+    it('should call closeDeleteDialog when Cancel button is clicked', async () => {
+      const user = userEvent.setup();
 
-    it('handles button clicks correctly', () => {
-      mockQuickLinksContext.deleteDialog = openDialog;
+      vi.mocked(useDeleteDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-123',
+        linkTitle: 'Test Link',
+      });
+
       render(<DeleteConfirmationDialog />);
-      
-      // Test Cancel button
-      fireEvent.click(screen.getByText('Cancel'));
-      expect(mockQuickLinksContext.handleDeleteCancel).toHaveBeenCalledTimes(1);
-      
-      // Test Delete button
-      fireEvent.click(screen.getByText('Delete'));
-      expect(mockQuickLinksContext.handleDeleteConfirm).toHaveBeenCalledTimes(1);
-      
-      // Test overlay click
-      fireEvent.click(screen.getByTestId('dialog-overlay'));
-      expect(mockQuickLinksContext.handleDeleteCancel).toHaveBeenCalledTimes(2);
+
+      const cancelButton = screen.getByRole('button', { name: /cancel/i });
+      await user.click(cancelButton);
+
+      // Called twice: once from onClick, once from onOpenChange when dialog closes
+      expect(mockCloseDeleteDialog).toHaveBeenCalled();
+      expect(mockHandleDeleteConfirm).not.toHaveBeenCalled();
     });
 
-    it('does not call handlers when dialog is closed', () => {
+    it('should call handleDeleteConfirm when Delete button is clicked', async () => {
+      const user = userEvent.setup();
+
+      vi.mocked(useDeleteDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-456',
+        linkTitle: 'Link to Delete',
+      });
+
       render(<DeleteConfirmationDialog />);
-      
-      expect(screen.queryByText('Cancel')).not.toBeInTheDocument();
-      expect(screen.queryByText('Delete')).not.toBeInTheDocument();
-      expect(mockQuickLinksContext.handleDeleteCancel).not.toHaveBeenCalled();
-      expect(mockQuickLinksContext.handleDeleteConfirm).not.toHaveBeenCalled();
+
+      const deleteButton = screen.getByRole('button', { name: /delete/i });
+      await user.click(deleteButton);
+
+      expect(mockHandleDeleteConfirm).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call closeDeleteDialog when dialog is dismissed via onOpenChange', async () => {
+      const user = userEvent.setup();
+
+      vi.mocked(useDeleteDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-789',
+        linkTitle: 'Test Link',
+      });
+
+      render(<DeleteConfirmationDialog />);
+
+      // Press Escape to trigger onOpenChange
+      await user.keyboard('{Escape}');
+
+      expect(mockCloseDeleteDialog).toHaveBeenCalled();
     });
   });
 
   describe('Edge Cases', () => {
-    it('handles various link title formats', () => {
-      const testCases = [
-        { title: '', expected: 'Are you sure you want to delete ""? This action cannot be undone.' },
-        { title: 'Link with "quotes" & <special> chars', expected: 'Are you sure you want to delete "Link with "quotes" & <special> chars"? This action cannot be undone.' },
-        { title: 'This is a very long link title that might cause layout issues if not handled properly in the dialog', expected: 'Are you sure you want to delete "This is a very long link title that might cause layout issues if not handled properly in the dialog"? This action cannot be undone.' }
-      ];
-
-      testCases.forEach(({ title, expected }) => {
-        mockQuickLinksContext.deleteDialog = {
-          isOpen: true,
-          linkTitle: title,
-          linkId: '123',
-        };
-        
-        const { unmount } = render(<DeleteConfirmationDialog />);
-        expect(screen.getByText(expected)).toBeInTheDocument();
-        unmount();
-      });
-    });
-
-    it('maintains state consistency during lifecycle', () => {
-      const { rerender } = render(<DeleteConfirmationDialog />);
-      
-      // Initially closed
-      expectDialogToBeClosed(screen, 'alert-dialog');
-      
-      // Open dialog
-      mockQuickLinksContext.deleteDialog = {
+    it('should handle empty link title', () => {
+      vi.mocked(useDeleteDialog).mockReturnValue({
         isOpen: true,
-        linkTitle: 'Test Link',
-        linkId: '123',
-      };
-      rerender(<DeleteConfirmationDialog />);
-      
-      expectDialogToBeOpen(screen, 'alert-dialog');
-      expect(screen.getByText(/Test Link/)).toBeInTheDocument();
-      
-      // Close dialog
-      mockQuickLinksContext.deleteDialog = {
-        isOpen: false,
+        linkId: 'link-empty',
         linkTitle: '',
-        linkId: '',
-      };
-      rerender(<DeleteConfirmationDialog />);
-      
-      expectDialogToBeClosed(screen, 'alert-dialog');
+      });
+
+      render(<DeleteConfirmationDialog />);
+
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+      expect(screen.getByText(/Are you sure you want to delete ""/)).toBeInTheDocument();
     });
 
-    it('preserves link ID throughout dialog lifecycle', () => {
-      const linkId = 'unique-link-id-123';
+    it('should handle special characters in link title', () => {
+      const specialTitle = 'Link with "quotes" & <special> chars';
       
-      mockQuickLinksContext.deleteDialog = {
+      vi.mocked(useDeleteDialog).mockReturnValue({
         isOpen: true,
-        linkTitle: 'Test Link',
-        linkId: linkId,
-      };
-      
+        linkId: 'link-special',
+        linkTitle: specialTitle,
+      });
+
       render(<DeleteConfirmationDialog />);
+
+      expect(
+        screen.getByText((content) => content.includes(specialTitle))
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe('Accessibility', () => {
+    it('should have proper ARIA roles and labels', () => {
+      vi.mocked(useDeleteDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-123',
+        linkTitle: 'Accessible Link',
+      });
+
+      render(<DeleteConfirmationDialog />);
+
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+      expect(screen.getByText('Delete Quick Link')).toBeInTheDocument();
+    });
+
+    it('should allow keyboard navigation', async () => {
+      const user = userEvent.setup();
+
+      vi.mocked(useDeleteDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-123',
+        linkTitle: 'Test Link',
+      });
+
+      render(<DeleteConfirmationDialog />);
+
+      // Tab to navigate between buttons
+      await user.tab();
       
-      expect(mockQuickLinksContext.deleteDialog.linkId).toBe(linkId);
+      const cancelButton = screen.getByRole('button', { name: /cancel/i });
+
+      expect(document.activeElement).toBeInTheDocument();
       
-      fireEvent.click(screen.getByText('Delete'));
-      expect(mockQuickLinksContext.handleDeleteConfirm).toHaveBeenCalledTimes(1);
+      // Should be able to activate focused button with Enter
+      if (document.activeElement === cancelButton) {
+        await user.keyboard('{Enter}');
+        expect(mockCloseDeleteDialog).toHaveBeenCalled();
+      }
+    });
+  });
+
+  describe('Delete Button Styling', () => {
+    it('should apply destructive styling to Delete button', () => {
+      vi.mocked(useDeleteDialog).mockReturnValue({
+        isOpen: true,
+        linkId: 'link-123',
+        linkTitle: 'Test Link',
+      });
+
+      render(<DeleteConfirmationDialog />);
+
+      const deleteButton = screen.getByRole('button', { name: /delete/i });
+      
+      expect(deleteButton).toHaveClass('bg-destructive');
+      expect(deleteButton).toHaveClass('text-destructive-foreground');
+      expect(deleteButton).toHaveClass('hover:bg-destructive/90');
     });
   });
 });

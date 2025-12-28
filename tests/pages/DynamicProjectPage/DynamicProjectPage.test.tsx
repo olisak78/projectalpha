@@ -1,363 +1,543 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
-import { DynamicProjectPage } from '../../../src/pages/DynamicProjectPage';
-import { useProjectsContext } from '../../../src/contexts/ProjectsContext';
-import { Project } from '../../../src/types/api';
-import { ReactNode } from 'react';
+import { DynamicProjectPage } from '@/pages/DynamicProjectPage';
+import type { Project } from '@/types/api';
 
-// Mock the ProjectsContext
-vi.mock('../../../src/contexts/ProjectsContext', () => ({
-  useProjectsContext: vi.fn(),
-}));
-
-// Mock the ProjectLayout component
-vi.mock('../../../src/components/ProjectLayout', () => ({
-  ProjectLayout: ({ 
-    projectName, 
-    projectId, 
-    tabs, 
-    componentsTitle, 
-    emptyStateMessage, 
-    system, 
-    showLandscapeFilter,
-    alertsUrl
-  }: any) => (
+// Mock ProjectLayout
+vi.mock('@/components/ProjectLayout', () => ({
+  ProjectLayout: vi.fn((props) => (
     <div data-testid="project-layout">
-      <div data-testid="project-name">{projectName}</div>
-      <div data-testid="project-id">{projectId}</div>
-      <div data-testid="tabs">{JSON.stringify(tabs)}</div>
-      <div data-testid="components-title">{componentsTitle}</div>
-      <div data-testid="empty-state-message">{emptyStateMessage}</div>
-      <div data-testid="system">{system}</div>
-      <div data-testid="show-landscape-filter">{showLandscapeFilter.toString()}</div>
-      <div data-testid="alerts-url">{alertsUrl || 'none'}</div>
+      <div data-testid="project-name">{props.projectName}</div>
+      <div data-testid="project-id">{props.projectId}</div>
+      <div data-testid="default-tab">{props.defaultTab}</div>
+      <div data-testid="tabs">{props.tabs.join(',')}</div>
+      <div data-testid="system">{props.system}</div>
+      <div data-testid="show-landscape-filter">{String(props.showLandscapeFilter)}</div>
+      <div data-testid="alerts-url">{props.alertsUrl || 'none'}</div>
+      <div data-testid="components-title">{props.componentsTitle}</div>
+      <div data-testid="empty-state-message">{props.emptyStateMessage}</div>
     </div>
-  ),
+  )),
 }));
 
-// Mock HeaderNavigationProvider
-vi.mock('../../../src/contexts/HeaderNavigationContext', () => ({
-  HeaderNavigationProvider: ({ children }: any) => <div>{children}</div>,
-  useHeaderNavigation: () => ({
-    tabs: [],
-    activeTab: 'components',
-    setTabs: vi.fn(),
-    setActiveTab: vi.fn(),
-    isDropdown: false,
-    setIsDropdown: vi.fn(),
-  }),
+// Mock projectsStore
+vi.mock('@/stores/projectsStore', () => ({
+  useProjects: vi.fn(),
 }));
 
-const mockUseProjectsContext = vi.mocked(useProjectsContext);
-
-// Mock data - Updated to match actual implementation
-const mockProjects: Project[] = [
-  {
-    id: '1',
-    name: 'cis20',
-    title: 'CIS 2.0',
-    description: 'Customer Information System 2.0',
-    health: { endpoint: 'https://health.example.com' },
-    alerts: 'https://github.com/alerts/cis20',
-  },
-  {
-    id: '2',
-    name: 'usrv',
-    title: 'User Services',
-    description: 'User management services',
-    health: { endpoint: 'https://health.usrv.com' },
-  },
-  {
-    id: '3',
-    name: 'ca',
-    title: 'Customer Analytics',
-    description: 'Analytics platform for customer data'
-    // No health or alerts
-  }
-];
+import { useProjects } from '@/stores/projectsStore';
+import { ProjectLayout } from '@/components/ProjectLayout';
 
 describe('DynamicProjectPage', () => {
-  let queryClient: QueryClient;
-
-  const renderWithProviders = (children: ReactNode) => {
-    // Use the mocked HeaderNavigationProvider directly
-    const MockHeaderNavigationProvider = ({ children }: any) => <div>{children}</div>;
-    return render(
-      <MemoryRouter>
-        <QueryClientProvider client={queryClient}>
-          <MockHeaderNavigationProvider>
-            {children}
-          </MockHeaderNavigationProvider>
-        </QueryClientProvider>
-      </MemoryRouter>
-    );
-  };
+  const mockProjects: Project[] = [
+    {
+      id: 'proj-1',
+      name: 'cis20',
+      title: 'CIS 2.0',
+      description: 'CIS Project',
+      health: true,
+      alerts: 'https://alerts.example.com/cis20',
+    },
+    {
+      id: 'proj-2',
+      name: 'platform',
+      title: 'Platform Services',
+      description: 'Platform Project',
+      health: false,
+      alerts: '',
+    },
+    {
+      id: 'proj-3',
+      name: 'infrastructure',
+      title: 'Infrastructure',
+      description: 'Infrastructure Project',
+      // No health or alerts metadata
+    },
+  ];
 
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: {
-          retry: false,
-        },
-      },
-    });
     vi.clearAllMocks();
+    vi.mocked(useProjects).mockReturnValue(mockProjects);
   });
 
-  describe('Project Configuration', () => {
-    it('should render project with health and alerts tabs when both metadata exist', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: mockProjects,
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="cis20" />);
+  describe('Project Found', () => {
+    it('should render ProjectLayout when project is found', () => {
+      render(<DynamicProjectPage projectName="cis20" />);
 
       expect(screen.getByTestId('project-layout')).toBeInTheDocument();
+    });
+
+    it('should pass correct project name to ProjectLayout', () => {
+      render(<DynamicProjectPage projectName="cis20" />);
+
       expect(screen.getByTestId('project-name')).toHaveTextContent('CIS 2.0');
+    });
+
+    it('should pass correct project id to ProjectLayout', () => {
+      render(<DynamicProjectPage projectName="cis20" />);
+
       expect(screen.getByTestId('project-id')).toHaveTextContent('cis20');
-      expect(screen.getByTestId('tabs')).toHaveTextContent('["components","health","alerts"]');
-      expect(screen.getByTestId('components-title')).toHaveTextContent('CIS 2.0 Components');
-      expect(screen.getByTestId('empty-state-message')).toHaveTextContent('No CIS 2.0 components found for this organization.');
+    });
+
+    it('should always use "components" as default tab', () => {
+      render(<DynamicProjectPage projectName="cis20" />);
+
+      expect(screen.getByTestId('default-tab')).toHaveTextContent('components');
+    });
+
+    it('should set system to project name', () => {
+      render(<DynamicProjectPage projectName="cis20" />);
+
       expect(screen.getByTestId('system')).toHaveTextContent('cis20');
-      expect(screen.getByTestId('show-landscape-filter')).toHaveTextContent('true');
-      expect(screen.getByTestId('alerts-url')).toHaveTextContent('https://github.com/alerts/cis20');
     });
 
-    it('should render project with only health tab when only health metadata exists', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: mockProjects,
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="usrv" />);
-
-      expect(screen.getByTestId('project-layout')).toBeInTheDocument();
-      expect(screen.getByTestId('project-name')).toHaveTextContent('User Services');
-      expect(screen.getByTestId('project-id')).toHaveTextContent('usrv');
-      expect(screen.getByTestId('tabs')).toHaveTextContent('["components","health"]');
-      expect(screen.getByTestId('components-title')).toHaveTextContent('User Services Components');
-      expect(screen.getByTestId('empty-state-message')).toHaveTextContent('No User Services components found for this organization.');
-      expect(screen.getByTestId('system')).toHaveTextContent('usrv');
-      expect(screen.getByTestId('alerts-url')).toHaveTextContent('none');
-    });
-
-    it('should render project with only components tab when no metadata exists', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: mockProjects,
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="ca" />);
-
-      expect(screen.getByTestId('project-layout')).toBeInTheDocument();
-      expect(screen.getByTestId('project-name')).toHaveTextContent('Customer Analytics');
-      expect(screen.getByTestId('project-id')).toHaveTextContent('ca');
-      expect(screen.getByTestId('tabs')).toHaveTextContent('["components"]');
-      expect(screen.getByTestId('components-title')).toHaveTextContent('Customer Analytics Components');
-      expect(screen.getByTestId('empty-state-message')).toHaveTextContent('No Customer Analytics components found for this organization.');
-      expect(screen.getByTestId('system')).toHaveTextContent('ca');
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should display error message when project is not found', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: mockProjects,
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="nonexistent" />);
-
-      expect(screen.getByText(/Error: Project.*not found/)).toBeInTheDocument();
-      expect(screen.queryByTestId('project-layout')).not.toBeInTheDocument();
-    });
-
-    it('should handle empty projects array', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: [],
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="cis20" />);
-
-      expect(screen.getByText(/Error: Project.*not found/)).toBeInTheDocument();
-      expect(screen.queryByTestId('project-layout')).not.toBeInTheDocument();
-    });
-  });
-
-  describe('Default Configuration', () => {
-    it('should always default to components tab', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: mockProjects,
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="cis20" />);
-
-      // Check that defaultTab is set to "components" by verifying the ProjectLayout receives it
-      expect(screen.getByTestId('project-layout')).toBeInTheDocument();
-      // The defaultTab prop is not directly visible in our mock, but we can verify the component renders
-    });
-
-    it('should always show landscape filter', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: mockProjects,
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="cis20" />);
+    it('should enable landscape filter by default', () => {
+      render(<DynamicProjectPage projectName="cis20" />);
 
       expect(screen.getByTestId('show-landscape-filter')).toHaveTextContent('true');
     });
+
+    it('should pass correct components title', () => {
+      render(<DynamicProjectPage projectName="cis20" />);
+
+      expect(screen.getByTestId('components-title')).toHaveTextContent('CIS 2.0 Components');
+    });
+
+    it('should pass correct empty state message', () => {
+      render(<DynamicProjectPage projectName="cis20" />);
+
+      expect(screen.getByTestId('empty-state-message')).toHaveTextContent(
+        'No CIS 2.0 components found for this organization.'
+      );
+    });
   });
 
-  describe('Project Name Matching', () => {
-    it('should match project by name property', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: mockProjects,
-        isLoading: false,
-        error: null,
-        sidebarItems: []
+  describe('Project Not Found', () => {
+    it('should show error message when project is not found', () => {
+      render(<DynamicProjectPage projectName="nonexistent" />);
+
+      expect(screen.getByText('Error: Project nonexistent not found')).toBeInTheDocument();
+    });
+
+    it('should not render ProjectLayout when project is not found', () => {
+      render(<DynamicProjectPage projectName="nonexistent" />);
+
+      expect(screen.queryByTestId('project-layout')).not.toBeInTheDocument();
+    });
+
+    it('should have destructive text styling on error', () => {
+      const { container } = render(<DynamicProjectPage projectName="nonexistent" />);
+
+      const errorMessage = container.querySelector('.text-destructive');
+      expect(errorMessage).toBeInTheDocument();
+    });
+
+    it('should center error message', () => {
+      const { container } = render(<DynamicProjectPage projectName="nonexistent" />);
+
+      const errorMessage = container.querySelector('.text-center');
+      expect(errorMessage).toBeInTheDocument();
+    });
+  });
+
+  describe('Dynamic Tab Configuration', () => {
+    describe('Components Tab', () => {
+      it('should always include components tab', () => {
+        render(<DynamicProjectPage projectName="cis20" />);
+
+        expect(screen.getByTestId('tabs')).toHaveTextContent('components');
       });
 
-      renderWithProviders(<DynamicProjectPage projectName="cis20" />);
+      it('should have components as first tab', () => {
+        render(<DynamicProjectPage projectName="cis20" />);
+
+        const tabs = screen.getByTestId('tabs').textContent?.split(',') || [];
+        expect(tabs[0]).toBe('components');
+      });
+    });
+
+    describe('Health Tab', () => {
+      it('should include health tab when health metadata is true', () => {
+        render(<DynamicProjectPage projectName="cis20" />);
+
+        expect(screen.getByTestId('tabs')).toHaveTextContent('health');
+      });
+
+      it('should not include health tab when health metadata is false', () => {
+        render(<DynamicProjectPage projectName="platform" />);
+
+        expect(screen.getByTestId('tabs').textContent).not.toContain('health');
+      });
+
+      it('should not include health tab when health metadata is missing', () => {
+        render(<DynamicProjectPage projectName="infrastructure" />);
+
+        expect(screen.getByTestId('tabs').textContent).not.toContain('health');
+      });
+
+      it('should include health tab when health metadata exists (truthy)', () => {
+        const projectsWithHealth = [
+          {
+            id: 'proj-1',
+            name: 'test',
+            title: 'Test',
+            description: 'Test',
+            health: 'enabled', // Truthy but not boolean
+          } as any,
+        ];
+
+        vi.mocked(useProjects).mockReturnValue(projectsWithHealth);
+
+        render(<DynamicProjectPage projectName="test" />);
+
+        expect(screen.getByTestId('tabs')).toHaveTextContent('health');
+      });
+    });
+
+    describe('Alerts Tab', () => {
+      it('should include alerts tab when alerts is a non-empty string', () => {
+        render(<DynamicProjectPage projectName="cis20" />);
+
+        expect(screen.getByTestId('tabs')).toHaveTextContent('alerts');
+      });
+
+      it('should not include alerts tab when alerts is empty string', () => {
+        render(<DynamicProjectPage projectName="platform" />);
+
+        expect(screen.getByTestId('tabs').textContent).not.toContain('alerts');
+      });
+
+      it('should not include alerts tab when alerts is whitespace only', () => {
+        const projectsWithWhitespace = [
+          {
+            id: 'proj-1',
+            name: 'test',
+            title: 'Test',
+            description: 'Test',
+            alerts: '   ',
+          },
+        ];
+
+        vi.mocked(useProjects).mockReturnValue(projectsWithWhitespace);
+
+        render(<DynamicProjectPage projectName="test" />);
+
+        expect(screen.getByTestId('tabs').textContent).not.toContain('alerts');
+      });
+
+      it('should not include alerts tab when alerts is missing', () => {
+        render(<DynamicProjectPage projectName="infrastructure" />);
+
+        expect(screen.getByTestId('tabs').textContent).not.toContain('alerts');
+      });
+
+      it('should not include alerts tab when alerts is not a string', () => {
+        const projectsWithNonStringAlerts = [
+          {
+            id: 'proj-1',
+            name: 'test',
+            title: 'Test',
+            description: 'Test',
+            alerts: true, // Not a string
+          } as any,
+        ];
+
+        vi.mocked(useProjects).mockReturnValue(projectsWithNonStringAlerts);
+
+        render(<DynamicProjectPage projectName="test" />);
+
+        expect(screen.getByTestId('tabs').textContent).not.toContain('alerts');
+      });
+
+      it('should pass alerts URL to ProjectLayout when available', () => {
+        render(<DynamicProjectPage projectName="cis20" />);
+
+        expect(screen.getByTestId('alerts-url')).toHaveTextContent('https://alerts.example.com/cis20');
+      });
+
+      it('should not pass alerts URL when alerts is empty', () => {
+        render(<DynamicProjectPage projectName="platform" />);
+
+        expect(screen.getByTestId('alerts-url')).toHaveTextContent('none');
+      });
+
+      it('should not pass alerts URL when alerts is not a string', () => {
+        const projectsWithNonStringAlerts = [
+          {
+            id: 'proj-1',
+            name: 'test',
+            title: 'Test',
+            description: 'Test',
+            alerts: { url: 'test' }, // Object, not string
+          } as any,
+        ];
+
+        vi.mocked(useProjects).mockReturnValue(projectsWithNonStringAlerts);
+
+        render(<DynamicProjectPage projectName="test" />);
+
+        expect(screen.getByTestId('alerts-url')).toHaveTextContent('none');
+      });
+    });
+
+    describe('Tab Combinations', () => {
+      it('should have only components tab when no metadata', () => {
+        render(<DynamicProjectPage projectName="infrastructure" />);
+
+        expect(screen.getByTestId('tabs')).toHaveTextContent('components');
+        expect(screen.getByTestId('tabs').textContent).not.toContain('health');
+        expect(screen.getByTestId('tabs').textContent).not.toContain('alerts');
+      });
+
+      it('should have components and health tabs when only health is enabled', () => {
+        const projectsWithOnlyHealth = [
+          {
+            id: 'proj-1',
+            name: 'test',
+            title: 'Test',
+            description: 'Test',
+            health: true,
+          },
+        ];
+
+        vi.mocked(useProjects).mockReturnValue(projectsWithOnlyHealth);
+
+        render(<DynamicProjectPage projectName="test" />);
+
+        const tabs = screen.getByTestId('tabs').textContent?.split(',') || [];
+        expect(tabs).toEqual(['components', 'health']);
+      });
+
+      it('should have components and alerts tabs when only alerts is configured', () => {
+        const projectsWithOnlyAlerts = [
+          {
+            id: 'proj-1',
+            name: 'test',
+            title: 'Test',
+            description: 'Test',
+            alerts: 'https://alerts.example.com',
+          },
+        ];
+
+        vi.mocked(useProjects).mockReturnValue(projectsWithOnlyAlerts);
+
+        render(<DynamicProjectPage projectName="test" />);
+
+        const tabs = screen.getByTestId('tabs').textContent?.split(',') || [];
+        expect(tabs).toEqual(['components', 'alerts']);
+      });
+
+      it('should have all three tabs when both health and alerts are configured', () => {
+        render(<DynamicProjectPage projectName="cis20" />);
+
+        const tabs = screen.getByTestId('tabs').textContent?.split(',') || [];
+        expect(tabs).toEqual(['components', 'health', 'alerts']);
+      });
+    });
+  });
+
+  describe('Different Projects', () => {
+    it('should render correctly for cis20 project', () => {
+      render(<DynamicProjectPage projectName="cis20" />);
 
       expect(screen.getByTestId('project-name')).toHaveTextContent('CIS 2.0');
       expect(screen.getByTestId('project-id')).toHaveTextContent('cis20');
+      expect(screen.getByTestId('tabs')).toHaveTextContent('components,health,alerts');
     });
 
-    it('should be case sensitive when matching project names', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: mockProjects,
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
+    it('should render correctly for platform project', () => {
+      render(<DynamicProjectPage projectName="platform" />);
 
-      renderWithProviders(<DynamicProjectPage projectName="CIS20" />);
-
-      expect(screen.getByText(/Error: Project.*not found/)).toBeInTheDocument();
-    });
-  });
-
-  describe('Tab Configuration Logic', () => {
-    it('should add health tab when health metadata exists', () => {
-      const projectWithHealth: Project = {
-        id: '1',
-        name: 'test-project',
-        title: 'Test Project',
-        description: 'Test project with health',
-        health: { endpoint: 'https://health.test.com' }
-      };
-
-      mockUseProjectsContext.mockReturnValue({
-        projects: [projectWithHealth],
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="test-project" />);
-
-      expect(screen.getByTestId('tabs')).toHaveTextContent('["components","health"]');
+      expect(screen.getByTestId('project-name')).toHaveTextContent('Platform Services');
+      expect(screen.getByTestId('project-id')).toHaveTextContent('platform');
+      expect(screen.getByTestId('tabs')).toHaveTextContent('components');
     });
 
-    it('should add alerts tab when alerts metadata exists as string', () => {
-      const projectWithAlerts: Project = {
-        id: '1',
-        name: 'test-project',
-        title: 'Test Project',
-        description: 'Test project with alerts',
-        alerts: 'https://github.com/alerts/test'
-      };
+    it('should render correctly for infrastructure project', () => {
+      render(<DynamicProjectPage projectName="infrastructure" />);
 
-      mockUseProjectsContext.mockReturnValue({
-        projects: [projectWithAlerts],
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="test-project" />);
-
-      expect(screen.getByTestId('tabs')).toHaveTextContent('["components","alerts"]');
-      expect(screen.getByTestId('alerts-url')).toHaveTextContent('https://github.com/alerts/test');
-    });
-
-    it('should not add alerts tab when alerts is empty string', () => {
-      const projectWithEmptyAlerts: Project = {
-        id: '1',
-        name: 'test-project',
-        title: 'Test Project',
-        description: 'Test project with empty alerts',
-        alerts: ''
-      };
-
-      mockUseProjectsContext.mockReturnValue({
-        projects: [projectWithEmptyAlerts],
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="test-project" />);
-
-      expect(screen.getByTestId('tabs')).toHaveTextContent('["components"]');
-      expect(screen.getByTestId('alerts-url')).toHaveTextContent('none');
-    });
-
-    it('should not add alerts tab when alerts is only whitespace', () => {
-      const projectWithWhitespaceAlerts: Project = {
-        id: '1',
-        name: 'test-project',
-        title: 'Test Project',
-        description: 'Test project with whitespace alerts',
-        alerts: '   '
-      };
-
-      mockUseProjectsContext.mockReturnValue({
-        projects: [projectWithWhitespaceAlerts],
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="test-project" />);
-
-      expect(screen.getByTestId('tabs')).toHaveTextContent('["components"]');
-    });
-
-    it('should always include components tab as first tab', () => {
-      mockUseProjectsContext.mockReturnValue({
-        projects: mockProjects,
-        isLoading: false,
-        error: null,
-        sidebarItems: []
-      });
-
-      renderWithProviders(<DynamicProjectPage projectName="cis20" />);
-
-      const tabsText = screen.getByTestId('tabs').textContent;
-      const tabs = JSON.parse(tabsText || '[]');
-      expect(tabs[0]).toBe('components');
+      expect(screen.getByTestId('project-name')).toHaveTextContent('Infrastructure');
+      expect(screen.getByTestId('project-id')).toHaveTextContent('infrastructure');
+      expect(screen.getByTestId('tabs')).toHaveTextContent('components');
     });
   });
 
+  describe('Integration with Store', () => {
+    it('should call useProjects hook', () => {
+      render(<DynamicProjectPage projectName="cis20" />);
+
+      expect(useProjects).toHaveBeenCalled();
+    });
+
+    it('should find project by name from store', () => {
+      render(<DynamicProjectPage projectName="platform" />);
+
+      expect(screen.getByTestId('project-name')).toHaveTextContent('Platform Services');
+    });
+
+    it('should handle when projects store returns empty array', () => {
+      vi.mocked(useProjects).mockReturnValue([]);
+
+      render(<DynamicProjectPage projectName="cis20" />);
+
+      expect(screen.getByText('Error: Project cis20 not found')).toBeInTheDocument();
+    });
+  });
+
+  describe('ProjectLayout Props', () => {
+    it('should call ProjectLayout with correct props', () => {
+      render(<DynamicProjectPage projectName="cis20" />);
+
+      expect(ProjectLayout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectName: 'CIS 2.0',
+          projectId: 'cis20',
+          defaultTab: 'components',
+          tabs: ['components', 'health', 'alerts'],
+          componentsTitle: 'CIS 2.0 Components',
+          emptyStateMessage: 'No CIS 2.0 components found for this organization.',
+          system: 'cis20',
+          showLandscapeFilter: true,
+          alertsUrl: 'https://alerts.example.com/cis20',
+        }),
+        expect.anything()
+      );
+    });
+
+    it('should pass undefined alertsUrl when not configured', () => {
+      render(<DynamicProjectPage projectName="infrastructure" />);
+
+      expect(ProjectLayout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          alertsUrl: undefined,
+        }),
+        expect.anything()
+      );
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle project with no title', () => {
+      const projectsWithoutTitle = [
+        {
+          id: 'proj-1',
+          name: 'test-project',
+          description: 'Test',
+        } as any,
+      ];
+
+      vi.mocked(useProjects).mockReturnValue(projectsWithoutTitle);
+
+      render(<DynamicProjectPage projectName="test-project" />);
+
+      expect(screen.getByTestId('project-name')).toHaveTextContent('');
+    });
+
+    it('should handle project with special characters in name', () => {
+      const projectsWithSpecialChars = [
+        {
+          id: 'proj-1',
+          name: 'test-project-v2',
+          title: 'Test Project V2',
+          description: 'Test',
+        },
+      ];
+
+      vi.mocked(useProjects).mockReturnValue(projectsWithSpecialChars);
+
+      render(<DynamicProjectPage projectName="test-project-v2" />);
+
+      expect(screen.getByTestId('project-name')).toHaveTextContent('Test Project V2');
+    });
+
+    it('should be case-sensitive when matching project name', () => {
+      render(<DynamicProjectPage projectName="CIS20" />);
+
+      expect(screen.getByText('Error: Project CIS20 not found')).toBeInTheDocument();
+    });
+
+    it('should handle alerts URL with query parameters', () => {
+      const projectsWithParams = [
+        {
+          id: 'proj-1',
+          name: 'test',
+          title: 'Test',
+          description: 'Test',
+          alerts: 'https://alerts.example.com?project=test&env=prod',
+        },
+      ];
+
+      vi.mocked(useProjects).mockReturnValue(projectsWithParams);
+
+      render(<DynamicProjectPage projectName="test" />);
+
+      expect(screen.getByTestId('alerts-url')).toHaveTextContent(
+        'https://alerts.example.com?project=test&env=prod'
+      );
+    });
+
+    it('should handle very long project titles', () => {
+      const projectsWithLongTitle = [
+        {
+          id: 'proj-1',
+          name: 'test',
+          title: 'This is a very long project title that might cause layout issues',
+          description: 'Test',
+        },
+      ];
+
+      vi.mocked(useProjects).mockReturnValue(projectsWithLongTitle);
+
+      render(<DynamicProjectPage projectName="test" />);
+
+      expect(screen.getByTestId('components-title')).toHaveTextContent(
+        'This is a very long project title that might cause layout issues Components'
+      );
+    });
+  });
+
+  describe('Re-rendering', () => {
+    it('should update when projectName prop changes', () => {
+      const { rerender } = render(<DynamicProjectPage projectName="cis20" />);
+
+      expect(screen.getByTestId('project-name')).toHaveTextContent('CIS 2.0');
+
+      rerender(<DynamicProjectPage projectName="platform" />);
+
+      expect(screen.getByTestId('project-name')).toHaveTextContent('Platform Services');
+    });
+
+    it('should show error when projectName changes to non-existent project', () => {
+      const { rerender } = render(<DynamicProjectPage projectName="cis20" />);
+
+      expect(screen.getByTestId('project-layout')).toBeInTheDocument();
+
+      rerender(<DynamicProjectPage projectName="nonexistent" />);
+
+      expect(screen.getByText('Error: Project nonexistent not found')).toBeInTheDocument();
+    });
+
+    it('should update when projects in store change', () => {
+      const { rerender } = render(<DynamicProjectPage projectName="cis20" />);
+
+      expect(screen.getByTestId('project-name')).toHaveTextContent('CIS 2.0');
+
+      const updatedProjects = [
+        {
+          id: 'proj-1',
+          name: 'cis20',
+          title: 'CIS 2.0 Updated',
+          description: 'Updated',
+          health: true,
+          alerts: 'https://alerts.example.com/cis20',
+        },
+      ];
+
+      vi.mocked(useProjects).mockReturnValue(updatedProjects);
+
+      rerender(<DynamicProjectPage projectName="cis20" />);
+
+      expect(screen.getByTestId('project-name')).toHaveTextContent('CIS 2.0 Updated');
+    });
+  });
 });
