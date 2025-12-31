@@ -12,6 +12,7 @@ export type Member = {
   team?: string;
   team_id?: string; // Add team_id property for API compatibility
   uuid?: string; // Add uuid property for API operations
+  mobile?: string;
 };
 
 export type OnCallShift = {

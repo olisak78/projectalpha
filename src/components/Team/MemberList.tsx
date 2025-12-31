@@ -1,14 +1,12 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { Member as DutyMember } from "@/hooks/useOnDutyData";
 import { useState } from "react";
 import ApprovalDialog from "../dialogs/ApprovalDialog";
 import { MoveMemberDialog } from "../dialogs/MoveMemberDialog";
+import { MemberDetailsDialog, type ExtendedMember } from "../dialogs/MemberDetailsDialog";
 import { TeamColorPicker } from "./TeamColorPicker";
+import { MemberCard } from "./MemberCard";
 import { useToast } from "@/hooks/use-toast";
 import { useTeamContext } from "@/contexts/TeamContext";
 
@@ -22,8 +20,6 @@ interface MemberListProps {
   };
 }
 
-const initials = (name: string) => name.split(" ").map((n) => n[0]).slice(0, 2).join("");
-
 export function MemberList({ showActions = true, colorPickerProps }: MemberListProps) {
   const { 
     members, 
@@ -32,17 +28,24 @@ export function MemberList({ showActions = true, colorPickerProps }: MemberListP
     deleteMember, 
     moveMember, 
     openAddMember,
-    isAdmin 
+    isAdmin,
+    currentTeam
   } = useTeamContext();
   
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [isMoveConfirmDialogOpen, setIsMoveConfirmDialogOpen] = useState(false);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<DutyMember | null>(null);
   const [memberToMove, setMemberToMove] = useState<DutyMember | null>(null);
+  const [memberToView, setMemberToView] = useState<ExtendedMember | null>(null);
+  const [previousMember, setPreviousMember] = useState<ExtendedMember | null>(null);
   const [targetTeam, setTargetTeam] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  const managerMember = currentTeam?.members?.find(m => m.team_role === 'manager');
+  const manager = managerMember ? `${managerMember.first_name || ''} ${managerMember.last_name || ''}`.trim() : '';
 
   const confirmRemoveMember = () => {
     if (!memberToRemove) return;
@@ -121,6 +124,50 @@ export function MemberList({ showActions = true, colorPickerProps }: MemberListP
     setTargetTeam("");
   }
 
+  const handleViewDetails = (member: DutyMember) => {
+    // Reset navigation state when opening a new member details
+    setPreviousMember(null);
+    
+    // Convert DutyMember to ExtendedMember with sample data for missing fields
+    const extendedMember: ExtendedMember = {
+      ...member,
+      room: "", // Sample data
+      managerName:  manager || "N/A",
+      birthDate: "", // Sample data (March 15, no year)
+    };
+    
+    setMemberToView(extendedMember);
+    setIsDetailsDialogOpen(true);
+  };
+
+  const handleViewManager = (managerName: string) => {
+    // Store the current member as previous before switching to manager
+    setPreviousMember(memberToView);
+    
+    // Find the manager member by name
+    const managerMember = members.find(m => 
+      m.fullName.trim() === managerName.trim()
+    );
+    
+    if (managerMember) {
+      const extendedManagerMember: ExtendedMember = {
+        ...managerMember,
+        room: "", // Sample data
+        managerName: manager || "N/A",
+        birthDate: "", // Sample data
+      };
+      
+      setMemberToView(extendedManagerMember);
+    }
+  };
+
+  const handleGoBack = () => {
+    if (previousMember) {
+      setMemberToView(previousMember);
+      setPreviousMember(null);
+    }
+  };
+
   return (
     <section className="mr-6">
       <ApprovalDialog
@@ -153,6 +200,21 @@ export function MemberList({ showActions = true, colorPickerProps }: MemberListP
         onMove={handleMoveMemberSelection}
         isLoading={false}
       />
+
+      <MemberDetailsDialog
+        open={isDetailsDialogOpen}
+        onOpenChange={(open) => {
+          setIsDetailsDialogOpen(open);
+          if (!open) {
+            // Reset navigation state when dialog is closed
+            setPreviousMember(null);
+          }
+        }}
+        member={memberToView}
+        onViewManager={handleViewManager}
+        onGoBack={handleGoBack}
+        showBackButton={!!previousMember}
+      />
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
         <h2 className="text-lg font-semibold">Team Members</h2>
@@ -179,43 +241,16 @@ export function MemberList({ showActions = true, colorPickerProps }: MemberListP
           <p className="text-muted-foreground text-left">No members found</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {members.map((m) => (
-            <Card key={m.id}>
-              <CardHeader className="flex flex-row items-center gap-4 justify-between">
-                <div className="flex items-center gap-4">
-                  <Avatar>
-                    <AvatarImage src={m.avatar || undefined} alt={`${m.fullName} avatar`} />
-                    <AvatarFallback>{initials(m.fullName)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-base">{m.fullName}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{m.email}</p>
-                  </div>
-                </div>
-                {showActions && isAdmin && (
-                  <div className="flex items-center">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label="Actions">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="z-50">
-                        <DropdownMenuItem onClick={() => handleInitiateMove(m)}>
-                          Move to...
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Role: {m.role}</p>
-                </div>
-              </CardContent>
-            </Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 gap-4">
+          {members.map((member:DutyMember) => (
+            <MemberCard
+              key={member.id}
+              member={member}
+              showActions={showActions}
+              isAdmin={isAdmin}
+              onInitiateMove={handleInitiateMove}
+              onViewDetails={handleViewDetails}
+            />
           ))}
         </div>
       )}

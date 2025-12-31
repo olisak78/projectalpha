@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import type { ComponentHealthCheck } from '@/types/health';
 import { HealthRow } from './HealthRow';
 import { Input } from '@/components/ui/input';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -30,6 +30,14 @@ interface HealthTableProps {
   isCentralLandscape?: boolean;
 }
 
+type SortField = 'component' | 'status' | 'team';
+type SortDirection = 'asc' | 'desc' | null;
+
+interface SortState {
+  field: SortField | null;
+  direction: SortDirection;
+}
+
 export function HealthTable({
   healthChecks,
   isLoading,
@@ -51,11 +59,38 @@ export function HealthTable({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'alphabetic' | 'team'>('alphabetic');
+  const [sortState, setSortState] = useState<SortState>({ field: null, direction: null });
+
+  // Handle column header click for sorting
+  const handleSort = (field: SortField) => {
+    setSortState((prev) => {
+      if (prev.field === field) {
+        // Cycle through: asc -> desc -> null -> asc
+        if (prev.direction === 'asc') {
+          return { field, direction: 'desc' };
+        } else if (prev.direction === 'desc') {
+          return { field: null, direction: null };
+        }
+      }
+      return { field, direction: 'asc' };
+    });
+  };
+
+  // Render sort icon based on current sort state
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortState.field !== field) {
+      return <ArrowUpDown className="h-4 w-4 opacity-50" />;
+    }
+    if (sortState.direction === 'asc') {
+      return <ArrowUp className="h-4 w-4" />;
+    }
+    if (sortState.direction === 'desc') {
+      return <ArrowDown className="h-4 w-4" />;
+    }
+    return <ArrowUpDown className="h-4 w-4 opacity-50" />;
+  };
 
   const { libraryComponents, nonLibraryComponents } = useMemo(() => {
-    // Apply the same filtering logic as ProjectLayout: 
-    // If hideDownComponents is false OR landscape is central, show all components
-    // If hideDownComponents is true AND landscape is not central, hide central components
     let filteredComponents = components;
     if (hideDownComponents && !isCentralLandscape) {
       filteredComponents = components.filter(component => {
@@ -69,8 +104,8 @@ export function HealthTable({
     // Start with filtered components and create display objects
     let allComponentsWithHealth = filteredComponents.map(component => {
       const healthCheck = healthCheckMap.get(component.id);
-      
-      // If no health check exists, create a placeholder with "Not Available" status (unkwnown)
+
+      // If no health check exists, create a placeholder with "Not Available" status (unknown)
       if (!healthCheck) {
         return {
           componentId: component.id,
@@ -85,7 +120,7 @@ export function HealthTable({
           isUnsupported: true
         };
       }
-      
+
       return {
         ...healthCheck,
         isUnsupported: false
@@ -115,6 +150,57 @@ export function HealthTable({
     // Sort both arrays
     const sortComponents = (componentsArray: typeof allComponentsWithHealth) => {
       return [...componentsArray].sort((a, b) => {
+        // If manual column sort is active, use it
+        if (sortState.field && sortState.direction) {
+          let comparison = 0;
+
+          switch (sortState.field) {
+            case 'component':
+              comparison = a.componentName.localeCompare(b.componentName);
+              break;
+
+            case 'status': {
+              // Define status priority: UP < UNKNOWN < DOWN < ERROR
+              const statusPriority: Record<string, number> = {
+                'UP': 1,
+                'UNKNOWN': 2,
+                'DOWN': 3,
+                'ERROR': 4,
+              };
+              const priorityA = statusPriority[a.status] || 5;
+              const priorityB = statusPriority[b.status] || 5;
+              comparison = priorityA - priorityB;
+              break;
+            }
+
+            case 'team': {
+              const ownerIdA = componentOwnerMap[a.componentId];
+              const ownerIdB = componentOwnerMap[b.componentId];
+              const teamA = ownerIdA ? teamNamesMap[ownerIdA] || ownerIdA : 'Unassigned';
+              const teamB = ownerIdB ? teamNamesMap[ownerIdB] || ownerIdB : 'Unassigned';
+              comparison = teamA.localeCompare(teamB);
+              break;
+            }
+
+            case 'responseTime': {
+              const timeA = a.responseTime ?? Infinity;
+              const timeB = b.responseTime ?? Infinity;
+              comparison = timeA - timeB;
+              break;
+            }
+
+            case 'lastChecked': {
+              const dateA = a.lastChecked?.getTime() ?? 0;
+              const dateB = b.lastChecked?.getTime() ?? 0;
+              comparison = dateB - dateA; // Most recent first by default
+              break;
+            }
+          }
+
+          return sortState.direction === 'asc' ? comparison : -comparison;
+        }
+
+        // Otherwise, use the dropdown sort order
         if (sortOrder === 'team') {
           const ownerIdA = componentOwnerMap[a.componentId];
           const ownerIdB = componentOwnerMap[b.componentId];
@@ -131,7 +217,7 @@ export function HealthTable({
       libraryComponents: sortComponents(libraries),
       nonLibraryComponents: sortComponents(nonLibraries),
     };
-  }, [components, healthChecks, searchQuery, sortOrder, componentOwnerMap, teamNamesMap, hideDownComponents, isCentralLandscape, landscape]);
+  }, [components, healthChecks, searchQuery, sortOrder, sortState, componentOwnerMap, teamNamesMap, hideDownComponents, isCentralLandscape, landscape]);
 
   const toggleRow = (componentId: string) => {
     // No longer toggle expansion in table view
@@ -195,24 +281,60 @@ export function HealthTable({
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-gray-900">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Component
+                      {/* Component Column - Sortable */}
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                        onClick={() => handleSort('component')}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>Component</span>
+                          <SortIcon field="component" />
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Status
+
+                      {/* Status Column - Sortable */}
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                        onClick={() => handleSort('status')}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>Status</span>
+                          <SortIcon field="status" />
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+
+                      {/* Response Time Column - Sortable */}
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+
+                      >
                         Response Time
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+
+                      {/* Last Checked Column - Sortable */}
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                      >
                         Last Checked
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Team
+
+                      {/* Team Column - Sortable */}
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                        onClick={() => handleSort('team')}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>Team</span>
+                          <SortIcon field="team" />
+                        </div>
                       </th>
+
+                      {/* GitHub Column - Not Sortable */}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         GitHub
                       </th>
+
+                      {/* Sonar Column - Not Sortable */}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Sonar
                       </th>
@@ -221,7 +343,7 @@ export function HealthTable({
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                     {nonLibraryComponents.map((item) => {
                       const component = components.find(comp => comp.id === item.componentId);
-                      
+
                       return (
                         <HealthRow
                           key={item.componentId}
@@ -256,24 +378,67 @@ export function HealthTable({
                   <table className="w-full">
                     <thead className="bg-gray-50 dark:bg-gray-900">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Component
+                        {/* Component Column - Sortable */}
+                        <th
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                          onClick={() => handleSort('component')}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>Component</span>
+                            <SortIcon field="component" />
+                          </div>
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Status
+
+                        {/* Status Column - Sortable */}
+                        <th
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                          onClick={() => handleSort('status')}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>Status</span>
+                            <SortIcon field="status" />
+                          </div>
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Response Time
+
+                        {/* Response Time Column - Sortable */}
+                        <th
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                          onClick={() => handleSort('responseTime')}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>Response Time</span>
+                            <SortIcon field="responseTime" />
+                          </div>
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Last Checked
+
+                        {/* Last Checked Column - Sortable */}
+                        <th
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                          onClick={() => handleSort('lastChecked')}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>Last Checked</span>
+                            <SortIcon field="lastChecked" />
+                          </div>
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Team
+
+                        {/* Team Column - Sortable */}
+                        <th
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors select-none"
+                          onClick={() => handleSort('team')}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>Team</span>
+                            <SortIcon field="team" />
+                          </div>
                         </th>
+
+                        {/* GitHub Column - Not Sortable */}
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           GitHub
                         </th>
+
+                        {/* Sonar Column - Not Sortable */}
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           Sonar
                         </th>
@@ -282,22 +447,22 @@ export function HealthTable({
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                       {libraryComponents.map((item) => {
                         const component = components.find(comp => comp.id === item.componentId);
-                        
+
                         return (
-                        <HealthRow
-                          key={item.componentId}
-                          healthCheck={item}
-                          isExpanded={false}
-                          onToggle={() => toggleRow(item.componentId)}
-                          onComponentClick={onComponentClick}
-                          isUnsupported={item.isUnsupported}
-                          component={{
-                            ...component,
-                            title: component?.name || '',
-                            description: '',
-                            owner_id: component?.owner_id || ''
-                          }}
-                        />
+                          <HealthRow
+                            key={item.componentId}
+                            healthCheck={item}
+                            isExpanded={false}
+                            onToggle={() => toggleRow(item.componentId)}
+                            onComponentClick={onComponentClick}
+                            isUnsupported={item.isUnsupported}
+                            component={{
+                              ...component,
+                              title: component?.name || '',
+                              description: '',
+                              owner_id: component?.owner_id || ''
+                            }}
+                          />
                         );
                       })}
                     </tbody>

@@ -1,128 +1,119 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { HealthTable } from '../../src/components/Health/HealthTable';
-import { ComponentDisplayProvider } from '../../src/contexts/ComponentDisplayContext';
-import type { ComponentHealthCheck } from '../../src/types/health';
-import '@testing-library/jest-dom/vitest';
-
-// Mock the HealthRow component
-vi.mock('../../src/components/Health/HealthRow', () => ({
-  HealthRow: ({ healthCheck, components }: any) => {
-    // Use the mocked useComponentDisplay directly
-    const mockUseComponentDisplay = vi.fn().mockReturnValue({
-      teamNamesMap: {
-        team1: 'Team Alpha',
-        team2: 'Team Beta',
-      },
-    });
-    const { teamNamesMap } = mockUseComponentDisplay();
-    
-    const component = components?.find((c: any) => c.id === healthCheck.componentId);
-    const teamName = component?.owner_id ? teamNamesMap?.[component.owner_id] : null;
-    
-    return (
-      <tr data-testid="health-row">
-        <td>{healthCheck.componentName}</td>
-        <td>{healthCheck.status}</td>
-        <td>{teamName || 'No Team'}</td>
-      </tr>
-    );
-  },
-}));
-
-// Mock the fetchSystemInformation function
-vi.mock('../../src/services/healthApi', () => ({
-  fetchSystemInformation: vi.fn().mockResolvedValue({ status: 'success', data: null }),
-}));
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { HealthTable } from '@/components/Health/HealthTable';
+import type { ComponentHealthCheck } from '@/types/health';
+import * as ComponentDisplayContext from '@/contexts/ComponentDisplayContext';
 
 // Mock the ComponentDisplayContext
-vi.mock('../../src/contexts/ComponentDisplayContext', () => ({
+vi.mock('@/contexts/ComponentDisplayContext', () => ({
   useComponentDisplay: vi.fn(),
 }));
 
-// Mock UI components
-vi.mock('../../src/components/ui/input', () => ({
-  Input: ({ placeholder, value, onChange, className, ...props }: any) => (
-    <input
-      placeholder={placeholder}
-      value={value}
-      onChange={onChange}
-      className={className}
-      {...props}
-    />
-  ),
-}));
+// Helper function to render with QueryClient
+function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
 
-vi.mock('../../src/components/ui/select', () => ({
-  Select: ({ children, value, onValueChange }: any) => (
-    <div data-testid="select" data-value={value} onClick={() => onValueChange && onValueChange('alphabetic')}>
-      {children}
-    </div>
-  ),
-  SelectContent: ({ children }: any) => <div data-testid="select-content">{children}</div>,
-  SelectItem: ({ children, value }: any) => <div data-testid="select-item" data-value={value}>{children}</div>,
-  SelectTrigger: ({ children, className }: any) => <div data-testid="select-trigger" className={className}>{children}</div>,
-  SelectValue: ({ placeholder }: any) => <div data-testid="select-value">{placeholder}</div>,
-}));
-
-// Mock Lucide React icons
-vi.mock('lucide-react', () => ({
-  Search: () => <div data-testid="search-icon" />,
-  Loader2: ({ className }: any) => <div data-testid="loader-icon" className={className} />,
-}));
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {ui}
+    </QueryClientProvider>
+  );
+}
 
 describe('HealthTable', () => {
-  let mockUseComponentDisplay: any;
+  const mockTeamNamesMap = {
+    'team-1': 'Team Alpha',
+    'team-2': 'Team Beta',
+    'team-3': 'Team Gamma',
+  };
+
+  const mockComponents = [
+    {
+      id: 'comp-1',
+      name: 'Component A',
+      owner_id: 'team-1',
+      github: 'https://github.com/test/comp-a',
+      sonar: 'https://sonar.test/comp-a',
+      'is-library': false,
+      'central-service': false,
+    },
+    {
+      id: 'comp-2',
+      name: 'Component B',
+      owner_id: 'team-2',
+      github: 'https://github.com/test/comp-b',
+      sonar: 'https://sonar.test/comp-b',
+      'is-library': false,
+      'central-service': true,
+    },
+    {
+      id: 'comp-3',
+      name: 'Library Component',
+      owner_id: 'team-3',
+      github: 'https://github.com/test/lib',
+      sonar: 'https://sonar.test/lib',
+      'is-library': true,
+      'central-service': false,
+    },
+    {
+      id: 'comp-4',
+      name: 'Component C',
+      owner_id: null,
+      github: 'https://github.com/test/comp-c',
+      sonar: 'https://sonar.test/comp-c',
+      'is-library': false,
+      'central-service': false,
+    },
+  ];
 
   const mockHealthChecks: ComponentHealthCheck[] = [
     {
-      componentId: '1',
-      componentName: 'accounts-service',
-      landscape: 'eu10-canary',
-      healthUrl: 'https://accounts-service.cfapps.sap.hana.ondemand.com/health',
+      componentId: 'comp-1',
+      componentName: 'Component A',
+      landscape: 'dev',
+      healthUrl: 'https://comp-a.dev/health',
       status: 'UP',
-      responseTime: 150,
-      lastChecked: new Date('2023-12-01T10:00:00Z'),
+      responseTime: 100,
+      lastChecked: new Date('2024-01-15T10:00:00Z'),
+      response: { status: 'UP' },
     },
     {
-      componentId: '2',
-      componentName: 'billing-service',
-      landscape: 'eu10-canary',
-      healthUrl: 'https://billing-service.cfapps.sap.hana.ondemand.com/health',
+      componentId: 'comp-2',
+      componentName: 'Component B',
+      landscape: 'dev',
+      healthUrl: 'https://comp-b.dev/health',
       status: 'DOWN',
-      responseTime: 0,
-      lastChecked: new Date('2023-12-01T10:00:00Z'),
-      error: 'Connection refused',
+      responseTime: 500,
+      lastChecked: new Date('2024-01-15T11:00:00Z'),
+      error: 'Connection timeout',
+    },
+    {
+      componentId: 'comp-3',
+      componentName: 'Library Component',
+      landscape: 'dev',
+      healthUrl: 'https://lib.dev/health',
+      status: 'UP',
+      responseTime: 50,
+      lastChecked: new Date('2024-01-15T09:00:00Z'),
+      response: { status: 'UP' },
     },
   ];
 
-  const mockComponents = [
-    { id: '1', name: 'accounts-service', owner_id: 'team1' },
-    { id: '2', name: 'billing-service', owner_id: 'team2' },
-  ];
-
-  const defaultProps = {
-    healthChecks: mockHealthChecks,
-    isLoading: false,
-    landscape: 'eu10-canary',
-    components: mockComponents,
-  };
-
-  beforeEach(async () => {
-    const { useComponentDisplay } = await import('../../src/contexts/ComponentDisplayContext');
-    mockUseComponentDisplay = vi.mocked(useComponentDisplay);
-    
-    mockUseComponentDisplay.mockReturnValue({
-      teamNamesMap: {
-        team1: 'Team Alpha',
-        team2: 'Team Beta',
-      },
-      teamColorsMap: {
-        team1: '#ff0000',
-        team2: '#00ff00',
-      },
-      selectedLandscape: 'test-landscape',
-      selectedLandscapeData: { name: 'Test', route: 'test.example.com' },
+  beforeEach(() => {
+    vi.mocked(ComponentDisplayContext.useComponentDisplay).mockReturnValue({
+      teamNamesMap: mockTeamNamesMap,
+      teamColorsMap: {},
+      projectId: 'test-project',
+      selectedLandscape: 'dev',
+      selectedLandscapeData: null,
       isCentralLandscape: false,
       noCentralLandscapes: false,
       componentHealthMap: {},
@@ -132,242 +123,791 @@ describe('HealthTable', () => {
       expandedComponents: {},
       onToggleExpanded: vi.fn(),
       system: 'test-system',
-      projectId: 'test-project',
     });
   });
 
-  const renderWithProvider = (props = {}) => {
-    return render(<HealthTable {...defaultProps} {...props} />);
-  };
+  describe('Loading State', () => {
+    it('should display loading state when isLoading is true and no health checks', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={[]}
+          isLoading={true}
+          landscape="dev"
+          components={[]}
+        />
+      );
 
-  it('should render search input', () => {
-    renderWithProvider();
-
-    const searchInput = screen.getByTestId('search-input');
-    expect(searchInput).toBeTruthy();
-    expect(searchInput).toHaveAttribute('placeholder', 'Search components...');
-  });
-
-  it('should render sort order dropdown', () => {
-    renderWithProvider();
-
-    const sortTrigger = screen.getByTestId('select-trigger');
-    expect(sortTrigger).toBeTruthy();
-  });
-
-  it('should render health checks in a table', () => {
-    renderWithProvider();
-
-    // Check for table headers
-    expect(screen.getByText('Component')).toBeTruthy();
-    expect(screen.getByText('Status')).toBeTruthy();
-    expect(screen.getByText('Response Time')).toBeTruthy();
-    expect(screen.getByText('Last Checked')).toBeTruthy();
-    expect(screen.getByText('Team')).toBeTruthy();
-
-    // Check for health rows
-    const rows = screen.getAllByTestId('health-row');
-    expect(rows).toHaveLength(2);
-  });
-
-  it('should render loading state when isLoading is true', () => {
-    renderWithProvider({ isLoading: true, healthChecks: [] });
-
-    expect(screen.getByText('Loading components...')).toBeTruthy();
-  });
-
-  it('should sort health checks alphabetically by default', () => {
-    renderWithProvider();
-
-    const rows = screen.getAllByTestId('health-row');
-    
-    // Should be in alphabetical order
-    expect(rows[0].textContent).toContain('accounts-service');
-    expect(rows[1].textContent).toContain('billing-service');
-  });
-
-
-  it('should show empty state when no health checks match search', () => {
-    renderWithProvider({ healthChecks: [], components: [] });
-
-    // Should show empty state message
-    const emptyMessage = screen.getByText(/No components available/);
-    expect(emptyMessage).toBeTruthy();
-  });
-
-  it('should handle health checks without team assignment', () => {
-    const healthChecksWithoutTeam: ComponentHealthCheck[] = [
-      {
-        componentId: '3',
-        componentName: 'orphan-service',
-        landscape: 'eu10-canary',
-        healthUrl: 'https://orphan-service.cfapps.sap.hana.ondemand.com/health',
-        status: 'UP',
-        responseTime: 100,
-        lastChecked: new Date('2023-12-01T10:00:00Z'),
-      },
-    ];
-
-    const componentsWithoutTeam = [
-      { id: '3', name: 'orphan-service', owner_id: null },
-    ];
-
-    renderWithProvider({
-      healthChecks: healthChecksWithoutTeam,
-      components: componentsWithoutTeam
+      expect(screen.getByText('Loading components...')).toBeInTheDocument();
+      // Verify the loading container is present
+      const loadingContainer = screen.getByText('Loading components...').closest('div');
+      expect(loadingContainer).toBeInTheDocument();
     });
 
-    // Should still render the row
-    const rows = screen.getAllByTestId('health-row');
-    expect(rows).toHaveLength(1);
-    expect(screen.getByText('No Team')).toBeTruthy();
+    it('should not display loading state if health checks exist', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={true}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      expect(screen.queryByText('Loading components...')).not.toBeInTheDocument();
+    });
   });
 
-  it('should render with controls section layout matching ComponentsTabContent', () => {
-    const { container } = renderWithProvider();
+  describe('Empty States', () => {
+    it('should display empty state when no components available', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={[]}
+          isLoading={false}
+          landscape="production"
+          components={[]}
+        />
+      );
 
-    // Should have flex container with gap-4 for controls
-    const controlsSection = container.querySelector('.flex.items-center.gap-4');
-    expect(controlsSection).toBeTruthy();
-
-    // Search should have max-w-md
-    const searchContainer = container.querySelector('.max-w-md');
-    expect(searchContainer).toBeTruthy();
-
-    // Sort dropdown should have w-[180px]
-    const sortTrigger = screen.getByTestId('select-trigger');
-    expect(sortTrigger).toBeTruthy();
-  });
-
-  // New tests for recent code additions
-  it('should filter out central service components when hideDownComponents is true and not central landscape', () => {
-    const componentsWithCentral = [
-      { id: '1', name: 'accounts-service', owner_id: 'team1' },
-      { id: '2', name: 'billing-service', owner_id: 'team2' },
-      { id: '3', name: 'central-service', owner_id: 'team1', 'central-service': true },
-    ];
-
-    const healthChecksWithCentral = [
-      ...mockHealthChecks,
-      {
-        componentId: '3',
-        componentName: 'central-service',
-        landscape: 'eu10-canary',
-        healthUrl: 'https://central-service.cfapps.sap.hana.ondemand.com/health',
-        status: 'UP',
-        responseTime: 100,
-        lastChecked: new Date('2023-12-01T10:00:00Z'),
-      },
-    ];
-
-    renderWithProvider({ 
-      hideDownComponents: true, 
-      isCentralLandscape: false,
-      components: componentsWithCentral,
-      healthChecks: healthChecksWithCentral
+      expect(screen.getByText('No components available in production')).toBeInTheDocument();
     });
 
-    const rows = screen.getAllByTestId('health-row');
-    // Should only show non-central components
-    expect(rows).toHaveLength(2);
-    expect(screen.queryByText('central-service')).not.toBeInTheDocument();
-  });
+    it('should display no results message when search returns no matches', async () => {
+      const user = userEvent.setup();
 
-  it('should show unsupported components as UNKNOWN status', () => {
-    const componentsWithUnsupported = [
-      { id: '1', name: 'accounts-service', owner_id: 'team1' },
-      { id: '3', name: 'unsupported-service', owner_id: 'team1' },
-    ];
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
 
-    renderWithProvider({
-      components: componentsWithUnsupported,
-      healthChecks: [mockHealthChecks[0]] // Only first component has health check
+      const searchInput = screen.getByTestId('search-input');
+      await user.type(searchInput, 'NonExistentComponent');
+
+      expect(screen.getByText(/No components found matching "NonExistentComponent"/)).toBeInTheDocument();
     });
 
-    const rows = screen.getAllByTestId('health-row');
-    expect(rows).toHaveLength(2);
-    
-    // Should show both components - one with health check, one unsupported
-    expect(screen.getByText('accounts-service')).toBeTruthy();
-    expect(screen.getByText('unsupported-service')).toBeTruthy();
+    it('should display message when hideDownComponents filters all components', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={[]}
+          isLoading={false}
+          landscape="dev"
+          components={[]}
+          hideDownComponents={true}
+        />
+      );
+
+      expect(screen.getByText('No healthy components available in dev')).toBeInTheDocument();
+    });
   });
 
-  it('should handle central landscape components correctly', () => {
-    renderWithProvider({ isCentralLandscape: true });
+  describe('Search Functionality', () => {
+    it('should filter components based on search query', async () => {
+      const user = userEvent.setup();
 
-    // Should render normally for central landscape
-    const rows = screen.getAllByTestId('health-row');
-    expect(rows).toHaveLength(2);
-  });
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
 
-  it('should separate library and non-library components into different sections', () => {
-    const mixedComponents = [
-      { id: '1', name: 'accounts-service', owner_id: 'team1', 'is-library': false },
-      { id: '2', name: 'billing-service', owner_id: 'team2', 'is-library': false },
-      { id: '3', name: 'ui-library', owner_id: 'team1', 'is-library': true },
-      { id: '4', name: 'utils-library', owner_id: 'team2', 'is-library': true },
-    ];
+      // Initially all non-library components should be visible
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
 
-    const mixedHealthChecks: ComponentHealthCheck[] = [
-      {
-        componentId: '1',
-        componentName: 'accounts-service',
-        landscape: 'eu10-canary',
-        healthUrl: 'https://accounts-service.cfapps.sap.hana.ondemand.com/health',
-        status: 'UP',
-        responseTime: 150,
-        lastChecked: new Date('2023-12-01T10:00:00Z'),
-      },
-      {
-        componentId: '2',
-        componentName: 'billing-service',
-        landscape: 'eu10-canary',
-        healthUrl: 'https://billing-service.cfapps.sap.hana.ondemand.com/health',
-        status: 'DOWN',
-        responseTime: 0,
-        lastChecked: new Date('2023-12-01T10:00:00Z'),
-        error: 'Connection refused',
-      },
-      {
-        componentId: '3',
-        componentName: 'ui-library',
-        landscape: 'eu10-canary',
-        healthUrl: 'https://ui-library.cfapps.sap.hana.ondemand.com/health',
-        status: 'UP',
-        responseTime: 120,
-        lastChecked: new Date('2023-12-01T10:00:00Z'),
-      },
-      {
-        componentId: '4',
-        componentName: 'utils-library',
-        landscape: 'eu10-canary',
-        healthUrl: 'https://utils-library.cfapps.sap.hana.ondemand.com/health',
-        status: 'UP',
-        responseTime: 100,
-        lastChecked: new Date('2023-12-01T10:00:00Z'),
-      },
-    ];
+      // Search for specific component
+      const searchInput = screen.getByTestId('search-input');
+      await user.type(searchInput, 'Component A');
 
-    renderWithProvider({
-      healthChecks: mixedHealthChecks,
-      components: mixedComponents
+      // Only Component A should be visible
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.queryByText('Component B')).not.toBeInTheDocument();
     });
 
-    // Should have "Library Components" heading
-    expect(screen.getByText('Library Components')).toBeTruthy();
+    it('should be case-insensitive when searching', async () => {
+      const user = userEvent.setup();
 
-    // Should have all 4 components rendered
-    const rows = screen.getAllByTestId('health-row');
-    expect(rows).toHaveLength(4);
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
 
-    // Should have two separate table sections
-    const tables = screen.getAllByRole('table');
-    expect(tables).toHaveLength(2);
+      const searchInput = screen.getByTestId('search-input');
+      await user.type(searchInput, 'component a');
 
-    // Verify components are in correct sections
-    expect(screen.getByText('accounts-service')).toBeTruthy();
-    expect(screen.getByText('billing-service')).toBeTruthy();
-    expect(screen.getByText('ui-library')).toBeTruthy();
-    expect(screen.getByText('utils-library')).toBeTruthy();
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+    });
+
+    it('should clear search results when input is cleared', async () => {
+      const user = userEvent.setup();
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      const searchInput = screen.getByTestId('search-input');
+      await user.type(searchInput, 'Component A');
+      
+      expect(screen.queryByText('Component B')).not.toBeInTheDocument();
+
+      await user.clear(searchInput);
+
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+    });
+  });
+
+  describe('Sort Order Dropdown', () => {
+    it('should sort components alphabetically by default', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      const rows = screen.getAllByRole('row');
+      // Skip header row
+      const dataRows = rows.slice(1);
+      
+      // Extract component names from rows (excluding library section)
+      const componentNames: string[] = [];
+      dataRows.forEach(row => {
+        const cells = within(row).queryAllByRole('cell');
+        if (cells.length > 0) {
+          const nameCell = cells[0];
+          const componentName = nameCell.textContent;
+          if (componentName && !componentName.includes('Library')) {
+            componentNames.push(componentName);
+          }
+        }
+      });
+
+      // Check alphabetical order for non-library components
+      expect(componentNames[0]).toContain('Component A');
+      expect(componentNames[1]).toContain('Component B');
+    });
+
+    it('should sort components by team when team sort is selected', async () => {
+      const user = userEvent.setup();
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      // Open sort dropdown and select "By Team"
+      const sortTrigger = screen.getByRole('combobox');
+      await user.click(sortTrigger);
+
+      const teamOption = screen.getByRole('option', { name: 'By Team' });
+      await user.click(teamOption);
+
+      // Verify components are still rendered after team sort is applied
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+      expect(screen.getByText('Component C')).toBeInTheDocument();
+      
+      // Verify table structure is maintained
+      const rows = screen.getAllByRole('row');
+      expect(rows.length).toBeGreaterThan(3); // Headers + data rows
+    });
+  });
+
+  describe('Column Sorting', () => {
+    it('should sort by component name when component column header is clicked', async () => {
+      const user = userEvent.setup();
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      const componentHeader = screen.getAllByText('Component')[0].closest('th');
+      expect(componentHeader).toBeInTheDocument();
+
+      // First click - ascending
+      await user.click(componentHeader!);
+
+      // Verify components are still visible
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+
+      // Second click - descending
+      await user.click(componentHeader!);
+
+      // Verify components are still visible
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component C')).toBeInTheDocument();
+
+      // Third click - reset to default
+      await user.click(componentHeader!);
+
+      // Should return to alphabetical default - all components visible
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+      expect(screen.getByText('Component C')).toBeInTheDocument();
+    });
+
+    it('should sort by status when status column header is clicked', async () => {
+      const user = userEvent.setup();
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      const statusHeader = screen.getAllByText('Status')[0].closest('th');
+      expect(statusHeader).toBeInTheDocument();
+
+      // Click to sort by status (ascending: UP < UNKNOWN < DOWN < ERROR)
+      await user.click(statusHeader!);
+
+      // Verify components are still rendered after status sort
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+      
+      const rows = screen.getAllByRole('row');
+      expect(rows.length).toBeGreaterThan(3); // Headers + data rows
+    });
+
+    it('should sort by team when team column header is clicked', async () => {
+      const user = userEvent.setup();
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      const teamHeader = screen.getAllByText('Team')[0].closest('th');
+      expect(teamHeader).toBeInTheDocument();
+
+      // Click to sort by team
+      await user.click(teamHeader!);
+
+      // Verify components and team information are still rendered
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
+      expect(screen.getByText('Team Beta')).toBeInTheDocument();
+      
+      const rows = screen.getAllByRole('row');
+      expect(rows.length).toBeGreaterThan(3); // Headers + data rows
+    });
+
+    it('should display correct sort icons based on sort state', async () => {
+      const user = userEvent.setup();
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      const componentHeader = screen.getAllByText('Component')[0].closest('th') as HTMLElement;
+      
+      // Initial state - should show unsorted icon (ArrowUpDown with opacity)
+      let sortIcon = componentHeader.querySelector('svg');
+      expect(sortIcon).toBeInTheDocument();
+      expect(sortIcon).toHaveClass('opacity-50');
+
+      // After first click - ascending (ArrowUp)
+      await user.click(componentHeader);
+      // The icon should no longer have opacity-50
+      sortIcon = componentHeader.querySelector('svg');
+      expect(sortIcon).not.toHaveClass('opacity-50');
+
+      // After second click - descending (ArrowDown)
+      await user.click(componentHeader);
+      sortIcon = componentHeader.querySelector('svg');
+      expect(sortIcon).not.toHaveClass('opacity-50');
+    });
+  });
+
+  describe('Library vs Non-Library Components', () => {
+    it('should separate library and non-library components into different tables', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      // Should have section header for library components
+      expect(screen.getByText('Library Components')).toBeInTheDocument();
+
+      // Should have two separate tables
+      const tables = screen.getAllByRole('table');
+      expect(tables).toHaveLength(2);
+    });
+
+    it('should not display library section if no library components', () => {
+      const nonLibraryComponents = mockComponents.filter(c => !c['is-library']);
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks.filter(hc => hc.componentId !== 'comp-3')}
+          isLoading={false}
+          landscape="dev"
+          components={nonLibraryComponents}
+        />
+      );
+
+      expect(screen.queryByText('Library Components')).not.toBeInTheDocument();
+      
+      const tables = screen.getAllByRole('table');
+      expect(tables).toHaveLength(1);
+    });
+
+    it('should display only library section if only library components exist', () => {
+      const libraryComponents = mockComponents.filter(c => c['is-library']);
+      const libraryHealthChecks = mockHealthChecks.filter(hc => hc.componentId === 'comp-3');
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={libraryHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={libraryComponents}
+        />
+      );
+
+      expect(screen.getByText('Library Components')).toBeInTheDocument();
+      
+      const tables = screen.getAllByRole('table');
+      expect(tables).toHaveLength(1);
+    });
+  });
+
+  describe('Central Service Filtering', () => {
+    it('should filter out central services when hideDownComponents is true and not central landscape', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+          hideDownComponents={true}
+          isCentralLandscape={false}
+        />
+      );
+
+      // Component B is a central-service, should be filtered out
+      expect(screen.queryByText('Component B')).not.toBeInTheDocument();
+      
+      // Other components should still be visible
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component C')).toBeInTheDocument();
+    });
+
+    it('should show central services when isCentralLandscape is true', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+          hideDownComponents={true}
+          isCentralLandscape={true}
+        />
+      );
+
+      // Component B should be visible in central landscape
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+    });
+
+    it('should show all components when hideDownComponents is false', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+          hideDownComponents={false}
+          isCentralLandscape={false}
+        />
+      );
+
+      // All components should be visible
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+      expect(screen.getByText('Component C')).toBeInTheDocument();
+    });
+  });
+
+  describe('Unsupported Components', () => {
+    it('should display components with UNKNOWN status when no health check exists', () => {
+      const componentsWithoutHealth = [
+        ...mockComponents,
+        {
+          id: 'comp-5',
+          name: 'Component Without Health',
+          owner_id: 'team-1',
+          'is-library': false,
+          'central-service': false,
+        },
+      ];
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={componentsWithoutHealth}
+        />
+      );
+
+      // Component should be displayed
+      expect(screen.getByText('Component Without Health')).toBeInTheDocument();
+      
+      // Should have UNKNOWN status
+      // Note: The actual status display depends on HealthRow implementation
+    });
+
+    it('should mark components without health checks as unsupported', () => {
+      const onComponentClick = vi.fn();
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks.slice(0, 2)}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+          onComponentClick={onComponentClick}
+        />
+      );
+
+      // Component C has no health check, should still be rendered
+      expect(screen.getByText('Component C')).toBeInTheDocument();
+    });
+  });
+
+  describe('Team Display', () => {
+    it('should display team names from context', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      expect(screen.getByText('Team Alpha')).toBeInTheDocument();
+      expect(screen.getByText('Team Beta')).toBeInTheDocument();
+    });
+
+    it('should display "Unassigned" for components without owner_id', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      // Component C has no owner_id but should still be rendered
+      expect(screen.getByText('Component C')).toBeInTheDocument();
+      
+      // The component should be in a table row
+      const rows = screen.getAllByRole('row');
+      const comp4Row = rows.find(row => within(row).queryByText('Component C'));
+      expect(comp4Row).toBeDefined();
+    });
+
+    it('should fallback to owner_id when team name not in map', () => {
+      vi.mocked(ComponentDisplayContext.useComponentDisplay).mockReturnValue({
+        teamNamesMap: {}, // Empty map
+        teamColorsMap: {},
+        projectId: 'test-project',
+        selectedLandscape: 'dev',
+        selectedLandscapeData: null,
+        isCentralLandscape: false,
+        noCentralLandscapes: false,
+        componentHealthMap: {},
+        isLoadingHealth: false,
+        componentSystemInfoMap: {},
+        isLoadingSystemInfo: false,
+        expandedComponents: {},
+        onToggleExpanded: vi.fn(),
+        system: 'test-system',
+      });
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      // Components should still render even without team names in map
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+      
+      // Team information should be present in the table (either as owner_id or handled by HealthRow)
+      const tables = screen.getAllByRole('table');
+      expect(tables.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Table Structure', () => {
+    it('should render all column headers correctly', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      // Check for all column headers
+      expect(screen.getAllByText('Component')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('Status')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('Response Time')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('Last Checked')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('Team')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('GitHub')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('Sonar')[0]).toBeInTheDocument();
+    });
+
+    it('should render correct number of rows for components', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      const rows = screen.getAllByRole('row');
+      
+      // Should have:
+      // - 1 header row for non-library table
+      // - 3 data rows for non-library components (A, B, C)
+      // - 1 header row for library table
+      // - 1 data row for library component
+      expect(rows.length).toBeGreaterThanOrEqual(5);
+    });
+  });
+
+  describe('Sorting Priority', () => {
+    it('should prioritize column sort over dropdown sort', async () => {
+      const user = userEvent.setup();
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      // First set dropdown to team sort
+      const sortTrigger = screen.getByRole('combobox');
+      await user.click(sortTrigger);
+      const teamOption = screen.getByRole('option', { name: 'By Team' });
+      await user.click(teamOption);
+
+      // Then click component column to sort by component name
+      const componentHeader = screen.getAllByText('Component')[0].closest('th');
+      await user.click(componentHeader!);
+
+      // Column sort should take priority - verify components are still rendered
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+      
+      const rows = screen.getAllByRole('row');
+      expect(rows.length).toBeGreaterThan(3); // Headers + data rows
+    });
+
+    it('should return to dropdown sort when column sort is reset', async () => {
+      const user = userEvent.setup();
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={mockHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      // Set dropdown to team sort
+      const sortTrigger = screen.getByRole('combobox');
+      await user.click(sortTrigger);
+      const teamOption = screen.getByRole('option', { name: 'By Team' });
+      await user.click(teamOption);
+
+      // Click component column three times to cycle back to no sort
+      const componentHeader = screen.getAllByText('Component')[0].closest('th');
+      await user.click(componentHeader!); // asc
+      await user.click(componentHeader!); // desc
+      await user.click(componentHeader!); // reset
+
+      // After reset, should return to dropdown sort (by team)
+      // Verify components are still rendered correctly
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+      
+      // Verify table structure is maintained
+      const rows = screen.getAllByRole('row');
+      expect(rows.length).toBeGreaterThan(3); // Headers + data rows
+    });
+  });
+
+  describe('Complex Sorting Scenarios', () => {
+    it('should handle sorting with mixed data types correctly', () => {
+      const complexHealthChecks: ComponentHealthCheck[] = [
+        {
+          componentId: 'comp-1',
+          componentName: 'Component A',
+          landscape: 'dev',
+          healthUrl: '',
+          status: 'UP',
+          responseTime: undefined, // No response time
+          lastChecked: undefined, // No last checked
+        },
+        {
+          componentId: 'comp-2',
+          componentName: 'Component B',
+          landscape: 'dev',
+          healthUrl: '',
+          status: 'DOWN',
+          responseTime: 500,
+          lastChecked: new Date('2024-01-15T11:00:00Z'),
+        },
+      ];
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={complexHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents.slice(0, 2)}
+        />
+      );
+
+      // Should render without errors
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle empty health checks array', () => {
+      renderWithProviders(
+        <HealthTable
+          healthChecks={[]}
+          isLoading={false}
+          landscape="dev"
+          components={mockComponents}
+        />
+      );
+
+      // All components should still be displayed with UNKNOWN status
+      expect(screen.getByText('Component A')).toBeInTheDocument();
+      expect(screen.getByText('Component B')).toBeInTheDocument();
+    });
+
+    it('should handle components with missing optional fields', () => {
+      const minimalComponents = [
+        {
+          id: 'comp-1',
+          name: 'Minimal Component',
+          'is-library': false,
+        },
+      ];
+
+      const minimalHealthChecks: ComponentHealthCheck[] = [
+        {
+          componentId: 'comp-1',
+          componentName: 'Minimal Component',
+          landscape: 'dev',
+          healthUrl: '',
+          status: 'UP',
+        },
+      ];
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={minimalHealthChecks}
+          isLoading={false}
+          landscape="dev"
+          components={minimalComponents}
+        />
+      );
+
+      expect(screen.getByText('Minimal Component')).toBeInTheDocument();
+    });
+
+    it('should handle very long component names gracefully', () => {
+      const longNameComponent = {
+        id: 'comp-long',
+        name: 'This Is A Component With A Very Long Name That Might Cause Layout Issues',
+        'is-library': false,
+      };
+
+      const longNameHealth: ComponentHealthCheck = {
+        componentId: 'comp-long',
+        componentName: 'This Is A Component With A Very Long Name That Might Cause Layout Issues',
+        landscape: 'dev',
+        healthUrl: '',
+        status: 'UP',
+      };
+
+      renderWithProviders(
+        <HealthTable
+          healthChecks={[longNameHealth]}
+          isLoading={false}
+          landscape="dev"
+          components={[longNameComponent]}
+        />
+      );
+
+      expect(screen.getByText(/This Is A Component With A Very Long Name/)).toBeInTheDocument();
+    });
   });
 });

@@ -11,6 +11,7 @@ const staticRouteToProjectMap: Record<string, string> = {
   "/links": "Links",
   "/self-service": "Self Service",
   "/ai-arena": "AI Arena",
+  "/plugin-marketplace": "Plugin Marketplace",  
 };
 
 const staticProjectToRouteMap: Record<string, string> = {
@@ -19,6 +20,7 @@ const staticProjectToRouteMap: Record<string, string> = {
   "Self Service": "/self-service",
   "Links": "/links",
   "AI Arena": "/ai-arena",
+  "Plugin Marketplace": "/plugin-marketplace",
 };
 
 export const PortalContainer: React.FC = () => {

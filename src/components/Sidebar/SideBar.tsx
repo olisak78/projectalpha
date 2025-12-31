@@ -8,14 +8,14 @@ import { UnifiedServicesIcon } from '../icons/UnifiedServiceIcon';
 import { buildJiraFeedbackUrl } from '@/lib/utils';
 import { useProjects, useSidebarItems, useProjectsLoading } from '@/stores/projectsStore';
 import { usePlugins } from '@/hooks/api/usePlugins';
+import { isProduction } from '@/utils/environment';
+
 
 interface SideBarProps {
     activeProject: string;
     onProjectChange: (project: string) => void;
     projects?: string[];
 }
-
-const isProduction = import.meta.env.PROD;
 
 // Map project name to icon
 const getProjectIcon = (project: string, projectsData: any[]) => {
@@ -25,6 +25,7 @@ const getProjectIcon = (project: string, projectsData: any[]) => {
         case 'Self Service': return <Wrench size={16} />;
         case 'Links': return <Link size={16} />;
         case 'AI Arena': return <Brain size={16} />;
+        case 'Plugin Marketplace': return <Store size={16} />;
         default: break;
     }
 
@@ -93,14 +94,21 @@ export const SideBar: React.FC<SideBarProps> = ({ activeProject, onProjectChange
         };
     }, []);
 
-    const isProjectVisibleInSidebar = (project: string, projectsData: any[]) => {
-        if (project === 'Plugins' && isProduction) {
-            return false;
-        }
-        const staticProjects = ['Home', 'Teams', 'Self Service', 'Links', 'Plugins', 'Plugin Marketplace', 'AI Arena'];
-        if (staticProjects.includes(project)) {
-            return true;
-        }
+   const isProjectVisibleInSidebar = (project: string, projectsData: any[]) => {
+    // Hide Plugins in production
+    if (project === 'Plugins' && isProduction()) {  // ← Fixed: isProduction()
+        return false;
+    }
+    
+    // Hide Plugin Marketplace in production (dev-only feature)
+    if (project === 'Plugin Marketplace' && isProduction()) {  // ← New check
+        return false;
+    }
+    
+    const staticProjects = ['Home', 'Teams', 'Self Service', 'Links', 'Plugins', 'Plugin Marketplace', 'AI Arena'];
+    if (staticProjects.includes(project)) {
+        return true;
+    }
 
         const dynamicProject = projectsData.find((p: any) => p.name === project || p.title === project);
         if (dynamicProject) {

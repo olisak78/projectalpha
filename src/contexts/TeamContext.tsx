@@ -137,8 +137,10 @@ export function TeamProvider({
 
   // Convert team members to the expected format
   const initialMembers = React.useMemo(() => {
-    if (!teamData?.members) return [];
-    return teamData.members.map((teamMember) => ({
+    // Always return empty array if no team data or if team is loading
+    if (!teamData?.members || teamLoading) return [];
+    
+    const members = teamData.members.map((teamMember) => ({
       id: teamMember.id,
       fullName: `${teamMember.first_name} ${teamMember.last_name}`.trim() || teamMember.email || "Unknown",
       email: teamMember.email || "",
@@ -146,8 +148,30 @@ export function TeamProvider({
       iuser: (teamMember as any).iuser || "",
       team: teamName,
       uuid: teamMember.uuid, // Preserve the UUID for API operations
+      mobile: teamMember.mobile || "", // Include mobile if available
     }));
-  }, [teamData?.members, teamName]);
+
+    // Sort members by role priority: manager first, SCM second, then others
+    return members.sort((a, b) => {
+      // Define role priority: manager = 1, SCM = 2, others = 3
+      const getRolePriority = (role: string | undefined) => {
+        if (role === 'manager') return 1;
+        if (role === 'scm') return 2;
+        return 3;
+      };
+      
+      const priorityA = getRolePriority(a.role);
+      const priorityB = getRolePriority(b.role);
+      
+      // Sort by priority (ascending), then by name for same priority
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      // If same priority, sort alphabetically by full name
+      return a.fullName.localeCompare(b.fullName);
+    });
+  }, [teamData?.members, teamName, teamLoading]);
 
   // Initialize hooks with team-specific data
   const userManagement = useUserManagement({

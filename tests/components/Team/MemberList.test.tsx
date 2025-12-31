@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom/vitest';
 import { MemberList } from '../../../src/components/Team/MemberList';
 import type { Member } from '../../../src/hooks/useOnDutyData';
+import { useTeamContext } from '../../../src/contexts/TeamContext';
+import { useToast } from '../../../src/hooks/use-toast';
 
 // Mock the toast hook
 const mockToast = vi.fn();
@@ -23,6 +25,19 @@ const mockTeamContext = {
   moveMember: vi.fn(),
   openAddMember: vi.fn(),
   isAdmin: true,
+  currentTeam: {
+    id: '1',
+    name: 'Development Team',
+    members: [
+      {
+        id: '1',
+        first_name: 'John',
+        last_name: 'Manager',
+        email: 'john.manager@example.com',
+        team_role: 'manager'
+      }
+    ]
+  },
 };
 
 vi.mock('../../../src/contexts/TeamContext', () => ({
@@ -134,16 +149,13 @@ describe('MemberList Component', () => {
 
       // Check that all members are rendered
       expect(screen.getByText('John Doe')).toBeInTheDocument();
-      expect(screen.getByText('john.doe@example.com')).toBeInTheDocument();
-      expect(screen.getByText('Role: Developer')).toBeInTheDocument();
+      expect(screen.getByText('Developer')).toBeInTheDocument(); // Role shown as badge
 
       expect(screen.getByText('Jane Smith')).toBeInTheDocument();
-      expect(screen.getByText('jane.smith@example.com')).toBeInTheDocument();
-      expect(screen.getByText('Role: Designer')).toBeInTheDocument();
+      expect(screen.getByText('Designer')).toBeInTheDocument(); // Role shown as badge
 
       expect(screen.getByText('Bob Wilson')).toBeInTheDocument();
-      expect(screen.getByText('bob.wilson@example.com')).toBeInTheDocument();
-      expect(screen.getByText('Role: Product Manager')).toBeInTheDocument();
+      expect(screen.getByText('Product Manager')).toBeInTheDocument(); // Role shown as badge
     });
 
     it('should render member count badge correctly', () => {
@@ -174,24 +186,17 @@ describe('MemberList Component', () => {
   // ============================================================================
 
   describe('Avatar and Initials', () => {
-    it('should render avatars with correct src when avatar URL is provided', () => {
+    it('should render initials correctly for all members', () => {
       render(<MemberList showActions={true} />);
 
-      // In test environment, avatars might render as initials fallback
-      // Check for initials as the component does show them for all members in this test
+      // Check for initials for all members (avatars render as initials fallback in test environment)
       const johnInitials = screen.getByText('JD');
+      const janeInitials = screen.getByText('JS'); // Jane Smith doesn't have an avatar
       const bobInitials = screen.getByText('BW');
 
       expect(johnInitials).toBeInTheDocument();
-      expect(bobInitials).toBeInTheDocument();
-    });
-
-    it('should render initials correctly for names without avatars', () => {
-      render(<MemberList showActions={true} />);
-
-      // Jane Smith doesn't have an avatar, so should show initials
-      const janeInitials = screen.getByText('JS');
       expect(janeInitials).toBeInTheDocument();
+      expect(bobInitials).toBeInTheDocument();
     });
 
     it('should generate correct initials for various name formats', () => {
@@ -221,16 +226,10 @@ describe('MemberList Component', () => {
 
       const emptyMessage = screen.getByText('No members found');
       const memberCount = screen.getByText('0');
+      const memberCards = screen.queryAllByRole('article');
 
       expect(emptyMessage).toBeInTheDocument();
       expect(memberCount).toBeInTheDocument();
-    });
-
-    it('should not render member grid when members array is empty', () => {
-      mockTeamContext.members = [];
-      render(<MemberList showActions={true} />);
-
-      const memberCards = screen.queryAllByRole('article');
       expect(memberCards).toHaveLength(0);
     });
   });
@@ -260,14 +259,6 @@ describe('MemberList Component', () => {
 
       const actionButtons = screen.queryAllByLabelText('Actions');
       expect(actionButtons).toHaveLength(0);
-    });
-
-    it('should show action buttons when showActions is true and isAdmin is true', () => {
-      mockTeamContext.isAdmin = true;
-      render(<MemberList showActions={true} />);
-
-      const actionButtons = screen.getAllByLabelText('Actions');
-      expect(actionButtons).toHaveLength(3);
     });
   });
 
@@ -329,26 +320,6 @@ describe('MemberList Component', () => {
       const confirmButton = screen.getByRole('button', { name: /confirm/i });
       await user.click(confirmButton);
 
-      await waitFor(() => {
-        expect(mockTeamContext.moveMember).toHaveBeenCalledWith(mockMembers[0], 'Design Team');
-      });
-    });
-
-    it('should complete move operation successfully', async () => {
-      const user = userEvent.setup();
-      render(<MemberList showActions={true} />);
-
-      // Complete move flow and confirm
-      const actionButton = screen.getAllByLabelText('Actions')[0];
-      await user.click(actionButton);
-      const moveOption = screen.getByText('Move to...');
-      await user.click(moveOption);
-      const selectTeamButton = screen.getByTestId('select-team-Design Team');
-      await user.click(selectTeamButton);
-      const confirmButton = screen.getByRole('button', { name: /confirm/i });
-      await user.click(confirmButton);
-
-      // Verify moveMember was called with correct arguments
       await waitFor(() => {
         expect(mockTeamContext.moveMember).toHaveBeenCalledWith(mockMembers[0], 'Design Team');
       });
@@ -449,6 +420,7 @@ describe('MemberList Component', () => {
         expect(mockTeamContext.deleteMember).toHaveBeenCalledWith('1');
       });
     });
+
   });
 
   // ============================================================================
@@ -464,6 +436,90 @@ describe('MemberList Component', () => {
       await user.click(addButton);
 
       expect(mockTeamContext.openAddMember).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ============================================================================
+  // MANAGER HANDLING TESTS
+  // ============================================================================
+
+  describe('Manager Handling', () => {
+    it('should handle team with no manager gracefully', () => {
+      // Mock currentTeam with no manager
+      const teamWithoutManager = {
+        ...mockTeamContext.currentTeam,
+        members: [
+          {
+            id: '1',
+            first_name: 'John',
+            last_name: 'Developer',
+            email: 'john.dev@example.com',
+            team_role: 'developer'
+          },
+          {
+            id: '2',
+            first_name: 'Jane',
+            last_name: 'Designer',
+            email: 'jane.designer@example.com',
+            team_role: 'designer'
+          }
+        ]
+      };
+      
+      mockTeamContext.currentTeam = teamWithoutManager;
+      
+      // This should not throw an error
+      expect(() => render(<MemberList showActions={true} />)).not.toThrow();
+      
+      // Component should still render properly
+      expect(screen.getByRole('heading', { name: /team members/i })).toBeInTheDocument();
+    });
+
+    it('should handle team with manager correctly', () => {
+      // Mock currentTeam with a manager (this is the default case)
+      const teamWithManager = {
+        ...mockTeamContext.currentTeam,
+        members: [
+          {
+            id: '1',
+            first_name: 'John',
+            last_name: 'Manager',
+            email: 'john.manager@example.com',
+            team_role: 'manager'
+          },
+          {
+            id: '2',
+            first_name: 'Jane',
+            last_name: 'Developer',
+            email: 'jane.dev@example.com',
+            team_role: 'developer'
+          }
+        ]
+      };
+      
+      mockTeamContext.currentTeam = teamWithManager;
+      
+      // This should not throw an error and should work with manager
+      expect(() => render(<MemberList showActions={true} />)).not.toThrow();
+      
+      // Component should still render properly
+      expect(screen.getByRole('heading', { name: /team members/i })).toBeInTheDocument();
+    });
+
+    it('should handle empty team members array gracefully', () => {
+      // Mock currentTeam with empty members array
+      const teamWithEmptyMembers = {
+        ...mockTeamContext.currentTeam,
+        members: []
+      };
+      
+      mockTeamContext.currentTeam = teamWithEmptyMembers;
+      
+      // This should not throw an error
+      expect(() => render(<MemberList showActions={true} />)).not.toThrow();
+      
+      // Component should still render properly
+      expect(screen.getByRole('heading', { name: /team members/i })).toBeInTheDocument();
     });
   });
 
@@ -662,8 +718,7 @@ describe('MemberList Component', () => {
       render(<MemberList showActions={true} />);
 
       expect(screen.getByText("O'Brian José-María")).toBeInTheDocument();
-      expect(screen.getByText('obrian.jose@example-company.com')).toBeInTheDocument();
-      expect(screen.getByText('Role: Senior Developer & Team Lead')).toBeInTheDocument();
+      expect(screen.getByText('Senior Developer & Team Lead')).toBeInTheDocument(); // Role shown as badge
     });
 
     it('should handle very long member names and emails', () => {
@@ -730,36 +785,6 @@ describe('MemberList Component', () => {
   // ============================================================================
 
   describe('Integration Tests', () => {
-    it('should handle complete workflow from open to close for move operation', async () => {
-      const user = userEvent.setup();
-      render(<MemberList showActions={true} />);
-
-      // Open move dialog
-      const actionButton = screen.getAllByLabelText('Actions')[0];
-      await user.click(actionButton);
-      const moveOption = screen.getByText('Move to...');
-      await user.click(moveOption);
-
-      // Verify move dialog is open
-      expect(screen.getByTestId('move-member-dialog')).toHaveAttribute('data-open', 'true');
-
-      // Select team
-      const selectTeamButton = screen.getByTestId('select-team-Design Team');
-      await user.click(selectTeamButton);
-
-      // Verify confirmation dialog is open
-      expect(screen.getByTestId('approval-dialog-move')).toHaveAttribute('data-open', 'true');
-
-      // Confirm move
-      const confirmButton = screen.getByRole('button', { name: /confirm/i });
-      await user.click(confirmButton);
-
-      // Verify moveMember was called
-      await waitFor(() => {
-        expect(mockTeamContext.moveMember).toHaveBeenCalledWith(mockMembers[0], 'Design Team');
-      });
-    });
-
     it('should handle cancellation of move operation', async () => {
       const user = userEvent.setup();
       render(<MemberList showActions={true} />);

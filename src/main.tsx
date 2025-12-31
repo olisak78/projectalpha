@@ -5,6 +5,8 @@ import './index.css'
 // Initialize Prism for syntax highlighting
 import './lib/prism-languages';
 import { initializeThemeListener } from './stores/themeStore.ts';
+import React from 'react';
+window.React = React;
 
 // Polyfill Buffer for browser compatibility (needed by swagger-ui-react)
 window.Buffer = Buffer;

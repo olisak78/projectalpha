@@ -35,6 +35,7 @@ const STATIC_SIDEBAR_ITEMS = [
   // Projects will be inserted here
   'Links',
   'Self Service',
+  'Plugin Marketplace',
   'AI Arena'
 ];
 

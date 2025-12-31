@@ -30,7 +30,6 @@ const routeConfigs: RouteConfig[] = [
   { label: 'Backstage Services', path: '/backstage-services', parent: '/' },
   { label: 'AI Arena', path: '/ai-arena', parent: '/' },
   { label: 'Plugin Marketplace', path: '/plugin-marketplace', parent: '/' },
-  { label: 'Plugins', path: '/plugins', parent: '/' },
 ];
 
 // Create a map for quick lookups
